@@ -317,6 +317,85 @@ sukses (peringatan chunk-size lama); `vite preview` HTTP 200;
 `npm run check:structure` **0 FAIL**. Yang tetap belum terverifikasi:
 visual di browser sungguhan + mode Real end-to-end (lihat §6).
 
-**Sisa:** R9.5 (10 halaman besar di atas batas keras — ekstraksi tab/modal,
-kontrak §4) dan R9.6 (verifikasi akhir) — R9.5 masih Todo di Linear
-(FAT-39).
+**Sisa:** R9.6 (verifikasi akhir) — R9.5 selesai 2026-11-16 malam, lihat §11.
+
+## 11. Refactoring R9.5 — ekstraksi 11 halaman/tab-modal (2026-11-16)
+
+Rencana `/tmp/r95-plan.md` (§0–§15) dieksekusi penuh, satu file per langkah
+dalam urutan §13, tiap file diverifikasi hijau (tsc 0 + `npm test` penuh)
+sebelum file berikutnya dimulai. Total **9.576 → 2.269 baris** (11 file
+sumber), **97 file baru** (hook + komponen + 2 helper), semua page kini
+≤ lunak 400. Tidak ada perubahan permukaan publik; perilaku dipertahankan
+verbatim kecuali keputusan §0 dan perbaikan yang dicatat di bawah.
+
+| # | File | Sebelum → sesudah | File baru | Commit lokal |
+|---|---|---|---|---|
+| 1 | `src/utils/historicalExport.ts` | 618 → 10 (barrel) | 8 (`utils/historicalExport/*`) | `8d45399` |
+| 2 | `features/analytics/OeeAnalyticsPage.tsx` | 593 → 143 | 5 | `7dc33fc` (+ fixup `f3202a3`) |
+| 3 | `features/monitoring/OperationalEventsPage.tsx` | 610 → 234 | 4 | `5509650` (+ fixup `87f5ae0`) |
+| 4 | `features/assets/DevicesPage.tsx` | 652 → 221 | 4 | `68e702e` |
+| 5 | `features/production/OperatorsPage.tsx` | 1.012 → 228 | 9 | `fb982f7` |
+| 6 | `features/assets/MachinesPage.tsx` | 884 → 273 | 8 + `MachineDetailModal` dipindah ke `components/` | `f212cdf` |
+| 7 | `features/analytics/TelemetryHistoryPage.tsx` | 862 → 213 | 9 | `8e5c1ea` |
+| 8 | `features/production/WorkOrdersPage.tsx` | 859 → 189 | 8 | `6c86258` |
+| 9 | `features/mqtt/BrokerConfigManagerPage.tsx` | 627 → 233 | 8 | `123e6f2` |
+| 10 | `features/mqtt/DynamicSecurityPage.tsx` | 858 → 219 | 12 | `dd796bf` |
+| 11 | `features/system/AccessControlPage.tsx` | 2.001 → 306 | 22 (6 hook + 14 komponen + 2 helper) | `860319f` |
+
+**Keputusan pola §0 yang diterapkan di semua file:** form state milik modal
+(page/hook hanya open flag + target); submit error milik modal (modal
+memanggil `onSubmit(payload): Promise` dan memetakan error sendiri);
+feedback disatukan ke satu objek `FeedbackState` ala Machines; per-row
+`checkCapability` dipassing sebagai fungsi (bukan boolean precompute, bukan
+`useAuth()` kedua di tabel); delete membersihkan (cross-clear) modal detail
+yang terbuka. Pengecualian yang dicatat: state form Bind (8 field) tetap di
+`useRolePermissions` — kedua opener + 8 state HARUS dalam satu hook agar
+locked side tidak desync (rencana §6.4); `onClose` bind modal Machines kini
+membersihkan kedua target (perbaikan bug laten).
+
+**Kode mati yang dihapus:** `visibleWorkOrders` (L409–413, no-op) +
+destructure `products` yang tidak dipakai di `WorkOrdersPage`. Yang TIDAK
+dihapus sesuai aturan: 3 fungsi tanpa pemanggil produksi (tetap
+di-re-export); builder endpoint `historicalExport` TIDAK didelegasikan ke
+registry (langkah terpisah setelah split).
+
+**Perbaikan perilaku yang disengaja (bukan sekadar pindah kode):**
+- **OeeAnalyticsPage:** rencana §10.4 salah mendeskripsikan sumber — Refresh
+  asli me-refetch KEENAM query (termasuk `shiftSummaryQuery` +
+  `downtimeOverlayQuery`); dikembalikan verbatim (fixup `f3202a3`).
+- **OperationalEventsPage:** `ackNote` modal sempat di-prefill dari
+  `target.ack_note`; sumber asli selalu mulai `''` — dikembalikan (fixup
+  `87f5ae0`).
+- **DynamicSecurityPage:** bug stale-closure `loadAll` diperbaiki (default
+  form pindah ke modal, loader hanya memuat 3 list); secret MQTT one-time
+  di-WIPE (`null`) saat modal ditutup, bukan disembunyikan; 5 mutasi inline
+  tanpa error handling (`deleteRole`, `removeAcl`, `deleteGroup`,
+  `addGroupClient`, `addGroupRole`) diarahkan lewat named handler dengan
+  try/catch + feedback. TIDAK ditambah konfirmasi delete (di luar lingkup).
+- **WorkOrdersPage:** tombol Tutup modal detail kini memakai satu `onClose`
+  (`closeDetail`) — tidak teramati, karena `handleOpenDetail` selalu me-reset
+  resolve state di setiap bukaan.
+- Pesan validasi submit kini tampil inline di modal (teks sama persis);
+  kegagalan API tetap juga men-set banner feedback (preseden `useDevices`).
+
+**Yang TIDAK dilakukan:** tidak ada test colocated baru; tidak ada file
+shared baru selain `features/system/iamValidation.ts`
+(`parseAbacCondition`, `validateRoleLevelDesc` — menggantikan ABAC parse
+×3 + validasi role ×2) dan `features/system/accessControlTypes.ts`
+(`IamTab` di satu tempat); tidak ada `useCursorPagination` / `useFeedback`
+bersama (kandidat §12.2 diputuskan tidak dibuat); `isProtectedOperator(op)`
+ditambahkan sebagai ekspor aditif di `utils/capabilities.ts`.
+
+**Verifikasi akhir (setelah file ke-11):** `npx tsc --noEmit` **0 error**;
+`npm test` **76/76**; `npm run build` sukses (hanya peringatan chunk-size
+lama); `vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL,
+0 pengecualian tercatat** (25 WARN — hanya file di atas lunak, di bawah
+keras; dari R9.5: `OperatorDetailModal` 257, `useBrokerConfig` 223,
+`RolesTab` 207, `useRolePermissions` 194, `useDevices` 189,
+`useOperatorCrud` 187, `useOeeAnalytics` 175; sisanya file lama di luar
+R9.5). Semua 13 commit lokal R9.5 (11 file + 2 fixup) belum di-push ke
+GitHub; status Linear R9.5 (FAT-39) → Done di `docs/LINEAR.md` §1.3 + §8
+dan `docs/linear-seed.json` v4 — perubahan status di Linear sendiri
+dilakukan Fathur/parent setelah verifikasi independen. Yang tetap belum
+terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat
+§6).

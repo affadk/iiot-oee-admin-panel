@@ -1,0 +1,3 @@
+export const RETENTION_POLICY_DAYS = 90;
+export const DEFAULT_HISTORY_PAGE_LIMIT = 50;
+export const EXPORT_TIMEOUT_MS = 90_000;

@@ -19,17 +19,6 @@ const ROOT = join(fileURLToPath(import.meta.url), '..', '..', 'src');
 
 // { file relatif terhadap src, alasan, issue Linear }
 const EXCEPTIONS = new Map([
-  ['features/system/AccessControlPage.tsx', 'R9.5'],
-  ['features/production/OperatorsPage.tsx', 'R9.5'],
-  ['features/assets/MachinesPage.tsx', 'R9.5'],
-  ['features/analytics/TelemetryHistoryPage.tsx', 'R9.5'],
-  ['features/production/WorkOrdersPage.tsx', 'R9.5'],
-  ['features/mqtt/DynamicSecurityPage.tsx', 'R9.5'],
-  ['features/assets/DevicesPage.tsx', 'R9.5'],
-  ['features/mqtt/BrokerConfigManagerPage.tsx', 'R9.5'],
-  ['utils/historicalExport.ts', 'R9.5'],
-  ['features/monitoring/OperationalEventsPage.tsx', 'R9.5'],
-  ['features/analytics/OeeAnalyticsPage.tsx', 'R9.5'],
 ]);
 
 // Anggaran: [lunak, keras]. Urutan penting — pola pertama yang cocok menang.

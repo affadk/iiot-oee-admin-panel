@@ -142,19 +142,7 @@ src/
 
 ### Pengecualian yang masih berlaku (per 2026-11-16, issue Linear R9.5)
 
-| File | Baris | Alasan |
-| --- | --- | --- |
-| `src/features/system/AccessControlPage.tsx` | 2.001 | 6 tab + 7 modal; ekstraksi bertahap per tab/modal |
-| `src/features/production/OperatorsPage.tsx` | 1.012 | Detail modal + 4 modal CRUD |
-| `src/features/assets/MachinesPage.tsx` | 884 | Modal create/edit/bind + konfirmasi |
-| `src/features/analytics/TelemetryHistoryPage.tsx` | 862 | Grafik + toolbar ekspor |
-| `src/features/production/WorkOrdersPage.tsx` | 859 | — |
-| `src/features/mqtt/DynamicSecurityPage.tsx` | 858 | — |
-| `src/features/assets/DevicesPage.tsx` | 652 | — |
-| `src/features/mqtt/BrokerConfigManagerPage.tsx` | 627 | — |
-| `src/utils/historicalExport.ts` | 618 | Builder endpoint + serialisasi; pecah per domain ekspor |
-| `src/features/monitoring/OperationalEventsPage.tsx` | 610 | — |
-| `src/features/analytics/OeeAnalyticsPage.tsx` | 593 | — |
+_Tidak ada pengecualian tersisa — seluruh 11 file R9.5 sudah diekstrak._
 
 ## 5. Cara memeriksa
 
