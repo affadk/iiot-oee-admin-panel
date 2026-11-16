@@ -35,6 +35,8 @@ import {
   resolveOriginBaseUrl,
   resolveRequestTimeoutMs,
   resolveExportTimeoutMs,
+  resolveMutationTimeoutMs,
+  resolveHttpRetryMaxAttempts,
   resolveWsUrl,
 } from './mode';
 import {
@@ -101,8 +103,10 @@ interface ReqOpts {
 }
 
 const READ_TIMEOUT_FALLBACK = 10_000;
-const MUTATION_TIMEOUT_MS = 15_000;
-const MAX_ATTEMPTS = 3;
+// Timeout mutasi + retry maks dibaca dari env (Guide §4.2) — bukan hardcoded.
+// Dievaluasi sekali saat modul dimuat; env Vite adalah build-time.
+const MUTATION_TIMEOUT_MS = resolveMutationTimeoutMs();
+const MAX_ATTEMPTS = resolveHttpRetryMaxAttempts();
 
 const num = (v: unknown, fallback = 0): number => {
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;

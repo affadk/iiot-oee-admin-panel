@@ -143,7 +143,7 @@ import {
   normalizeListResponse,
 } from './schemas';
 import { httpApiClient } from './httpClient';
-import { resolveApiMode } from './mode';
+import { resolveApiMode, resolveAuthTtlFallbackSec } from './mode';
 import { telemetrySocket } from '../ws/telemetrySocket';
 import {
   RETENTION_POLICY_DAYS,
@@ -802,7 +802,7 @@ export const demoApiClient = {
     return LoginResponseSchema.parse({
       success: true,
       token: `mem_jwt_${Date.now()}_${op.operator_id}`,
-      expires_in: 900,
+      expires_in: resolveAuthTtlFallbackSec(),
       operator: {
         id: op.operator_id,
         username: op.name,
@@ -821,7 +821,7 @@ export const demoApiClient = {
     const parsed = RefreshResponseSchema.parse({
       success: true,
       token: `mem_jwt_refresh_${Date.now()}`,
-      expires_in: 900,
+      expires_in: resolveAuthTtlFallbackSec(),
     });
     return {
       token: parsed.token,
@@ -4593,9 +4593,10 @@ export const demoApiClient = {
 
 /**
  * Selector transport (Build Guide §4.1): mode Demo memakai store in-memory di
- * atas; mode Real memakai HTTP client ke backend (`./httpClient`). Pilihan
- * mode: query `?api=real` > localStorage `iiot-oee-api-mode` > `VITE_API_MODE`
- * (default demo). Seluruh halaman memanggil `apiClient` yang sama — pergantian
- * mode tidak mengubah UI apa pun.
+ * atas; mode Real memakai HTTP client ke backend (`./httpClient`). Mode
+ * berasal dari env (`VITE_API_MODE`, default demo) dan TERKUNCI di sana
+ * kecuali `VITE_ALLOW_API_MODE_SWITCH=true` (dev lokal) mengizinkan
+ * override via query `?api=` / localStorage — lihat `./mode`. Seluruh halaman
+ * memanggil `apiClient` yang sama — pergantian mode tidak mengubah UI apa pun.
  */
 export const apiClient = resolveApiMode() === 'real' ? httpApiClient : demoApiClient;

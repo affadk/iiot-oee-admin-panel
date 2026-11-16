@@ -4,8 +4,7 @@ import { Sun, Moon, User, Radio, Database, Menu, LogOut, Clock, KeyRound } from 
 import { useAuth, useCapability } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNetworkAccess } from '../context/NetworkAccessContext';
-import { resolveApiMode, setApiMode, ApiMode } from '../services/api/mode';
-import { UserRole } from '../types/auth';
+import { resolveApiMode, setApiMode, isApiModeSwitchAllowed, resolvePlantLabel, ApiMode } from '../services/api/mode';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -16,7 +15,7 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const navigate = useNavigate();
-  const { currentUser, setRole, logout, sessionTtlRemaining, changePassword } = useAuth();
+  const { currentUser, logout, sessionTtlRemaining, changePassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isReadOnly } = useNetworkAccess();
   const canReadBrokerConfig = useCapability('mqtt.config.read').canInteract;
@@ -28,9 +27,13 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const [pwSuccess, setPwSuccess] = useState<string | null>(null);
   const [pwSubmitting, setPwSubmitting] = useState(false);
   const [apiMode, setApiModeState] = useState<ApiMode>(() => resolveApiMode());
+  // Switch mode dari UI hanya hidup bila dibuka di env
+  // (VITE_ALLOW_API_MODE_SWITCH=true, dev lokal). Bila terkunci, Topbar hanya
+  // menampilkan badge read-only — mode berasal dari VITE_API_MODE.
+  const apiModeSwitchAllowed = isApiModeSwitchAllowed();
 
   const handleApiModeChange = (next: ApiMode) => {
-    if (next === apiMode) return;
+    if (!apiModeSwitchAllowed || next === apiMode) return;
     // Mode dipilih saat module load (selector apiClient) — perlu reload penuh.
     setApiMode(next);
     setApiModeState(next);
@@ -84,7 +87,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
           >
             OEE IIoT Admin
           </NavLink>
-          <span className="hidden lg:inline text-xs text-slate-400 font-mono whitespace-nowrap shrink-0">| Plant 01</span>
+          <span className="hidden lg:inline text-xs text-slate-400 font-mono whitespace-nowrap shrink-0">| {resolvePlantLabel()}</span>
         </div>
 
         <nav className="hidden md:flex items-center gap-4 xl:gap-5 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -167,40 +170,45 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
             <span>{formatSessionTime(sessionTtlRemaining)}</span>
           </div>
 
-          <div className="flex items-center gap-1.5" title="Mode API: Demo memakai data lokal di memori; Real memakai HTTP ke backend (VITE_API_URL). Pilihan tersimpan dan halaman dimuat ulang.">
+          <div
+            className="flex items-center gap-1.5"
+            title={
+              apiModeSwitchAllowed
+                ? 'Mode API: Demo memakai data lokal di memori; Real memakai HTTP ke backend (VITE_API_URL). Pilihan tersimpan dan halaman dimuat ulang.'
+                : 'Mode API terkunci di env (VITE_API_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang.'
+            }
+          >
             <span className="text-[11px] text-slate-400 hidden sm:inline">API:</span>
-            <select
-              value={apiMode}
-              onChange={(e) => handleApiModeChange(e.target.value as ApiMode)}
-              className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
-                apiMode === 'real'
-                  ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-              }`}
-              aria-label="API Mode"
-            >
-              <option value="demo">Demo</option>
-              <option value="real">Real</option>
-            </select>
+            {apiModeSwitchAllowed ? (
+              <select
+                value={apiMode}
+                onChange={(e) => handleApiModeChange(e.target.value as ApiMode)}
+                className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
+                  apiMode === 'real'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                }`}
+                aria-label="API Mode"
+              >
+                <option value="demo">Demo</option>
+                <option value="real">Real</option>
+              </select>
+            ) : (
+              <span
+                className={`text-xs border rounded px-2 py-1 font-semibold ${
+                  apiMode === 'real'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                }`}
+                aria-label={`API Mode: ${apiMode} (terkunci di env)`}
+              >
+                {apiMode === 'real' ? 'Real' : 'Demo'}
+              </span>
+            )}
           </div>
 
-          {apiMode === 'demo' && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 hidden sm:inline">Role:</span>
-              <select
-                value={currentUser.role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500"
-                title="Ganti peran pengguna aktif (hanya mode Demo)"
-                aria-label="Active User Role"
-              >
-                <option value="ADMIN">ADMIN</option>
-                <option value="SUPERVISOR">SUPERVISOR</option>
-                <option value="OPERATOR">OPERATOR</option>
-                <option value="MAINTENANCE">MAINTENANCE</option>
-              </select>
-            </div>
-          )}
+          {/* Ganti peran TIDAK ada di sini: peran berasal dari login.
+              Untuk ganti peran: logout, lalu login sebagai operator lain. */}
 
           <button
             onClick={toggleTheme}

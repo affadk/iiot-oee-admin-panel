@@ -4,6 +4,14 @@ import { Shield, Lock, UserCheck, AlertCircle, WifiOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkAccess } from '../../context/NetworkAccessContext';
 import { ApiError } from '../../types/auth';
+import {
+  DEMO_PRESETS,
+  DEMO_PRESET_PASSWORD,
+  isDemoPresetLoginEnabled,
+  resolveDefaultStationId,
+  resolveLoginCooldownSec,
+  resolveLoginMaxAttempts,
+} from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 
@@ -12,9 +20,16 @@ export const LoginPage: React.FC = () => {
   const { mode, isReadOnly } = useNetworkAccess();
   const navigate = useNavigate();
 
-  const [operatorId, setOperatorId] = useState('ADM-001');
-  const [password, setPassword] = useState('Admin@2026!');
-  const [stationId, setStationId] = useState('ADMIN-CONSOLE-01');
+  // Preset login demo HANYA hidup bila env demo (isDemoPresetLoginEnabled):
+  // di env real (VITE_API_MODE=real) tidak ada prefill, tidak ada tombol
+  // preset — login wajib isi Operator ID + password sendiri.
+  const presetsEnabled = isDemoPresetLoginEnabled();
+  const loginCooldownSec = resolveLoginCooldownSec();
+  const loginMaxAttempts = resolveLoginMaxAttempts();
+
+  const [operatorId, setOperatorId] = useState(presetsEnabled ? 'ADM-001' : '');
+  const [password, setPassword] = useState(presetsEnabled ? DEMO_PRESET_PASSWORD : '');
+  const [stationId, setStationId] = useState(resolveDefaultStationId());
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -49,17 +64,17 @@ export const LoginPage: React.FC = () => {
           return;
         }
         if (err.httpStatus === 429) {
-          setCooldownSec(30);
-          setErrorMsg('Terlalu banyak percobaan login. Tunggu 30 detik sebelum mencoba kembali.');
+          setCooldownSec(loginCooldownSec);
+          setErrorMsg(`Terlalu banyak percobaan login. Tunggu ${loginCooldownSec} detik sebelum mencoba kembali.`);
           return;
         }
       }
 
       const nextAttempts = failedAttempts + 1;
       setFailedAttempts(nextAttempts);
-      if (nextAttempts >= 5) {
-        setCooldownSec(30);
-        setErrorMsg('Terlalu banyak percobaan login gagal. Silakan tunggu 30 detik.');
+      if (nextAttempts >= loginMaxAttempts) {
+        setCooldownSec(loginCooldownSec);
+        setErrorMsg(`Terlalu banyak percobaan login gagal. Silakan tunggu ${loginCooldownSec} detik.`);
       } else {
         setErrorMsg(err?.message || 'Autentikasi gagal. Periksa Operator ID dan password Anda.');
       }
@@ -68,9 +83,12 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  // Hanya dipanggil dari tombol preset — blok preset tidak dirender bila
+  // presetsEnabled false, jadi fungsi ini tidak pernah terjangkau di env real.
   const quickDemoLogin = (id: string) => {
+    if (!presetsEnabled) return;
     setOperatorId(id);
-    setPassword('Factory@2026!');
+    setPassword(DEMO_PRESET_PASSWORD);
     setErrorMsg(null);
   };
 
@@ -165,48 +183,33 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Demo Profiles Quick Selector */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              Profil Operator Simulasi:
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => quickDemoLogin('ADM-001')}
-                className="p-2 border border-slate-200 dark:border-slate-800 rounded text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  <UserCheck className="w-3 h-3 text-sky-500" /> ADMIN
-                </div>
-                <div className="text-[11px] text-slate-500 font-tabular">ADM-001 · ORG-ALL</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickDemoLogin('SUP-042')}
-                className="p-2 border border-slate-200 dark:border-slate-800 rounded text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 dark:text-slate-200">SUPERVISOR</div>
-                <div className="text-[11px] text-slate-500 font-tabular">SUP-042 · LINE-01</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickDemoLogin('OP-115')}
-                className="p-2 border border-slate-200 dark:border-slate-800 rounded text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 dark:text-slate-200">OPERATOR</div>
-                <div className="text-[11px] text-slate-500 font-tabular">OP-115 · LINE-01</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickDemoLogin('MNT-208')}
-                className="p-2 border border-slate-200 dark:border-slate-800 rounded text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 dark:text-slate-200">MAINTENANCE</div>
-                <div className="text-[11px] text-slate-500 font-tabular">MNT-208 · LINE-02</div>
-              </button>
+          {/* Demo Profiles Quick Selector — HANYA di env demo.
+              Di env real (VITE_API_MODE=real) blok ini tidak dirender sama
+              sekali: tidak ada preset, tidak ada prefill (lihat atas). */}
+          {presetsEnabled && (
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Profil Operator Simulasi:
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {DEMO_PRESETS.map((preset, i) => (
+                  <button
+                    key={preset.operatorId}
+                    type="button"
+                    onClick={() => quickDemoLogin(preset.operatorId)}
+                    className="p-2 border border-slate-200 dark:border-slate-800 rounded text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      {i === 0 && <UserCheck className="w-3 h-3 text-sky-500" />} {preset.role}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-tabular">
+                      {preset.operatorId} · {preset.lineId}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </form>
       </div>
     </div>

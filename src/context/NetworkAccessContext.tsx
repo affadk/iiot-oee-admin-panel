@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { NetworkAccessMode } from '../types/auth';
 import { apiClient } from '../services/api/client';
+import { resolveNetworkMode } from '../services/api/mode';
 
 interface NetworkAccessContextType {
   mode: NetworkAccessMode;
@@ -10,16 +11,15 @@ interface NetworkAccessContextType {
 
 const NetworkAccessContext = createContext<NetworkAccessContextType | undefined>(undefined);
 
-function detectInitialNetworkMode(): NetworkAccessMode {
-  if (typeof window !== 'undefined' && window.location.port === '8080') {
-    return 'REMOTE_TUNNEL';
-  }
-  return 'LAN';
-}
-
+/**
+ * Mode akses awal berasal dari env/deployment (`VITE_NETWORK_MODE`, atau
+ * deteksi port tunnel `VITE_TUNNEL_PORT`, Guide D1) — BUKAN dari klik di UI.
+ * `setMode` hanya dipakai tombol simulasi banner, dan tombol itu sendiri
+ * terkunci di env (`VITE_ALLOW_NETWORK_MODE_SIMULATION`, default mati).
+ */
 export const NetworkAccessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setModeState] = useState<NetworkAccessMode>(() => {
-    const initial = detectInitialNetworkMode();
+    const initial = resolveNetworkMode();
     apiClient.setNetworkMode(initial);
     return initial;
   });

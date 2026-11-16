@@ -3,7 +3,7 @@
 **Tanggal:** 16 November 2026
 **Repo:** `fadk-dev/iiot-oee-admin-panel` (branch `main`)
 **Dokumen acuan:** `API_DOCUMENTATION.md` (1780 baris) + `ADMIN_PANEL_BUILD_GUIDE.md` (1553 baris)
-**Hasil akhir:** `tsc --noEmit` **0 error** · `npm test` **65/65 lolos** · `npm run build` **sukses**
+**Hasil akhir:** `tsc --noEmit` **0 error** · `npm test` **70/70 lolos** · `npm run build` **sukses**
 
 > Audit ini membandingkan codebase dengan kedua dokumen di atas, lalu memperbaiki
 > semua gap yang ditemukan. Backend belum ada: panel berjalan dalam **mode Demo**
@@ -17,12 +17,15 @@
 | Cara | Keterangan |
 | --- | --- |
 | Default | `demo` — data seed di memori, login demo `ADM-001` / password apa pun ≥ 4 karakter |
-| Topbar | Pilih **API: Demo / Real** (kanan atas) — halaman dimuat ulang |
-| Query | `?api=real` atau `?api=demo` (sekali pakai) |
-| Env | `VITE_API_MODE=demo\|real` di `.env` (lihat `.env.example`) |
+| Env | `VITE_API_MODE=demo\|real` di `.env` (lihat `.env.example`) — **satu-satunya sumber mode** |
+| Topbar | Bila `VITE_ALLOW_API_MODE_SWITCH=true` (dev lokal saja): pilih **API: Demo / Real** — halaman dimuat ulang. Bila terkunci (default): Topbar hanya menampilkan badge read-only |
+| Query | `?api=real` atau `?api=demo` — hanya berlaku bila switch diizinkan di env |
 
-Prioritas: `?api=` > `localStorage['iiot-oee-api-mode']` > `VITE_API_MODE` > `demo`.
-Pilihan mode tersimpan di localStorage (bukan token — token tetap **hanya di memori**, D5).
+Prioritas saat switch diizinkan: `?api=` > `localStorage['iiot-oee-api-mode']` > `VITE_API_MODE` > `demo`.
+Saat switch terkunci (default produksi): mode = `VITE_API_MODE` > `demo`; query +
+localStorage diabaikan. Pilihan mode tersimpan di localStorage (bukan token — token
+tetap **hanya di memori**, D5). Detail lengkap + daftar semua variabel env: lihat
+§8 (audit konfigurasi env 2026-11-16).
 
 **Mode Real butuh backend** dengan base URL `VITE_API_URL` (kosong = `origin + /api/v1`,
 Nginx dual-vhost). Tanpa backend, mode Real akan gagal koneksi (pesan `NETWORK`) —
@@ -46,7 +49,7 @@ itu perilaku yang benar, bukan bug. WebSocket memakai `VITE_WS_URL` atau
 | 7 | **`npm install` gagal** — esbuild `^0.25.0` bentrok peer vite 8.3 (`^0.27.0 \|\| ^0.28.0`) | ERESOLVE | esbuild → `^0.28.0`; install sukses (191 paket) |
 | 8 | **Tidak ada test runner** — 8 file test `node:test` tapi tanpa script | `package.json` lama | `"test": "tsx --test \"src/**/*.test.ts\""` + file test baru `modeAndTransport.test.ts` (10 test) |
 | 9 | **WebSocket demo reconnect-loop** — `telemetrySocket` mencoba WS sungguhan ke origin tanpa server | `telemetrySocket.ts` | Mode Demo: simulasi lokal `TELEMETRY_UPDATE` tiap 5 detik (4 device seed, jitter OEE/counter); mode Real: WS sungguhan tidak berubah |
-| 10 | **Pengalih peran di Topbar tembus mode Real** — `setRole` bisa mengalihkan peran tanpa login | `AuthContext.tsx`, `Topbar.tsx` | `setRole` hanya jalan di mode Demo; select Role disembunyikan di mode Real; `httpApiClient.setUserRole` no-op |
+| 10 | **Pengalih peran di Topbar tembus mode Real** — `setRole` bisa mengalihkan peran tanpa login | `AuthContext.tsx`, `Topbar.tsx` | **DIHAPUS TOTAL (2026-11-16, §8):** `AuthContext.setRole` + select Role di Topbar dihapus — ganti peran HANYA lewat login (logout dulu, login sebagai operator lain). `demoApiClient.setUserRole` dipertahankan sebagai seam store untuk test saja, tidak terjangkau UI; `httpApiClient.setUserRole` tetap no-op |
 | 11 | **Komentar registry salah** — header mengklaim "111 Admin REST candidates" | `endpoints.ts:2` | Dikoreksi: **131** Admin REST candidates + 1 WebSocket = 132 |
 | 12 | **`.env.example` berisi variabel AI Studio** (`GEMINI_API_KEY`, `APP_URL`) | `.env.example` lama | Dihapus; ditambah `VITE_API_MODE=demo` + komentar §4.1 |
 
@@ -140,8 +143,8 @@ itu perilaku yang benar, bukan bug. WebSocket memakai `VITE_WS_URL` atau
   login, retry 503→200, trailing slash, 409 tanpa retry, header Bearer).
 - **Tampilan visual di browser sungguhan:** tidak bisa dari VM ini (loopback/tunnel
   diblokir, sama seperti proyek sebelumnya). Build terverifikasi serve HTTP 200
-  via `vite preview`; cek visual 3 halaman baru + Topbar (switch Demo/Real)
-  dilakukan Fathur setelah `npm run dev`.
+  via `vite preview`; cek visual 3 halaman baru + Topbar (badge API read-only,
+  tanpa select Role) dilakukan Fathur setelah `npm run dev`.
 - **Live broker / MQTT / ESP32:** tidak ada — WebSocket mode Real belum diuji
   terhadap broker sungguhan.
 
@@ -153,10 +156,63 @@ itu perilaku yang benar, bukan bug. WebSocket memakai `VITE_WS_URL` atau
 npm install        # esbuild ^0.28.0 (vite 8.3)
 npm run dev        # http://localhost:3000 — login ADM-001 / password apa pun ≥4 karakter (demo)
 npm run lint       # tsc --noEmit — harus 0 error
-npm test           # tsx --test — harus 65/65
+npm test           # tsx --test — harus 70/70
 npm run build      # vite build (peringatan chunk >500 kB sudah ada sebelumnya)
 ```
 
 File kunci: `src/services/api/mode.ts`, `src/services/api/httpClient.ts`,
 `src/services/api/client.ts` (demo + selector), `src/services/api/modeAndTransport.test.ts`,
 `AUDIT.md` (file ini).
+
+---
+
+## 8. Audit konfigurasi env — tindak lanjut 2026-11-16
+
+**Permintaan:** konfigurasi & switch sistem yang sebaiknya di env dipindahkan
+ke env; preset login demo tetap ada tapi mati di env `!demo`; tombol non-standar
+di admin panel (ganti role langsung) dihapus/dipindahkan — ganti peran harus
+lewat login (logout dulu).
+
+**Temuan audit:** sebelum perbaikan, env hanya memegang 6 variabel
+(`VITE_API_MODE/API_URL/WS_URL/AUTH_TTL_FALLBACK_SEC/REQUEST_TIMEOUT_MS/EXPORT_TIMEOUT_MS`)
+dan kalah prioritas dari `?api=` + localStorage + select Topbar. Switch lain
+hidup di UI/hardcode: select Role Topbar (ganti peran tanpa login),
+tombol simulasi mode jaringan di banner (bisa mengklaim LAN palsu dari tunnel),
+port tunnel `8080`, timeout mutasi 15s, retry maks 3, TTL demo `900`,
+heartbeat WS 25s, backoff 30s, simulasi demo 5s, lockout login 5×/30s,
+label `Plant 01`, station default — semua hardcoded; `LoginPage` selalu
+prefill `ADM-001`/`Admin@2026!` + tombol preset di mode apa pun.
+
+**Perbaikan — satu sumber kebenaran `src/services/api/mode.ts`** (semua baca
+`import.meta.env`/`process.env` hanya lewat `readEnv()` di file itu):
+
+| Konfigurasi / switch | Sebelum | Sesudah (env) |
+| --- | --- | --- |
+| Mode API | `?api=` > localStorage > env | **Env menang (terkunci)**; override runtime hanya bila `VITE_ALLOW_API_MODE_SWITCH=true` (dev lokal) |
+| Switch mode di Topbar | Select selalu aktif | Badge read-only bila terkunci; select hanya bila switch diizinkan |
+| Preset login demo | Selalu tampil + prefill di semua mode | `isDemoPresetLoginEnabled()`: hidup hanya bila mode efektif `demo` **DAN** `VITE_API_MODE ≠ real` **DAN** `VITE_DEMO_PRESET_LOGIN ≠ false` — mati total di env real, sekalipun mode dialihkan ke demo |
+| Ganti role langsung | Select Role di Topbar (`AuthContext.setRole`) | **Dihapus**: `setRole` + select dihapus; ganti peran = logout → login sebagai operator lain. `demoApiClient.setUserRole` tinggal seam test, tak terjangkau UI |
+| Simulasi mode jaringan | Tombol "Mode Remote Tunnel" / "Kembali ke LAN" selalu tampil | Banner jadi indikator saja; tombol hanya bila `VITE_ALLOW_NETWORK_MODE_SIMULATION=true` (dev lokal) |
+| Deteksi jaringan D1 | Port `8080` hardcoded | `VITE_NETWORK_MODE` (override) + `VITE_TUNNEL_PORT` (default 8080) |
+| Timeout mutasi / retry | `15_000` / `3` hardcoded di httpClient | `VITE_MUTATION_TIMEOUT_MS` (15s), `VITE_HTTP_RETRY_MAX_ATTEMPTS` (3, dijepit 1–5) |
+| TTL sesi demo | `expires_in: 900` hardcoded (login + refresh) | `VITE_AUTH_TTL_FALLBACK_SEC` via `resolveAuthTtlFallbackSec()`; `AuthContext` tidak lagi baca `import.meta.env` langsung |
+| WS | `resolveWsUrl` duplikat di telemetrySocket; heartbeat 25s, backoff 30s, sim demo 5s hardcoded | Satu `resolveWsUrl` (mode.ts); `VITE_WS_HEARTBEAT_MS`, `VITE_WS_RECONNECT_MAX_MS`, `VITE_DEMO_SIM_INTERVAL_MS` |
+| Lockout login | 5× / 30 detik hardcoded | `VITE_LOGIN_MAX_ATTEMPTS` (5), `VITE_LOGIN_COOLDOWN_SEC` (30) |
+| Identitas deployment | `Plant 01`, `ADMIN-CONSOLE-01` hardcoded | `VITE_PLANT_LABEL`, `VITE_DEFAULT_STATION_ID` |
+
+**Variabel env baru** (lihat `.env.example` — lengkap dengan komentar):
+`VITE_ALLOW_API_MODE_SWITCH`, `VITE_DEMO_PRESET_LOGIN`,
+`VITE_MUTATION_TIMEOUT_MS`, `VITE_HTTP_RETRY_MAX_ATTEMPTS`,
+`VITE_NETWORK_MODE`, `VITE_TUNNEL_PORT`, `VITE_ALLOW_NETWORK_MODE_SIMULATION`,
+`VITE_WS_HEARTBEAT_MS`, `VITE_WS_RECONNECT_MAX_MS`, `VITE_DEMO_SIM_INTERVAL_MS`,
+`VITE_LOGIN_MAX_ATTEMPTS`, `VITE_LOGIN_COOLDOWN_SEC`,
+`VITE_PLANT_LABEL`, `VITE_DEFAULT_STATION_ID`.
+Semua default = perilaku lama, jadi deployment yang sudah jalan tidak berubah
+kecuali dua penguncian yang memang diminta: switch mode + tombol simulasi
+jaringan kini mati secara default, dan preset login mati di env real.
+
+**Verifikasi:** `tsc` 0 error; `npm test` **70/70** (65 lama + 5 baru di
+`modeAndTransport.test.ts`: mode terkunci env real, preset hidup/mati,
+switch dev, semua resolver + default, TTL login mengikuti env);
+`npm run build` sukses; `vite preview` HTTP 200. Yang tetap belum
+terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat §6).

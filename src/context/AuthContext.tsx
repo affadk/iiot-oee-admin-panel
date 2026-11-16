@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthMeResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
-import { resolveApiMode } from '../services/api/mode';
+import { resolveAuthTtlFallbackSec } from '../services/api/mode';
 import {
   CapabilityKey,
   CapabilityState,
@@ -24,7 +24,9 @@ interface AuthContextType {
   authzVersion: number;
   authMe: AuthMeResponse | null;
   login: (operator_id: string, password?: string, station_id?: string) => Promise<void>;
-  setRole: (role: UserRole) => void;
+  // TIDAK ADA setRole: ganti peran HANYA lewat login — logout dulu, lalu
+  // login sebagai operator lain. Pengalih peran langsung dari Topbar sudah
+  // dihapus (bukan perilaku standar; peran berasal dari token /auth/me).
   logout: (reason?: string) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   refreshCapabilities: () => Promise<void>;
@@ -37,7 +39,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_FALLBACK_TTL = Number(import.meta.env.VITE_AUTH_TTL_FALLBACK_SEC || 900);
+const DEFAULT_FALLBACK_TTL = resolveAuthTtlFallbackSec();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { mode } = useNetworkAccess();
@@ -122,32 +124,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshCapabilities();
     }
   }, [isAuthenticated, currentUser.role, currentUser.operator_id, refreshCapabilities]);
-
-  const setRole = useCallback((role: UserRole) => {
-    // Pengalih peran adalah alat DEMO saja. Di mode Real, peran berasal dari
-    // token server (GET /auth/me) dan tidak boleh dialihkan dari UI.
-    if (resolveApiMode() !== 'demo') return;
-    capabilityDenialStore.clearAll();
-    apiClient.setUserRole(role);
-    apiClient.setSessionActive(true);
-    setSessionExpiredReason(null);
-    setIsAuthenticated(true);
-    setSessionTtlTotal(DEFAULT_FALLBACK_TTL);
-    setSessionTtlRemaining(DEFAULT_FALLBACK_TTL);
-    const matchedNames: Record<UserRole, { id: string; name: string; line: string }> = {
-      ADMIN: { id: 'ADM-001', name: 'Alexandria Vance', line: 'ORG-ALL' },
-      SUPERVISOR: { id: 'SUP-042', name: 'Marcus Reinhardt', line: 'LINE-01' },
-      OPERATOR: { id: 'OP-115', name: 'Kenji Sato', line: 'LINE-01' },
-      MAINTENANCE: { id: 'MNT-208', name: 'Elena Rostova', line: 'LINE-02' },
-    };
-    const info = matchedNames[role];
-    setCurrentUser({
-      operator_id: info.id,
-      name: info.name,
-      role,
-      line_id: info.line,
-    });
-  }, []);
 
   const login = useCallback(async (operator_id: string, password?: string, station_id?: string) => {
     capabilityDenialStore.clearAll();
@@ -234,7 +210,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         authzVersion,
         authMe,
         login,
-        setRole,
         logout,
         changePassword,
         refreshCapabilities,

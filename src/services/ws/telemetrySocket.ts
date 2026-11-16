@@ -1,6 +1,12 @@
 import { MachineFsmState } from '../../types/monitoring';
 import { normalizeFsmState } from '../../utils/oeeCalculations';
-import { resolveApiMode } from '../api/mode';
+import {
+  resolveApiMode,
+  resolveWsUrl,
+  resolveWsHeartbeatMs,
+  resolveWsReconnectMaxMs,
+  resolveDemoSimIntervalMs,
+} from '../api/mode';
 
 /**
  * Build Guide §10 & API Doc §4/§7.A — Singleton Real-Time WebSocket Client (/ws/telemetry)
@@ -180,16 +186,6 @@ export function parseWsIncomingFrame(rawData: string): TelemetryWsEvent | 'pong'
   };
 }
 
-export function resolveWsUrl(): string {
-  const envUrl = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_WS_URL;
-  if (envUrl && envUrl.trim().length > 0) return envUrl.trim();
-  if (typeof window !== 'undefined' && window.location) {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${window.location.host}/ws/telemetry`;
-  }
-  return 'ws://localhost/ws/telemetry';
-}
-
 /** Perangkat seed demo untuk simulasi WS lokal (id sama dengan mockData). */
 const DEMO_SIM_DEVICES: Array<{ device_id: string; machine_id: string }> = [
   { device_id: 'STM32-OEE-01', machine_id: 'CNC-MILLING-01' },
@@ -219,8 +215,8 @@ class TelemetrySocketSingleton {
       this.reconnectHandlers.add(onReconnectRefetch);
     }
     // Mode Demo: tidak ada backend/WS sungguhan — simulasikan TELEMETRY_UPDATE
-    // lokal tiap 5 detik agar Live State tetap bergerak tanpa reconnect-loop
-    // ke origin yang tidak punya server WS.
+    // lokal (interval dari VITE_DEMO_SIM_INTERVAL_MS) agar Live State tetap
+    // bergerak tanpa reconnect-loop ke origin yang tidak punya server WS.
     if (resolveApiMode() === 'demo') {
       this.startDemoSimulation();
       return;
@@ -262,7 +258,7 @@ class TelemetrySocketSingleton {
         }
         if (evt.code === 4429) {
           this.setStatus('RATE_LIMITED');
-          this.scheduleReconnect(30_000);
+          this.scheduleReconnect(resolveWsReconnectMaxMs());
           return;
         }
         this.setStatus('DISCONNECTED');
@@ -322,7 +318,7 @@ class TelemetrySocketSingleton {
     this.statusListeners.forEach((cb) => cb(next));
   }
 
-  /** Simulasi WS mode Demo: TELEMETRY_UPDATE lokal tiap 5 detik. */
+  /** Simulasi WS mode Demo: TELEMETRY_UPDATE lokal (interval env). */
   private startDemoSimulation(): void {
     if (this.simTimer) return;
     this.setStatus('CONNECTING');
@@ -367,7 +363,7 @@ class TelemetrySocketSingleton {
     };
     emit();
     this.setStatus('CONNECTED');
-    this.simTimer = setInterval(emit, 5000);
+    this.simTimer = setInterval(emit, resolveDemoSimIntervalMs());
   }
 
   private stopDemoSimulation(): void {
@@ -383,7 +379,7 @@ class TelemetrySocketSingleton {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send('ping');
       }
-    }, 25_000);
+    }, resolveWsHeartbeatMs());
   }
 
   private stopHeartbeat(): void {
@@ -396,7 +392,7 @@ class TelemetrySocketSingleton {
   private scheduleReconnect(explicitDelayMs?: number): void {
     if (this.reconnectTimer || this.eventListeners.size === 0) return;
     const delayMs =
-      explicitDelayMs ?? Math.min(30_000, 1000 * Math.pow(2, this.reconnectAttempt));
+      explicitDelayMs ?? Math.min(resolveWsReconnectMaxMs(), 1000 * Math.pow(2, this.reconnectAttempt));
     this.reconnectAttempt += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
