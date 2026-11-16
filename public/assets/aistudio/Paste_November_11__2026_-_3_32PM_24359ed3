@@ -1,0 +1,1818 @@
+# DEVELOPMENT PROMPT — OEE IIoT ADMIN PANEL
+## React Frontend Development Specification
+
+### 1. Role & Project Objective
+
+Act as a Senior Frontend Engineer, React Architect, and Industrial UI/UX Engineer specializing in:
+
+- React and TypeScript.
+- Enterprise administration dashboards.
+- Industrial IoT monitoring systems.
+- REST API and WebSocket integration.
+- Role-Based Access Control (RBAC).
+- MQTT broker administration.
+- Industrial HMI design principles.
+- Responsive and accessible frontend architecture.
+
+Your task is to design and develop a complete **OEE IIoT Administration Panel** using React.
+
+The frontend must integrate with the existing Fastify backend and implement the design system defined in:
+
+`OEE_Frontend_Design_System_Spec.md`
+
+The application is used by factory administrators and authorized supervisors to manage system resources, production configurations, devices, MQTT infrastructure, monitoring data, and system operations.
+
+The result must be a production-oriented frontend application, not a static dashboard prototype.
+
+### 2. Scope and Application Separation
+
+This task is exclusively for the **OEE Admin Panel**.
+
+Do not implement the separate OEE Single Page / Andon Wallboard application.
+
+The two applications have different objectives:
+
+| Application | Main Purpose |
+|---|---|
+| OEE Admin Panel | Configuration, administration, master data, device management, analytics, diagnostics, infrastructure |
+| OEE Single Page | Real-time production monitoring, Andon visualization, machine status, and operational awareness |
+
+The Admin Panel must have its own navigation, application shell, routes, and interaction patterns.
+
+The shared design system may be reused by the separate Single Page application in the future.
+
+### 3. Mandatory Reference Documents
+
+Read and analyze these documents before development:
+
+**A. `OEE_Frontend_Design_System_Spec.md`**
+
+Treat this as the primary frontend design specification.
+
+Use it for:
+
+- Color tokens.
+- Typography.
+- Spacing.
+- Layout.
+- Elevation.
+- Border radius.
+- Component styles.
+- Responsive rules.
+- Interaction patterns.
+- Configuration Manager UI.
+- Admin Panel navigation.
+
+**B. `API_DOCUMENTATION.md`**
+
+Treat this as the primary backend API contract.
+
+Use it for:
+
+- HTTP methods.
+- API paths.
+- Query parameters.
+- Request payloads.
+- Response structures.
+- Authentication.
+- Authorization.
+- Error handling.
+- WebSocket integration.
+- Dynamic Security API.
+
+Never invent endpoint paths or assume that undocumented endpoints are already available.
+
+**C. `Visualisasi Gap & Diagram Sistem.md`**
+
+Treat this as the system architecture and functional requirement reference.
+
+Use it to understand:
+
+- System architecture.
+- Component relationships.
+- Edge controller.
+- MQTT broker.
+- Fastify backend.
+- TimescaleDB.
+- Industrial device communication.
+- Production workflows.
+- HMI requirements.
+- Network segmentation.
+- Security boundaries.
+
+When there are inconsistencies between documents and the actual backend implementation, inspect the backend source and existing OpenAPI specification. Document unresolved differences rather than silently changing the API contract.
+
+---
+
+# PART I — FRONTEND FOUNDATION
+
+### 4. Technology Stack
+
+Use the following frontend architecture:
+
+| Component | Technology |
+|---|---|
+| Framework | React |
+| Language | TypeScript |
+| Application | SPA |
+| Build Tool | Reuse existing build tool; prefer Vite if starting a new frontend |
+| Routing | React Router |
+| Data Fetching | TanStack Query |
+| Global State | Zustand where necessary |
+| API Client | Fetch API or existing HTTP client |
+| Validation | Zod |
+| Forms | React Hook Form |
+| Charts | Reuse existing chart library or use an appropriate React chart library |
+| Icons | Lucide React |
+| Styling | Follow the existing design-system implementation; use CSS Variables |
+| WebSocket | Native WebSocket |
+| Deployment | Nginx static hosting |
+
+Do not introduce unnecessary dependencies.
+
+Inspect the existing frontend repository before selecting or installing packages.
+
+Reuse existing libraries when suitable.
+
+### 5. Application Architecture
+
+Implement a modular, feature-oriented architecture.
+
+Suggested structure:
+
+```text
+src/
+├── app/
+│   ├── App.tsx
+│   ├── router.tsx
+│   ├── providers.tsx
+│   └── guards/
+│       ├── AuthGuard.tsx
+│       ├── RoleGuard.tsx
+│       └── NetworkAccessGuard.tsx
+│
+├── layouts/
+│   ├── AdminLayout.tsx
+│   ├── AuthLayout.tsx
+│   └── components/
+│       ├── Sidebar.tsx
+│       ├── Topbar.tsx
+│       ├── Breadcrumbs.tsx
+│       ├── PageHeader.tsx
+│       └── UserMenu.tsx
+│
+├── features/
+│   ├── overview/
+│   ├── production/
+│   │   ├── work-orders/
+│   │   ├── products/
+│   │   └── operators/
+│   │
+│   ├── assets/
+│   │   ├── devices/
+│   │   └── machines/
+│   │
+│   ├── monitoring/
+│   │   ├── live-state/
+│   │   ├── telemetry/
+│   │   ├── downtime/
+│   │   └── operational-events/
+│   │
+│   ├── analytics/
+│   │   ├── oee/
+│   │   ├── quality/
+│   │   └── reconciliation/
+│   │
+│   ├── mqtt/
+│   │   ├── overview/
+│   │   ├── clients/
+│   │   ├── roles/
+│   │   ├── groups/
+│   │   ├── acls/
+│   │   └── configuration/
+│   │
+│   └── system/
+│       ├── diagnostics/
+│       ├── audit/
+│       └── settings/
+│
+├── components/
+│   ├── ui/
+│   ├── tables/
+│   ├── charts/
+│   ├── forms/
+│   ├── feedback/
+│   └── industrial/
+│
+├── services/
+│   ├── api/
+│   │   ├── client.ts
+│   │   ├── auth.api.ts
+│   │   ├── devices.api.ts
+│   │   ├── machines.api.ts
+│   │   ├── products.api.ts
+│   │   ├── operators.api.ts
+│   │   ├── work-orders.api.ts
+│   │   ├── downtime.api.ts
+│   │   ├── telemetry.api.ts
+│   │   ├── analytics.api.ts
+│   │   ├── mqtt-security.api.ts
+│   │   └── mqtt-configuration.api.ts
+│   │
+│   └── websocket/
+│       ├── websocket-client.ts
+│       └── telemetry-handler.ts
+│
+├── hooks/
+├── stores/
+├── schemas/
+├── types/
+├── utils/
+└── styles/
+    ├── tokens.css
+    ├── theme.css
+    └── globals.css
+```
+
+This is a suggested architecture. Adapt it to an existing repository where appropriate.
+
+Do not build all features inside a single component or a monolithic dashboard file.
+
+---
+
+# PART II — DESIGN SYSTEM IMPLEMENTATION
+
+### 6. Design System Foundation
+
+Implement the complete design system from `OEE_Frontend_Design_System_Spec.md` version 1.1.
+
+Do not invent a new visual direction that conflicts with the existing specification.
+
+The visual language should communicate:
+
+- Industrial reliability.
+- Enterprise administration.
+- Operational clarity.
+- Technical precision.
+- Data density without visual clutter.
+- Professional manufacturing software.
+
+Implement:
+
+**Color Tokens**
+
+- Background.
+- Surface.
+- Elevated surface.
+- Primary.
+- Secondary.
+- Accent.
+- Text primary.
+- Text secondary.
+- Border.
+- Muted.
+- Success.
+- Warning.
+- Danger.
+- Informational.
+- Machine state colors.
+
+**Typography Tokens**
+
+- Display.
+- Page title.
+- Section title.
+- Card title.
+- Body.
+- Label.
+- Caption.
+- Monospace / tabular numerical values.
+
+Use tabular numerals for counters, measurements, timestamps, and OEE metrics.
+
+**Spacing & Layout**
+
+Use consistent spacing tokens for:
+
+- Application shell.
+- Sidebar.
+- Topbar.
+- Page container.
+- Cards.
+- Forms.
+- Tables.
+- Modals.
+- Drawers.
+
+**Component Tokens**
+
+Implement consistent:
+
+- Border radius.
+- Border thickness.
+- Elevation.
+- Focus rings.
+- Input heights.
+- Button dimensions.
+- Hover and active states.
+- Disabled states.
+
+### 7. Core UI Component Library
+
+Implement reusable components before developing all feature pages.
+
+Required components:
+
+**Navigation**
+
+- Sidebar.
+- Navigation Group.
+- Navigation Item.
+- Collapsible Navigation.
+- Breadcrumbs.
+- Topbar.
+- User Profile Menu.
+
+**Data Components**
+
+- Data Table.
+- Pagination.
+- Cursor Pagination.
+- Search Input.
+- Advanced Filter.
+- Date Range Picker.
+- Sortable Column.
+- Empty State.
+- Loading Skeleton.
+
+**Form Components**
+
+- Text Input.
+- Number Input.
+- Select.
+- Multi-select.
+- Checkbox.
+- Switch.
+- Radio Group.
+- Date Picker.
+- Time Picker.
+- Form Validation Message.
+
+**Feedback Components**
+
+- Toast.
+- Alert.
+- Confirmation Dialog.
+- Error Dialog.
+- Loading Overlay.
+- Success State.
+- Empty State.
+- Offline Banner.
+
+**Industrial Components**
+
+- Metric Card.
+- OEE Indicator.
+- Machine Status Indicator.
+- Device Health Indicator.
+- Connection Status.
+- Telemetry Timestamp.
+- Downtime Badge.
+- FSM Status Badge.
+- Production Progress Bar.
+- Alarm Indicator.
+
+**System Administration Components**
+
+- Configuration Editor.
+- JSON Viewer.
+- Configuration Diff Viewer.
+- Validation Report.
+- Operation Status Timeline.
+- Audit Log Viewer.
+- Access Permission Matrix.
+
+All components must use shared design tokens.
+
+Avoid page-specific styling that produces inconsistent UI elements.
+
+---
+
+# PART III — ADMIN PANEL INFORMATION ARCHITECTURE
+
+### 8. Main Navigation Structure
+
+Build the following administration navigation.
+
+```text
+OEE ADMIN
+│
+├── Overview
+│
+├── Production Management
+│   ├── Work Orders
+│   ├── Products
+│   └── Operators
+│
+├── Asset Management
+│   ├── Machines
+│   └── Edge Devices
+│
+├── Monitoring & Operations
+│   ├── Machine Live State
+│   ├── Downtime Events
+│   ├── Operational Events
+│   └── Device Diagnostics
+│
+├── Analytics & Data
+│   ├── OEE Analytics
+│   ├── Quality & Reject Analysis
+│   ├── Telemetry History
+│   └── Data Reconciliation
+│
+├── MQTT & Connectivity
+│   ├── Broker Overview
+│   ├── MQTT Clients
+│   ├── Roles & Groups
+│   ├── Access Control Lists
+│   └── Broker Configuration
+│
+└── System
+    ├── Health & Diagnostics
+    ├── Audit Trail
+    └── System Information
+```
+
+Navigation requirements:
+
+- Support active and expanded navigation states.
+- Support navigation based on user permissions.
+- Show relevant status indicators.
+- Allow collapsible sidebar.
+- Provide breadcrumbs.
+- Use descriptive page titles.
+- Support responsive layouts.
+
+Do not expose an administrative navigation item when the current user is not authorized.
+
+---
+
+# PART IV — PAGE DEVELOPMENT SPECIFICATIONS
+
+### 9. Overview Dashboard
+
+Route:
+
+`/admin`
+
+Purpose:
+
+Provide a high-level administrative overview of the entire OEE system.
+
+Required sections:
+
+**A. System Health Overview**
+
+Display:
+
+- Backend health.
+- Database connectivity.
+- MQTT broker connectivity, if an actual status source is available.
+- Active WebSocket clients.
+- Ingestion buffer status.
+- Last telemetry ingestion time.
+
+Source:
+
+`GET /health`
+
+**B. Production Overview**
+
+Display:
+
+- Total registered devices.
+- Online devices.
+- Offline devices.
+- Registered machines.
+- Active Work Orders.
+- Active downtime incidents.
+
+Use existing APIs:
+
+- `GET /api/v1/devices`
+- `GET /api/v1/machines`
+- `GET /api/v1/work-orders`
+- `GET /api/v1/downtime-events/active`
+
+**C. OEE Snapshot**
+
+Display:
+
+- Availability.
+- Performance.
+- Quality.
+- OEE.
+
+Source:
+
+`GET /api/v1/live-state`
+
+Clearly distinguish live device-level values from historical or shift-level aggregates.
+
+**D. System Events**
+
+Display:
+
+- Recent operational events.
+- Unacknowledged events where supported.
+- Active downtime.
+- Recent device lifecycle events.
+
+**E. Quick Actions**
+
+Provide links to:
+
+- Register device.
+- Create machine.
+- Create Work Order.
+- Manage products.
+- Manage MQTT clients.
+- Open Broker Configuration.
+
+Do not create new backend endpoints for overview calculations when existing APIs can support the required display.
+
+---
+
+### 10. Production Management
+
+#### A. Work Orders
+
+Route:
+
+`/admin/production/work-orders`
+
+Implement:
+
+- Work Order list.
+- Search.
+- Status filters.
+- Machine filters.
+- Product filters.
+- Operator filters.
+- Date filters.
+- Cursor pagination.
+- Work Order detail.
+- Work Order creation through supported workflow.
+- Dispatch.
+- Complete.
+- Cancel.
+
+Use actual API endpoints:
+
+```text
+GET    /api/v1/work-orders
+GET    /api/v1/work-orders/:wo_id
+GET    /api/v1/work-orders/:wo_id/resolve
+POST   /api/v1/work-orders/:wo_id/dispatch
+POST   /api/v1/work-orders/:wo_id/complete
+POST   /api/v1/work-orders/:wo_id/cancel
+POST   /api/v1/work-orders/validate-zone
+POST   /api/v1/work-orders/initiate-from-zones
+```
+
+Implement a four-zone Work Order workflow:
+
+1. Product.
+2. Machine.
+3. Operator.
+4. Shift.
+
+Provide a guided wizard with validation at each step.
+
+Display conflicts clearly:
+
+- Machine has an active Work Order.
+- Product is unavailable.
+- Operator is unavailable.
+- Device is offline.
+- Invalid zone configuration.
+
+Respect backend Poka-Yoke rules.
+
+Never bypass backend business validation.
+
+#### B. Products
+
+Route:
+
+`/admin/production/products`
+
+Implement:
+
+- Product table.
+- Product details.
+- Create product.
+- Update product.
+- Delete product.
+- Standard cycle time display.
+
+Endpoints:
+
+```text
+GET    /api/v1/products
+GET    /api/v1/products/:productId
+POST   /api/v1/products
+PUT    /api/v1/products/:productId
+DELETE /api/v1/products/:productId
+```
+
+Warn administrators when deleting a product is blocked because it is referenced by a pending or active Work Order.
+
+#### C. Operators
+
+Route:
+
+`/admin/production/operators`
+
+Implement:
+
+- Operator list.
+- Operator details.
+- Create operator.
+- Edit operator.
+- Change password.
+- Activate/deactivate account.
+- Delete operator.
+
+Endpoints:
+
+```text
+GET    /api/v1/operators
+GET    /api/v1/operators/:id
+POST   /api/v1/operators
+PUT    /api/v1/operators/:id
+DELETE /api/v1/operators/:id
+PATCH  /api/v1/operators/:id/password
+PATCH  /api/v1/operators/:id/status
+```
+
+Roles:
+
+- ADMIN
+- SUPERVISOR
+- OPERATOR
+- MAINTENANCE
+
+Never display password hashes or salts.
+
+Protect the root administrator account from unauthorized modification or deletion.
+
+---
+
+### 11. Asset Management
+
+#### A. Machines
+
+Route:
+
+`/admin/assets/machines`
+
+Implement:
+
+- Machine registry.
+- Machine detail.
+- Create machine.
+- Update machine.
+- Delete machine.
+- Bind device.
+- Unbind device.
+- Display bound device.
+- Display Modbus slave ID.
+
+Endpoints:
+
+```text
+GET    /api/v1/machines
+GET    /api/v1/machines/:machineId
+POST   /api/v1/machines
+PUT    /api/v1/machines/:machineId
+DELETE /api/v1/machines/:machineId
+
+POST   /api/v1/machines/:machineId/bind
+POST   /api/v1/machines/:machineId/unbind
+```
+
+Display machine-to-device relationships clearly.
+
+Enforce one-to-one device binding visually and through actual backend responses.
+
+#### B. Edge Devices
+
+Route:
+
+`/admin/assets/devices`
+
+Implement:
+
+- Device registry.
+- Device detail.
+- Device registration.
+- Metadata update.
+- Device removal.
+- Online/offline status.
+- Firmware version.
+- IP address.
+- MAC address.
+- Last seen.
+- Bound machine.
+- Device health diagnostics.
+
+Endpoints:
+
+```text
+GET    /api/v1/devices
+GET    /api/v1/devices/:deviceId
+POST   /api/v1/devices
+PUT    /api/v1/devices/:deviceId
+DELETE /api/v1/devices/:deviceId
+GET    /api/v1/devices/:id/health
+```
+
+Use the backend presence TTL logic.
+
+Do not calculate online status independently using frontend timers that conflict with backend presence rules.
+
+Device health should include available information such as:
+
+- Free heap.
+- Healthy tasks.
+- Total tasks.
+- Stale tasks.
+- Event flags.
+- Last health update.
+- Data age.
+
+---
+
+### 12. Monitoring & Operations
+
+This section is for administrative inspection and troubleshooting.
+
+It must not replace the separate OEE Single Page dashboard.
+
+#### A. Machine Live State
+
+Route:
+
+`/admin/monitoring/live-state`
+
+Use:
+
+`GET /api/v1/live-state`
+
+Display an administrative table or compact card grid containing:
+
+- Machine.
+- Device.
+- FSM state.
+- Current OEE.
+- Availability.
+- Performance.
+- Quality.
+- Production count.
+- Reject count.
+- Last telemetry.
+- Device online status.
+
+Allow filtering by machine, device, FSM state, and availability status.
+
+#### B. Downtime Events
+
+Route:
+
+`/admin/monitoring/downtime`
+
+Use:
+
+```text
+GET  /api/v1/downtime-events/active
+GET  /api/v1/downtime-events/:device_id
+POST /api/v1/downtime-events/:id/reason
+```
+
+Implement:
+
+- Active downtime list.
+- Downtime history.
+- Device filter.
+- Date filter.
+- Category filter.
+- Unlabeled downtime filter.
+- Reason classification.
+- Downtime detail drawer.
+
+Support these categories from the backend:
+
+- EQUIPMENT_FAILURE
+- SETUP_AND_ADJUSTMENT
+- IDLING_AND_MINOR_STOPPAGE
+- REDUCED_SPEED
+- PROCESS_DEFECT
+- MATERIAL_SHORTAGE
+- PLANNED_MAINTENANCE
+- REST_BREAK
+- CLEANING_5S
+- OTHER
+
+Create a dedicated downtime classification dialog.
+
+#### C. Operational Events
+
+Route:
+
+`/admin/monitoring/events`
+
+Use:
+
+```text
+GET   /api/v1/operational-events/:deviceId
+PATCH /api/v1/operational-events/:id/ack
+```
+
+Implement:
+
+- Event history.
+- Event type filter.
+- Date filter.
+- Device filter.
+- Acknowledgement status.
+- Event details.
+- Acknowledge operation.
+- Audit attribution.
+
+#### D. Device Commands
+
+Use:
+
+`POST /api/v1/devices/:device_id/command`
+
+Implement an explicit command interface for:
+
+- PAUSE
+- RESUME
+- RESET_COUNTER
+
+Security requirements:
+
+- Require authenticated users.
+- Follow backend RBAC.
+- Require factory LAN access.
+- Require a reason with minimum five characters.
+- Display target device and machine.
+- Display a confirmation dialog.
+- Show transaction ID and execution result.
+
+Respect these permission restrictions:
+
+| Command | Allowed roles |
+|---|---|
+| PAUSE | OPERATOR, SUPERVISOR, ADMIN |
+| RESUME | OPERATOR, SUPERVISOR, ADMIN |
+| RESET_COUNTER | SUPERVISOR, ADMIN |
+
+Never create an unrestricted generic MQTT command interface.
+
+The frontend must not suggest that publishing a command means the physical machine has successfully executed it.
+
+---
+
+### 13. Analytics & Data Management
+
+Route prefix:
+
+`/admin/analytics`
+
+#### A. OEE Analytics
+
+Use:
+
+```text
+GET /api/v1/oee/shift-summary
+GET /api/v1/oee/shift-timeline
+```
+
+Display:
+
+- OEE.
+- Availability.
+- Performance.
+- Quality.
+- Operating time.
+- Run time.
+- Downtime.
+- Shift window.
+- Hourly trend, where supported.
+
+Provide:
+
+- Machine selection.
+- Device selection.
+- Date selection.
+- Shift selection.
+- Time bucket selection.
+
+Respect cross-midnight shift windows returned by the backend.
+
+#### B. Quality & Reject Analysis
+
+Use:
+
+`GET /api/v1/quality/rejects/:device_id`
+
+Display:
+
+- Reject count.
+- Reject percentage.
+- Reject reason.
+- Pareto ranking.
+- Date range comparison.
+
+Do not invent reason classifications when no data exists.
+
+#### C. Telemetry History
+
+Endpoints:
+
+```text
+GET /api/v1/telemetry/:device_id
+GET /api/v1/telemetry/:device_id/hourly
+GET /api/v1/telemetry/:device_id/aggregate
+GET /api/v1/telemetry/:device_id/export
+```
+
+Implement:
+
+- Historical telemetry table.
+- Time range selection.
+- Bucket selection.
+- OEE trend.
+- Production counters.
+- Operating time.
+- Run time.
+- Downtime.
+- CSV export.
+- NDJSON export.
+
+Use cursor pagination when available.
+
+Do not load unlimited telemetry records into browser memory.
+
+#### D. Data Reconciliation
+
+Endpoints:
+
+```text
+GET  /api/v1/telemetry/reconciliation/jobs
+POST /api/v1/telemetry/reconciliation/refresh
+```
+
+Display:
+
+- Continuous aggregate job status.
+- Refresh status.
+- Reconciliation window.
+- Last update.
+- Refresh operation history, if available.
+
+The manual refresh action must have a confirmation dialog and follow the documented rate limit and authorization rules.
+
+---
+
+# PART V — MQTT ADMINISTRATION
+
+### 14. MQTT & Connectivity Module
+
+This is one of the most important sections of the Admin Panel.
+
+Build a complete administration interface for Mosquitto.
+
+Keep two separate submodules:
+
+1. Dynamic Security.
+2. Broker Configuration Manager.
+
+They must appear under the same MQTT & Connectivity navigation group but have distinct pages, components, and services.
+
+#### A. Broker Overview
+
+Route:
+
+`/admin/mqtt`
+
+Display:
+
+- Broker connection status.
+- Broker administration service status.
+- Dynamic Security status.
+- Connected devices, where an actual broker metric is available.
+- MQTT administration operation status.
+- Configuration version, if Configuration Manager provides it.
+
+Never fabricate broker metrics using only the frontend device count.
+
+#### B. Dynamic Security
+
+Route:
+
+`/admin/mqtt/security`
+
+Existing API base path:
+
+`/api/v1/mqtt/dynamic-security`
+
+Implement the Dynamic Security UI based on the documented backend capabilities.
+
+**MQTT Clients**
+
+- List clients.
+- Client details.
+- Create client.
+- Delete client.
+- Enable/disable client.
+- Password rotation.
+- Assign roles.
+- Remove roles.
+- Provision device credentials.
+
+Endpoints:
+
+```text
+GET    /clients
+GET    /clients/:name
+POST   /clients
+DELETE /clients/:name
+PATCH  /clients/:name/password
+PATCH  /clients/:name/enable
+POST   /clients/:name/roles
+DELETE /clients/:name/roles/:rolename
+POST   /clients/provision
+```
+
+**Roles**
+
+```text
+GET    /roles
+GET    /roles/:name
+POST   /roles
+DELETE /roles/:name
+POST   /roles/:name/acls
+DELETE /roles/:name/acls
+```
+
+**Groups**
+
+```text
+GET    /groups
+GET    /groups/:name
+POST   /groups
+DELETE /groups/:name
+POST   /groups/:name/clients
+DELETE /groups/:name/clients/:username
+POST   /groups/:name/roles
+DELETE /groups/:name/roles/:rolename
+```
+
+Implement a visual ACL management interface.
+
+ACL editor must support:
+
+- Topic.
+- ACL type.
+- Permission.
+- Priority.
+- Role assignment.
+
+Use the backend's actual ACL types and validation.
+
+Important security rules:
+
+- Never expose MQTT passwords after initial provisioning.
+- Generated credentials must be displayed once according to the backend contract.
+- Never store passwords in frontend state longer than needed.
+- Never expose Dynamic Security control topics to normal users.
+- Require administrator authorization for every mutation.
+
+#### C. Broker Configuration Manager
+
+Route:
+
+`/admin/mqtt/configuration`
+
+Implement this as a first-class feature of the Admin Panel.
+
+Use the Configuration Manager design in `OEE_Frontend_Design_System_Spec.md` version 1.1.
+
+Create the following pages or tabs:
+
+**1. Configuration Overview**
+
+Display:
+
+- Active configuration version.
+- Configuration state.
+- Last applied time.
+- Broker runtime health.
+- Pending configuration changes.
+- Last operation status.
+- Available rollback version.
+
+**2. General Configuration**
+
+Manage supported broker-wide settings.
+
+**3. Listeners & WebSocket**
+
+Provide visual listener management:
+
+- Listener name/ID.
+- Port.
+- Bind address.
+- Protocol.
+- Enabled status.
+- Authentication configuration.
+- Connection limits.
+
+Support MQTT and WebSocket listener types when supported by the deployed broker.
+
+**4. TLS / SSL Configuration**
+
+Provide:
+
+- TLS profile list.
+- Certificate references.
+- CA certificate references.
+- Client certificate requirement.
+- TLS version.
+- Certificate status.
+- Certificate expiration information, only if the backend provides it.
+
+Never display private key contents.
+
+**5. MQTT Bridge Configuration**
+
+Provide:
+
+- Bridge list.
+- Remote broker address.
+- Remote port.
+- Remote client identifier.
+- Protocol version.
+- Topic mapping.
+- Bridge status.
+- TLS references.
+- Connection settings.
+
+Never expose bridge passwords.
+
+**6. Persistence & Storage**
+
+Manage:
+
+- Persistence enabled state.
+- Persistence directory.
+- Autosave interval.
+- Storage configuration.
+
+**7. Logging**
+
+Manage:
+
+- Log destination.
+- Log types.
+- Timestamp settings.
+- Connection messages.
+
+**8. Resource & Connection Limits**
+
+Manage available broker limits, including:
+
+- Maximum clients.
+- Maximum packet size.
+- Maximum queued messages.
+- Maximum queued bytes.
+- Maximum inflight messages.
+
+Display validated ranges and constraints.
+
+**9. Configuration Review & Apply**
+
+Build a controlled configuration workflow.
+
+Required components:
+
+- Configuration editor.
+- Current configuration display.
+- Proposed configuration display.
+- Configuration diff.
+- Validation report.
+- Security warnings.
+- Apply impact summary.
+- Confirmation dialog.
+
+The workflow must be:
+
+```text
+Edit Configuration
+       |
+       v
+Validate Configuration
+       |
+       v
+Preview Configuration Diff
+       |
+       v
+Display Impact
+       |
+       v
+Administrator Confirmation
+       |
+       v
+Apply Configuration
+       |
+       v
+Monitor Operation
+       |
+       v
+Verify Broker Health
+       |
+       +------ Success
+       |
+       +------ Failure / Rollback
+```
+
+Display the required operation:
+
+- No disruptive operation.
+- Reload required.
+- Restart required.
+- Infrastructure deployment required.
+
+Do not claim all changes can be applied without restart.
+
+**10. Configuration History & Rollback**
+
+Implement:
+
+- Version list.
+- Configuration change summary.
+- Administrator attribution.
+- Created timestamp.
+- Apply timestamp.
+- Operation status.
+- Version detail.
+- Compare versions.
+- Rollback action.
+
+Rollback requires explicit confirmation.
+
+### Important Configuration Manager API Constraint
+
+The supplied `API_DOCUMENTATION.md` documents the Dynamic Security integration but does not establish a complete Configuration Manager REST API contract.
+
+Therefore:
+
+1. Inspect the existing backend routes and OpenAPI specification.
+2. Use real Configuration Manager endpoints if they already exist.
+3. If endpoints are not implemented, prepare the frontend service interface and typed contract as a separately identified integration dependency.
+4. Make unavailable operations visibly unavailable.
+5. Do not send requests to invented paths.
+6. Do not replace real broker configuration with local mock state.
+7. Keep configuration editing and application disabled until the backend capability has been verified.
+
+The frontend must be ready for backend integration without pretending that the integration is already functional.
+
+---
+
+# PART VI — AUTHENTICATION, RBAC & NETWORK SECURITY
+
+### 15. Authentication
+
+Use the existing Fastify authentication API.
+
+Endpoints:
+
+```text
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+```
+
+Login form:
+
+- Operator ID.
+- Password.
+
+Follow the backend's actual login response contract.
+
+Implement:
+
+- Login page.
+- Authentication context.
+- Session lifecycle.
+- Token refresh.
+- Expired session handling.
+- Unauthorized handling.
+- Logout.
+- Login failure feedback.
+
+The documented JWT TTL is 900 seconds by default.
+
+Do not implement the old operator PIN authentication method. It has been removed from the API contract.
+
+Prefer in-memory token handling where practical. Do not introduce localStorage credential storage without an explicit security assessment and compatibility justification.
+
+Never log tokens or credentials.
+
+### 16. RBAC
+
+Implement route and component-level permission handling.
+
+Roles:
+
+- ADMIN.
+- SUPERVISOR.
+- OPERATOR.
+- MAINTENANCE.
+
+Use the actual backend permission matrix.
+
+Example:
+
+| Feature | ADMIN | SUPERVISOR | OPERATOR | MAINTENANCE |
+|---|---|---|---|---|
+| System Overview | Full | Read | Limited | Limited |
+| Machine Registry | Full | Read | Read | Read |
+| Device Registry | Full | Read | Read | Read |
+| Product Management | Full | Read | — | — |
+| Operator Management | Full | Read | — | — |
+| Work Orders | Full | Authorized | Authorized | As permitted |
+| MQTT Security | Full | — | — | — |
+| Configuration Manager | Full | — | — | — |
+| Analytics | Full | Read | Limited | Limited |
+| Audit | Full | Read | — | — |
+
+This table is a proposed UI navigation policy, not a replacement for backend authorization.
+
+Actual endpoint permission checks must always follow `API_DOCUMENTATION.md`.
+
+Do not assume that hiding a button is sufficient security.
+
+### 17. Network Access Modes
+
+The backend has two distinct access perimeters.
+
+**Local Factory LAN**
+
+- Full authorized administration.
+- Mutation operations permitted according to RBAC.
+- Device commands permitted according to RBAC.
+- Broker configuration permitted only when explicitly supported and authorized.
+
+**Remote Tunnel**
+
+- Strictly read-only.
+- GET and OPTIONS only.
+- Mutation endpoints blocked.
+- Machine actuation blocked.
+- API documentation hidden.
+
+Frontend requirements:
+
+- Show a clear Remote Read-only indicator.
+- Hide or disable all mutation actions in remote mode.
+- Display an understandable permission explanation.
+- Never attempt machine actuation remotely.
+- Never assume frontend restrictions replace Nginx/Fastify security enforcement.
+
+Use trusted backend/session configuration or an established deployment signal for access mode. Do not trust arbitrary client-supplied IP headers.
+
+---
+
+# PART VII — API & REAL-TIME INTEGRATION
+
+### 18. API Client Architecture
+
+Create a centralized API client.
+
+Requirements:
+
+- Configurable API base URL.
+- Authorization header handling.
+- Request timeout.
+- Standardized error handling.
+- Typed response interfaces.
+- Zod validation where appropriate.
+- Pagination support.
+- Cancellation support.
+- Request deduplication.
+- Authentication refresh handling.
+
+Follow the backend's actual response format.
+
+The documented error structure is:
+
+```json
+{
+  "error": "STRING_ERROR_CODE",
+  "message": "Description",
+  "issues": []
+}
+```
+
+Implement consistent user-facing error messages.
+
+Do not convert every error into a generic success/failure toast without domain context.
+
+### 19. WebSocket Integration
+
+Use the documented real-time WebSocket relay.
+
+The API documentation identifies:
+
+`/ws/telemetry`
+
+The architecture document also references `/ws/live`.
+
+Resolve this difference by inspecting the actual backend implementation or authoritative OpenAPI/runtime contract before selecting the endpoint.
+
+Do not guess.
+
+Support:
+
+- Initial REST snapshot.
+- WebSocket subscription.
+- Reconnection.
+- Heartbeat.
+- Last update timestamp.
+- Stale telemetry detection.
+- Connection state.
+- Unknown message type handling.
+
+Handle documented message types:
+
+- `TELEMETRY_UPDATE`
+- `HEALTH_UPDATE`
+- `DOWNTIME_STARTED`
+- `DOWNTIME_ENDED`
+- `MACHINE_BOUND`
+- `MACHINE_UNBOUND`
+- `MACHINE_DELETED`
+- `PRODUCT_DELETED`
+- Other supported lifecycle and operational events.
+
+Follow the documented WS envelope:
+
+```typescript
+interface WebSocketMessage {
+  type: string;
+  device_id?: string;
+  machine_id?: string;
+  data?: unknown;
+  timestamp?: string;
+  received_at?: string;
+}
+```
+
+The actual message-specific schemas must be defined independently.
+
+Important data handling:
+
+- WS `data.timestamp` uses Unix seconds.
+- REST telemetry time fields use ISO timestamps.
+- Do not mix seconds and milliseconds.
+- Ignore unknown message types.
+- Do not treat buffered historical telemetry as live telemetry.
+- Preserve REST snapshots when WebSocket temporarily disconnects.
+
+The documented backend target is low-latency streaming, with relay latency below 50 ms. Avoid introducing expensive chart recalculations or unnecessary full-page React renders for every frame.
+
+---
+
+# PART VIII — UX AND DESIGN BEHAVIOR
+
+### 20. Page-Level UX Requirements
+
+Every page must support:
+
+- Loading state.
+- Skeleton state.
+- Empty state.
+- Error state.
+- Permission denied state.
+- Offline state when applicable.
+- Data stale state.
+- Success feedback.
+- Mutation confirmation.
+- Validation errors.
+
+For data tables, support:
+
+- Search.
+- Sorting.
+- Filters.
+- Cursor pagination.
+- Responsive overflow.
+- Row actions.
+- Detail drawer.
+- Bulk operations only where backend supports them.
+
+For forms, support:
+
+- Clear labels.
+- Helpful validation messages.
+- Dirty-state detection.
+- Unsaved-change warning.
+- Submission loading state.
+- Server error mapping.
+
+For destructive operations, require confirmation and display business constraints.
+
+Do not use alerts or browser-native confirmation boxes as the primary interaction pattern.
+
+### 21. Responsive Design
+
+Prioritize the Admin Panel for desktop administration.
+
+Required viewports:
+
+- 1920 × 1080.
+- 1440 × 900.
+- 1366 × 768.
+- 1024 × 768.
+- 768 × 1024.
+- 390 × 844.
+
+Desktop:
+
+- Persistent or collapsible sidebar.
+- Structured content layout.
+- Multi-column dashboard.
+- Dense but readable tables.
+
+Tablet:
+
+- Collapsible sidebar.
+- Simplified tables.
+- Responsive forms.
+- Appropriate touch targets.
+
+Mobile:
+
+- Compact navigation.
+- Single-column page layout.
+- Stacked metric cards.
+- Accessible forms and action menus.
+
+Follow the industrial interaction requirement of approximately 56 px touch targets for critical HMI interactions, with WCAG AAA 7:1 contrast where specified.
+
+Color must not be the only indication of status.
+
+---
+
+# PART IX — DEVELOPMENT QUALITY
+
+### 22. Data Integrity and UI State
+
+The frontend must not alter OEE business calculations.
+
+Use values returned by the backend as the source of truth.
+
+In particular:
+
+- Availability, Performance, Quality, and OEE must not be independently recalculated with different formulas.
+- Preserve the distinction between cumulative live-state counters and hourly bucket deltas.
+- Preserve planned versus unplanned downtime.
+- Normalize legacy `STANDBY` to `READY` at the read boundary if required by the backend contract.
+- Do not display fabricated values when no samples exist.
+- Display missing values as unavailable or empty according to the design system.
+
+Do not assume that `machineName` from live-state is the authoritative machine registry value. Resolve the canonical machine information through the machine registry when needed.
+
+### 23. Performance
+
+The frontend should support the documented system scalability target of up to 100 edge devices.
+
+Implement:
+
+- Lazy-loaded routes.
+- Code splitting.
+- Query caching.
+- Appropriate stale times.
+- WebSocket event updates.
+- Stable memoized components.
+- Virtualized tables when necessary.
+- Debounced search.
+- Bounded telemetry queries.
+- Limited chart data points.
+- Efficient re-rendering.
+
+Do not reload every application query whenever one device sends telemetry.
+
+Invalidate only the relevant query or update its cache selectively.
+
+### 24. Accessibility and Industrial Readability
+
+Apply:
+
+- Semantic HTML.
+- Keyboard navigation.
+- Visible focus states.
+- Accessible dialogs.
+- Screen-reader labels.
+- Readable industrial typography.
+- Tabular numeric alignment.
+- Consistent status semantics.
+- High contrast.
+- Proper color usage.
+- Accessible chart summaries.
+
+The interface must remain understandable under long operating shifts and typical factory display conditions.
+
+---
+
+# PART X — TESTING & DELIVERY
+
+### 25. Testing Requirements
+
+Implement:
+
+**Component Tests**
+
+- Navigation.
+- Sidebar.
+- Tables.
+- Forms.
+- Dialogs.
+- Metric cards.
+- Configuration editors.
+- Validation reports.
+
+**Feature Tests**
+
+- Authentication.
+- RBAC.
+- LAN/remote access modes.
+- Device registration.
+- Machine binding.
+- Product management.
+- Operator management.
+- Work Order flows.
+- Downtime classification.
+- Operational event acknowledgement.
+- MQTT client management.
+- Role and ACL management.
+- Configuration Manager workflows.
+
+**Integration Tests**
+
+Test frontend integration against the actual backend API where the environment permits.
+
+Verify:
+
+1. Authentication works.
+2. Session refresh works.
+3. Role restrictions work.
+4. API request schemas are correct.
+5. API responses are handled correctly.
+6. Pagination works.
+7. WebSocket updates work.
+8. Remote tunnel restrictions are respected.
+9. MQTT Dynamic Security operations work.
+10. Configuration Manager integration works when its backend API is available.
+
+Do not report tests as passing when they were not executed.
+
+### 26. Implementation Workflow
+
+Execute the work in this order.
+
+**Phase 1 — Repository Inspection**
+
+Inspect frontend and backend repositories.
+
+Understand the existing app structure, API contract, authentication, RBAC, and deployment environment.
+
+**Phase 2 — Design System Foundation**
+
+Implement tokens, typography, colors, spacing, layouts, and reusable components.
+
+**Phase 3 — Application Shell**
+
+Implement authentication, routing, AdminLayout, sidebar, topbar, breadcrumbs, guards, and responsive navigation.
+
+**Phase 4 — Overview Dashboard**
+
+Implement health monitoring, production overview, system status, and administrative quick actions.
+
+**Phase 5 — Master Data & Asset Management**
+
+Implement Work Orders, products, operators, machines, and devices.
+
+**Phase 6 — Monitoring & Analytics**
+
+Implement live-state, downtime, operational events, telemetry, OEE analytics, quality, and reconciliation.
+
+**Phase 7 — MQTT Dynamic Security**
+
+Implement clients, credentials, roles, groups, and ACL management.
+
+**Phase 8 — MQTT Configuration Manager**
+
+Implement the complete Configuration Manager UI, including configuration overview, listeners, TLS, bridges, persistence, logging, limits, preview, validation, apply, history, and rollback.
+
+Integrate actual backend routes where available.
+
+**Phase 9 — API & WebSocket Integration**
+
+Complete error handling, data synchronization, caching, and live updates.
+
+**Phase 10 — Quality Assurance**
+
+Run tests, inspect responsive layouts, verify accessibility, and check API compatibility.
+
+**Phase 11 — Deployment**
+
+Prepare the React SPA for static deployment behind the existing Nginx gateway.
+
+Respect the dual-vhost LAN and remote tunnel architecture.
+
+**Phase 12 — Documentation**
+
+Document frontend architecture, route structure, API mapping, environment variables, and outstanding backend dependencies.
+
+---
+
+# PART XI — ACCEPTANCE CRITERIA
+
+The Admin Panel is considered complete only when:
+
+- The React SPA runs successfully.
+- The design system is consistently implemented.
+- Authentication works with the existing Fastify backend.
+- RBAC is integrated.
+- Network access restrictions are respected.
+- Overview dashboard displays actual backend data.
+- Work Order administration works.
+- Product management works.
+- Operator management works.
+- Device registry management works.
+- Machine management and binding work.
+- Live-state administrative inspection works.
+- Downtime management works.
+- Operational event acknowledgement works.
+- Device diagnostics work.
+- OEE and telemetry analytics work.
+- MQTT Dynamic Security administration works.
+- Configuration Manager UI is implemented.
+- Configuration Manager uses verified backend endpoints or clearly identifies unavailable integrations.
+- WebSocket integration works against the verified backend contract.
+- Loading, error, empty, offline, and success states exist.
+- Responsive layouts work.
+- No production data is fabricated.
+- No undocumented endpoints are silently assumed.
+- Tests are implemented and execution results are documented.
+- Application is deployable through Nginx.
+
+---
+
+# FINAL DEVELOPMENT INSTRUCTION
+
+Develop this project as a complete industrial administration application.
+
+Prioritize:
+
+1. Correctness of backend integration.
+2. Consistency with the design system.
+3. Clear information architecture.
+4. Security and RBAC.
+5. Maintainable React architecture.
+6. Industrial usability.
+7. Responsive behavior.
+8. Performance.
+
+Do not stop after creating a design proposal.
+
+Proceed with actual frontend implementation in the existing repository.
+
+Do not build the separate OEE Single Page / Andon Wallboard.
+
+Do not create simulated production metrics or fake broker configuration.
+
+Do not duplicate backend business logic.
+
+Do not invent API endpoints.
+
+Do not remove existing functionality.
+
+Do not leave essential pages as static mockups.
+
+The final deliverable must be a functional **OEE IIoT Admin Panel** that integrates with the existing Fastify backend and provides centralized administration for production resources, industrial devices, MQTT Dynamic Security, Mosquitto Configuration Manager, analytics, diagnostics, and system operations.

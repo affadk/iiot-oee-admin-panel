@@ -1,0 +1,416 @@
+**Pembaruan yang dibutuhkan terbagi menjadi enam gelombang: dua halaman baru yang dapat dibangun sekarang (`/admin/production-monitor`, `/admin/production-history`), sembilan halaman lama yang direvisi, 23 komponen baru, 13 kontrak backend usulan, 10 item verifikasi kontrak, dan revisi acceptance criteria serta roadmap — tanpa mengubah satu pun invarian keselamatan v1.0.** Dokumen di bawah adalah registri pembaruan lengkap untuk menaikkan `ADMIN_PANEL_DESIGN_SPEC.md` dari v1.0 ke v1.1. Simpan sebagai `ADMIN_PANEL_DESIGN_SPEC_UPDATE_REGISTER_v1.1.md`.
+
+---
+
+# Registri Pembaruan — Spesifikasi Desain Admin Panel IIoT OEE
+## v1.0 → v1.1
+
+| Kontrol dokumen | Nilai |
+|---|---|
+| Versi target | 1.1 (menggantikan v1.0 setelah seluruh item gelombang 1 diterapkan) |
+| Tanggal | 12 November 2026 |
+| Basis | `ADMIN_PANEL_DESIGN_SPEC.md` v1.0, `ADMIN_PANEL_BUILD_GUIDE.md`, `OEE_FrontendDesign_System_Spec_v1.1.md`, analisis gap OEE (JIPM/ISO 22400) |
+| Status | Registri pembaruan mengikat; item bertanda `PROPOSAL` bukan kontrak aktif |
+| Lingkup | Admin Panel saja; tanpa wallboard, station, atau aktuasi mesin |
+| Prioritas sumber | Kode backend → build guide → OEE spec → analisis gap → rekomendasi dokumen ini |
+
+Ringkasan angka: **6 route baru, 9 halaman lama direvisi, 23 komponen baru, 5 state baru, 13 kontrak backend usulan (6 P0 + 7 P1), 10 item verifikasi, 4 gelombang eksekusi.**
+
+---
+
+## 1. Invarian yang Tidak Boleh Berubah
+
+Seluruh pembaruan dilarang melanggar poin berikut. Bila terjadi konflik, poin ini menang.
+
+- Tidak ada tombol `PAUSE`, `RESUME`, `RESET_COUNTER`, dan tidak ada panggilan `POST /devices/:device_id/command` di Admin Panel (ADR-003).
+- Remote tunnel (`port 8080` / indikator perimeter): seluruh mutasi disabled sebelum request; banner "Mode observasi".
+- Token hanya di memori; reload = login ulang; refresh proaktif 80% TTL; `401` = sesi berakhir.
+- OEE/availability/agregat tidak dihitung di klien lalu menimpa nilai backend.
+- OEE pabrik tidak dirata-rata sederhana antar mesin; rollup hanya dari endpoint server-side yang semantics-nya jelas.
+- Tidak hardcode benchmark 85%/90%/95%/99.9% sebagai threshold; target dari konfigurasi bisnis.
+- Histori tidak disembunyikan saat relasi master dihapus; tampil `[dihapus]` + ID historis.
+- Cursor pagination asli (`nextCursor`); tanpa page-number semu.
+- Configuration Manager tetap memakai kontrak version-based 13 operasi; bukan proposal OEE spec.
+- Fitur draft (OOE/TEEP/AI/SPC/SMED/DBR) tidak tampil sebagai fitur aktif.
+- Secret/private key tidak pernah muncul di tabel, toast, log, URL, diff, atau audit detail.
+
+---
+
+## 2. Pembaruan Navigasi & Route (§3 spec v1.0)
+
+### 2.1 Route baru
+
+| ID | Route | Halaman | Akses | Dependensi | Prioritas |
+|---|---|---|---|---|---|
+| R01 | `/admin/production-monitor` | OEE produksi berjalan (read-only) | semua baca | kontrak yang ada | P0 |
+| R02 | `/admin/production-history` | Riwayat produksi WO-centric | semua baca | kontrak yang ada (parsial) | P0 |
+| R03 | `/admin/production-settings` | Targets, kalender shift, klasifikasi loss, micro-stop, reject reason, eskalasi | ADMIN tulis; baca sesuai policy | B01, B02, B06, B09, B10, B11 | P0/P1 |
+| R04 | `/admin/maintenance` | MTBF/MTTR + reliability analytics | semua baca | B08 | P1 |
+| R05 | `/admin/reports` | Report builder + shift handover + ekspor tergabung | semua baca; jadwal ADMIN/SUPERVISOR | B07 | P1 |
+| R06 | `/admin/assets/hierarchy` | Hierarki site/area/line/machine/device | ADMIN tulis; semua baca | B05 | P0 |
+
+### 2.2 Sidebar v1.1
+
+```
+Overview
+Production
+  ├─ Production Monitor      (R01)
+  ├─ Production History      (R02)
+  ├─ Work Orders
+  ├─ Downtime Events
+  └─ Operational Events
+Assets
+  ├─ Devices
+  ├─ Machines
+  ├─ Products
+  ├─ Operators
+  └─ Asset Hierarchy         (R06, backend-dependent)
+Data & Analytics
+  ├─ Telemetry
+  ├─ Shift Analytics
+  ├─ Quality & Rejects
+  ├─ Maintenance KPI         (R04, backend-dependent)
+  ├─ Reports                 (R05, backend-dependent)
+  └─ Reconciliation
+MQTT & Connectivity
+  ├─ Dynamic Security
+  └─ Broker Configuration (+ subhalaman yang sudah ada)
+System
+  ├─ Health & Diagnostics
+  ├─ Access Control          (ADMIN)
+  ├─ Production Settings     (R03, ADMIN, backend-dependent)
+  └─ API Reference           (LAN)
+```
+
+Aturan tampil:
+- Halaman backend-dependent tetap boleh dibangun layout-nya, tetapi menampilkan state `REPORT_API_UNAVAILABLE` / `SETTINGS_API_UNAVAILABLE` dan menonaktifkan mutasi sampai kontrak diverifikasi. Jangan panggil endpoint usulan sebelum ada di kode/OpenAPI.
+- Item yang tidak dapat diakses role disembunyikan, bukan disabled.
+- Remote: R03/R06 mutasi disabled; R01/R02/R04/R05 tetap baca.
+
+---
+
+## 3. Halaman Baru — Spesifikasi Lengkap
+
+### 3.1 R01 · Production Monitor (`/admin/production-monitor`)
+
+**Tujuan:** melihat OEE produksi berjalan di dalam Admin shell, read-only, dengan konteks shift/WO. Bukan wallboard TV dan bukan tempat aksi operasional.
+
+**Sumber data:**
+
+| Kebutuhan | Endpoint | Label provenance wajib |
+|---|---|---|
+| State FSM, counters, freshness | `GET /live-state` | "live-state · kumulatif perangkat" |
+| Nama mesin | `GET /machines` | — |
+| WO aktif | `GET /work-orders?status=ACTIVE&envelope=true` | — |
+| Insiden aktif | `GET /downtime-events/active` | — |
+| **OEE shift berjalan** | `GET /oee/shift-summary` (window shift/WO aktif) | "shift-summary · Shift 2 · 14:00–22:00 · berjalan" |
+| Timeline | `GET /oee/shift-timeline` | "shift-timeline · window berjalan" |
+| Tren | `GET /telemetry/:id/hourly` atau `/aggregate` | "hourly · delta per bucket" |
+| Update incremental | `WS /ws/telemetry` | — |
+| Koneksi | `GET /health` | indikator, bukan blocker |
+
+**Layout:**
+- Toolbar: pemilih mesin (line hanya bila hierarki tersedia), indikator window shift, connection badge, freshness, refresh manual.
+- KPI shift berjalan mesin terpilih: OEE dominan + A/P/Q dari `shift-summary`; chip provenance di bawah setiap angka.
+- Grid per mesin: FSM badge, online (TTL backend), WO aktif, counters kumulatif berlabel, OEE ringkas per mesin bila tersedia, freshness. Urutan: `UNPLANNED_DOWNTIME` → stale/offline → `RUNNING` → `READY` → lainnya.
+- Antrean downtime aktif: durasi, mesin, kategori/alasan, status "Perlu alasan"; tautan ke `/admin/downtime`, tanpa aksi label di halaman ini.
+- Timeline + tren window berjalan; progres vs `targetPerHour` hanya bila tersedia.
+
+**State baru:** `TARGET_ABSENT` (tanpa garis target), `RUN_OEE_UNAVAILABLE` (bila window per WO belum didukung), `ROLLUP_UNAVAILABLE` (tanpa KPI pabrik), stale/disconnected/backlog sesuai v1.0.
+
+**Guard:** tanpa aktuasi; tanpa rata-rata pabrik; tanpa hitung OEE klien; `is_buffered` bukan live; reconnect → refetch `live-state` + `shift-summary`; remote read-only.
+
+**Acceptance:**
+- [ ] KPI berjalan berasal dari `shift-summary`, bukan `live-state`.
+- [ ] Counters `live-state` diberi label kumulatif, tidak disajikan sebagai hasil shift.
+- [ ] WS satu koneksi; reconnect melakukan resync snapshot.
+- [ ] Tidak ada tombol yang mengubah status mesin/WO/downtime.
+- [ ] Setiap angka OEE memiliki chip sumber + window + scope.
+
+### 3.2 R02 · Production History (`/admin/production-history`)
+
+**Tujuan:** riwayat produksi lengkap per run/WO, dengan drill-down losses, quality, telemetri, dan audit. "Lengkap" hanya boleh diklaim bila ada coverage flag dari backend.
+
+**Filter:** tanggal (ISO offset), mesin, produk, operator, shift, status, WO ID. Cursor pagination dari `/work-orders` (≤100).
+
+**Peta kolom → sumber:**
+
+| Kolom | Sumber | Catatan |
+|---|---|---|
+| WO ID, mesin, produk, operator, status, target, start/end | `GET /work-orders` + `/:wo_id` | null → `[dihapus]` |
+| Total/good/reject per run | WO detail bila memuat counters (V02); bila tidak → state `RUN_OEE_UNAVAILABLE` | jangan pakai `live-state` kumulatif |
+| OEE/A/P/Q per run | `shift-summary` window run bila didukung (V01); bila tidak → B03 | jangan hitung klien |
+| Downtime total + kategori dominan | `GET /downtime-events/:device_id?from&to` | filter kategori lokal berlabel |
+| Reject breakdown | `GET /quality/rejects/:device_id?from&to` | `[]` → empty state |
+| Tren | `hourly` / `aggregate` | delta per bucket |
+| Audit | `GET /operational-events/?machine_id&from&to` | ≤200 |
+| Kelengkapan data | `GET /telemetry/reconciliation/jobs` (sementara); B13 untuk coverage per window | tanpa flag → label "kelengkapan belum terverifikasi" |
+
+**Drawer detail (lazy, hindari N+1):** tabs Ringkasan · Timeline · Downtime · Quality · Telemetri · Audit · Ekspor. Data per tab di-fetch saat tab dibuka, bukan per baris tabel.
+
+**Ekspor:** hanya per komponen dengan label cakupan ("Telemetri perangkat X, window Y"). Ekspor tergabung menunggu B07; jangan rakit CSV gabungan dari data terpaginasi lalu klaim lengkap.
+
+**Acceptance:**
+- [ ] Satu baris = satu WO run; relasi terhapus tetap tampil.
+- [ ] Tabel tidak melakukan fetch OEE/downtime/reject per baris (N+1 dilarang).
+- [ ] Drawer lazy-load per tab; setiap tab punya loading/empty/error sendiri.
+- [ ] Coverage indicator tampil; tanpa flag, tidak ada klaim "lengkap".
+- [ ] Ekspor per komponen mencantumkan device + window + format + rate limit.
+
+### 3.3 R03 · Production Settings (`/admin/production-settings`)
+
+**Tujuan:** satu halaman konfigurasi metodologi OEE, bertab, ADMIN + LAN. Semua mutasi bergantung kontrak B01/B02/B06/B09/B10/B11.
+
+| Tab | Isi | Kontrak | Guard |
+|---|---|---|---|
+| OEE Targets | Target per mesin/produk/shift + provenance (sumber, pemilik, berlaku sejak) | B06 | tanpa hardcode 85%; tanpa target → `TARGET_ABSENT` |
+| Shift Calendar | Planned production time, break, holiday, overtime; overnight-safe | B02 | denominator availability tidak dihitung klien |
+| Loss Classification | Mapping kategori → `loss_type` + `is_planned`; klasifikasi Six Big Losses | B01 | enum 10 final; perubahan hanya bila backend mengizinkan |
+| Micro-stop | Ambang minor stop per line/mesin + counting | B09 | jangan hardcode 5 menit |
+| Reject Reasons | Master alasan reject + kategori; rework/FPY bila backend melacak rework | B10 | tanpa rework → label "Reject rate", bukan FPY |
+| Escalation Rules | Aturan downtime > N menit → supervisor; kanal webhook/email | B11 | ADMIN LAN; konfirmasi eksplisit; uji kanal sebelum aktif |
+
+**Acceptance:**
+- [ ] Semua tab memiliki state `SETTINGS_API_UNAVAILABLE` defensif.
+- [ ] Mutasi hanya ADMIN + LAN; 403 menurunkan kemampuan.
+- [ ] Setiap target memiliki provenance; tanpa provenance, tidak dipakai sebagai garis target.
+- [ ] Kalender shift menampilkan efek terhadap planned production time.
+
+### 3.4 R04 · Maintenance KPI (`/admin/maintenance`)
+
+**Tujuan:** MTBF/MTTR per mesin/periode dari downtime `EQUIPMENT_FAILURE` + run time. Kontrak B08.
+
+- KPI cards: MTBF, MTTR, failure count, total repair time.
+- Tren MTBF/MTTR per bulan/minggu; Pareto kategori failure; tautan ke insiden terkait.
+- Filter mesin + periode; tanpa data → empty state, bukan angka nol palsu.
+- Sumber nilai harus server-side; jangan hitung dari downtime terpaginasi di klien.
+
+### 3.5 R05 · Reports (`/admin/reports`)
+
+**Tujuan:** laporan produksi tergabung + shift handover + ekspor CSV/PDF. Kontrak B07.
+
+- Report builder: pilih scope (mesin/line/plant bila rollup tersedia), window, kolom, grouping (per WO/shift/hari).
+- Preview tabel + ringkasan losses; coverage flag per laporan.
+- Ekspor CSV/PDF dengan metadata: scope, window, sumber, coverage, waktu generate.
+- Shift handover: laporan akhir shift terjadwal; kanal distribusi sesuai B11.
+- Tanpa B07: state `REPORT_API_UNAVAILABLE`, preview dari data parsial diberi label "parsial".
+
+### 3.6 R06 · Asset Hierarchy (`/admin/assets/hierarchy`)
+
+**Tujuan:** hierarki `ORGANIZATION > SITE > AREA > LINE > MACHINE > DEVICE` untuk rollup dan scope IAM yang konsisten. Kontrak B05.
+
+- Tree editor: tambah/ubah/hapus node; assign mesin/device ke line/area/site.
+- Tampilkan dampak terhadap rollup OEE dan scope assignment IAM.
+- Guard: node dengan mesin aktif tidak boleh dihapus tanpa reassignment; konfirmasi eksplisit.
+- Tanpa B05: read-only fallback dari data mesin yang ada, dengan label "hierarki belum tersedia".
+
+---
+
+## 4. Halaman Lama yang Direvisi
+
+| ID | Halaman | Perubahan wajib | Dependensi | Prioritas |
+|---|---|---|---|---|
+| M01 | Overview (§8.2) | Kartu masuk ke Production Monitor/History; strip konteks shift aktif; tegaskan tanpa agregat OEE pabrik | — | P0 |
+| M02 | Work Orders (§8.7) | Tab "OEE run" di drawer; counters per run (V02) atau state `RUN_OEE_UNAVAILABLE`; tautan ke Production History | V01/V02/B03 | P0 |
+| M03 | Downtime (§8.8) | Badge `loss_type`/`is_planned` bila B01 tersedia; badge micro-stop bila B09; chart tetap "Pareto Kategori Downtime" | B01/B09 | P0/P1 |
+| M04 | Telemetry (§8.10) | Panel event-context: dari insiden/event → telemetri ±window (preset 1/5/15 menit) untuk root cause | kontrak ada | P1 |
+| M05 | Shift Analytics (§8.11) | Mode komparatif maks 4 mesin terpilih; tanpa averaging; rollup hanya dari B04 | V01/B04 | P1 |
+| M06 | Quality (§8.12) | Label "Reject rate" bila rework belum dilacak; tautan master reject reason; empty state tetap | B10 | P1 |
+| M07 | Reconciliation (§8.13) | Coverage per window (B13) atau label "belum terverifikasi"; visibilitas retention tiers (B12) | B12/B13 | P1 |
+| M08 | System Health (§8.17) | Ringkasan kelengkapan data + retention policy cards | B12/B13 | P1 |
+| M09 | Access Control (§8.14) | Katalog resource baru: `production_settings`, `oee_target`, `shift_calendar`, `loss_classification`, `micro_stop_rule`, `reject_reason`, `escalation_rule`, `asset_hierarchy`, `production_report`, `maintenance_kpi` | B01–B13 | P0/P1 |
+
+---
+
+## 5. Komponen Baru (§6 spec v1.0)
+
+| ID | Komponen | Fungsi | Status |
+|---|---|---|---|
+| C01 | `ShiftKpiPanel` | KPI shift berjalan + chip provenance | sekarang |
+| C02 | `ProductionMachineGrid` | Grid mesin terurut prioritas abnormal | sekarang |
+| C03 | `ProductionMachineCard` | FSM + online + WO + counters kumulatif + freshness | sekarang |
+| C04 | `RunReportTable` | Tabel WO-centric + cursor + filter chips | sekarang |
+| C05 | `RunDetailDrawer` | Drawer lazy per tab (7 tab) | sekarang |
+| C06 | `ProvenanceLabel` | Chip sumber + window + scope untuk setiap angka | sekarang |
+| C07 | `CoverageIndicator` | Status kelengkapan data per window | B13; fallback jobs |
+| C08 | `LossClassificationBadge` | `loss_type` + `is_planned` | B01 |
+| C09 | `MicroStopBadge` | Penanda minor stop | B09 |
+| C10 | `TargetAbsentNotice` | Tanpa garis target bila target absen | sekarang |
+| C11 | `RunOeeUnavailableNotice` | OEE per run belum tersedia | V01/V02/B03 |
+| C12 | `RollupUnavailableNotice` | Rollup line/plant belum tersedia | B04/B05 |
+| C13 | `ComparisonSelector` | Pilih maks 4 mesin; cegah averaging | sekarang |
+| C14 | `EventContextTelemetryPanel` | Telemetri ±window sekitar event | sekarang |
+| C15 | `MtbfMttrCard` | KPI reliability server-side | B08 |
+| C16 | `TargetEditor` | Editor target + provenance | B06 |
+| C17 | `ShiftCalendarEditor` | Kalender planned production time | B02 |
+| C18 | `LossMappingTable` | Mapping kategori → loss | B01 |
+| C19 | `EscalationRuleEditor` | Aturan eskalasi + uji kanal | B11 |
+| C20 | `RejectReasonEditor` | Master alasan reject | B10 |
+| C21 | `AssetHierarchyTree` | Tree site/area/line/machine/device | B05 |
+| C22 | `RetentionTierPanel` | Kebijakan retensi raw/hourly/daily | B12 |
+| C23 | `ReportExportDialog` | Ekspor tergabung + metadata cakupan | B07 |
+
+---
+
+## 6. State Baru (§7 spec v1.0)
+
+| State | Trigger | Tampilan |
+|---|---|---|
+| `TARGET_ABSENT` | target OEE tidak tersedia | metric tanpa garis pembanding + teks "Target belum dikonfigurasi" |
+| `RUN_OEE_UNAVAILABLE` | OEE per WO/run belum didukung kontrak | panel kosong berlabel sebab + tautan verifikasi V01/V02 |
+| `ROLLUP_UNAVAILABLE` | rollup server-side absen | tanpa KPI pabrik; tampilkan grid per mesin + notice |
+| `COVERAGE_PENDING` | coverage flag belum tersedia | label "Kelengkapan belum terverifikasi per window" |
+| `REPORT_API_UNAVAILABLE` / `SETTINGS_API_UNAVAILABLE` | kontrak B01–B13 belum ada | layout tetap, mutasi disabled, tanpa request tebakan |
+
+---
+
+## 7. Aturan Data & Visualisasi Baru (§9 spec v1.0)
+
+- **Provenance wajib:** setiap angka OEE/A/P/Q/counters memiliki chip sumber (endpoint), window, dan scope. Tanpa provenance, angka tidak boleh tampil sebagai KPI utama.
+- **Larangan N+1:** tabel laporan tidak mem-fetch OEE/downtime/reject per baris. Detail di-load lazy saat drawer/tab dibuka.
+- **Komparatif terbatas:** mode banding maksimal 4 mesin terpilih untuk membatasi jumlah request; hasil tampil berdampingan, bukan dirata-rata.
+- **Coverage sebelum klaim lengkap:** tanpa coverage flag, laporan diberi label "kelengkapan belum terverifikasi"; jangan klaim "riwayat lengkap".
+- **Ekspor:** ekspor tergabung hanya lewat endpoint report (B07). Ekspor per komponen boleh memakai endpoint yang ada, dengan metadata device + window + cakupan.
+- **Event-context drill-down:** dari bar Pareto/event → insiden → telemetri ±window (preset 1/5/15 menit) memakai endpoint telemetri yang ada; beri label konteks akar masalah.
+- **Chart komparatif:** gunakan palet 8-hue yang ada; direct label per seri; tanpa dual-axis tanpa kebutuhan; empty state eksplisit.
+- **Jam vs kumulatif:** tetap dilarang membandingkan `live-state` kumulatif dengan `hourly` delta tanpa window yang sama.
+
+---
+
+## 8. Kontrak Backend Usulan (bukan bagian dari 107 operasi)
+
+Semua path di bawah adalah **PROPOSAL**. Dilarang dipanggil sebelum diverifikasi terhadap kode/OpenAPI. Bila absen, tampilkan state defensif dan nonaktifkan mutasi.
+
+### P0 — kebenaran metodologi OEE
+
+| ID | Kebutuhan | Endpoint usulan | Payload kunci |
+|---|---|---|---|
+| B01 | Klasifikasi loss | `GET/PUT /production/loss-classification` | `category`, `loss_type` (availability/performance/quality/schedule), `is_planned`, `six_big_loss` nullable |
+| B02 | Kalender shift | `GET/POST/PUT/DELETE /production/shift-calendar` | planned production time per mesin/line/tanggal; break, holiday, overtime |
+| B03 | OEE per WO/run | `GET /oee/work-order-summary?wo_id=` | A/P/Q/OEE + counters per run + planned/run/net run time |
+| B04 | Rollup weighted | `GET /oee/rollup?scope&scope_id&from&to` | OEE weighted by run time/counts + `aggregation_method` |
+| B05 | Hierarki aset | `GET/POST/PUT/DELETE /assets/hierarchy` + assignment | node `SITE/AREA/LINE`; assignment mesin/device |
+| B06 | Target OEE | `GET/POST/PUT/DELETE /production/oee-targets` | target per mesin/produk/shift + `source`, `owner`, `effective_from` |
+
+### P1 — fitur industri yang diharapkan
+
+| ID | Kebutuhan | Endpoint usulan | Catatan |
+|---|---|---|---|
+| B07 | Laporan produksi + ekspor | `GET /reports/production-history` + `/export` | join server-side, coverage flag, cursor; CSV/PDF |
+| B08 | Maintenance KPI | `GET /maintenance/kpi` | MTBF/MTTR dari downtime + run time, server-side |
+| B09 | Micro-stop | `GET/PUT /production/micro-stop-rules` + counting | ambang per line/mesin; jangan hardcode |
+| B10 | Reject reason + rework | `GET/POST/PUT/DELETE /production/reject-reasons` | FPY hanya bila rework dilacak |
+| B11 | Eskalasi | `GET/POST/PUT/DELETE /production/escalation-rules` | downtime > N menit → webhook/email; uji kanal |
+| B12 | Retensi data | `GET /system/retention-policies` | tier raw/hourly/daily; read-only |
+| B13 | Coverage per window | `GET /telemetry/reconciliation/coverage?from&to` | flag lengkap/parsial per scope |
+
+---
+
+## 9. Item Verifikasi Kontrak
+
+Wajib ditutup sebelum modul terkait diaktifkan penuh. Baseline dokumen ini mengikuti build guide.
+
+| ID | Item | Baseline |
+|---|---|---|
+| V01 | Apakah `shift-summary` menerima window arbitrer (from = WO start)? | bila tidak → B03 wajib |
+| V02 | Apakah WO detail memuat counters per run (total/good/reject)? | bila tidak → `RUN_OEE_UNAVAILABLE` + B03 |
+| V03 | Kontrak ACK/hasil transaksi dispatch | tunggu hasil server; jangan klaim sukses dari publish |
+| V04 | Field `isOverwrite` pada respons label downtime | skema optional; render bila ada |
+| V05 | Kode `MACHINE_NOT_BOUND` | tangani via pesan 409 server sampai terkonfirmasi |
+| V06 | Policy MAINTENANCE untuk downtime reason & ack | baseline OPERATOR+; buka hanya bila policy mengizinkan |
+| V07 | Batas backlog rekonsiliasi 72 jam | jadikan batas window refresh; verifikasi ke worker |
+| V08 | Semantics agregasi pabrik tanpa filter pada `shift-summary` | tidak jelas → tanpa KPI pabrik sampai B04 |
+| V09 | Satuan `hourly` delta vs `live-state` kumulatif | tetap dilarang dibandingkan langsung |
+| V10 | Keberadaan kebijakan retensi | bila absen → B12; jangan tampilkan tier palsu |
+
+---
+
+## 10. Acceptance Criteria Tambahan (§12 spec v1.0)
+
+### Global
+- [ ] Setiap KPI OEE memiliki provenance (sumber + window + scope).
+- [ ] Tanpa coverage flag, tidak ada klaim "riwayat lengkap".
+- [ ] Tidak ada N+1 fetch pada tabel laporan.
+- [ ] Tidak ada KPI pabrik dari rata-rata sederhana.
+- [ ] Tidak ada threshold OEE hardcode.
+- [ ] Semua state baru (§6) terimplementasi dan konsisten.
+- [ ] Remote tetap read-only; tidak ada aktuasi mesin di seluruh panel.
+
+### Production Monitor
+- [ ] KPI berjalan dari `shift-summary`; counters `live-state` berlabel kumulatif.
+- [ ] WS satu koneksi; reconnect resync; backlog bukan live.
+- [ ] Tanpa aksi pengubah state mesin/WO/downtime.
+
+### Production History
+- [ ] WO-centric; `[dihapus]` tetap tampil; cursor pagination asli.
+- [ ] Drawer lazy per tab; setiap tab punya state sendiri.
+- [ ] Ekspor per komponen berlabel cakupan; tanpa ekspor gabungan palsu.
+
+### Backend-dependent (R03–R06)
+- [ ] Layout tersedia; mutasi disabled sampai kontrak diverifikasi.
+- [ ] Tanpa request ke endpoint usulan yang belum ada.
+- [ ] Setiap mutasi: konfirmasi + anti double-submit + refetch.
+- [ ] Target memiliki provenance; tanpa provenance tidak dipakai sebagai garis target.
+
+---
+
+## 11. Roadmap Tambahan (§13 spec v1.0)
+
+| Fase | Isi | Dependensi | Gelombang |
+|---|---|---|---|
+| D8 | Production Monitor + Production History + provenance + coverage fallback + event-context + komparatif terbatas | kontrak yang ada | G1 |
+| D9 | Production Settings + Asset Hierarchy (target, kalender, loss classification, hierarki) | B01/B02/B05/B06 | G2 |
+| D10 | Maintenance KPI + Reports + ekspor tergabung | B07/B08 | G3 |
+| D11 | Micro-stop + reject reason + eskalasi + retention + coverage per window | B09–B13 | G4 |
+| D12 | QA: tutup V01–V10, contrast, responsive, integrasi LAN per modul baru | G1–G4 | QA |
+
+---
+
+## 12. Anti-Pattern Tambahan
+
+- Mengklaim "riwayat produksi lengkap" tanpa coverage flag.
+- Mem-fetch OEE/downtime/reject untuk setiap baris tabel (N+1).
+- Merakit CSV gabungan dari data terpaginasi di klien lalu menyebutnya lengkap.
+- Menampilkan OEE pabrik dari rata-rata sederhana antar mesin.
+- Hardcode 85%/90%/95%/99.9% sebagai threshold.
+- Melabeli reject rate sebagai FPY tanpa pelacakan rework.
+- Menghitung denominator availability di klien.
+- Memanggil endpoint `PROPOSAL` sebelum kontrak diverifikasi.
+- Menyembunyikan baris historis karena relasi master dihapus.
+- Menampilkan TEEP/SPC/AI/SMED sebagai fitur aktif.
+
+---
+
+## 13. Changelog per Bagian Spec v1.0
+
+| Bagian v1.0 | Pembaruan v1.1 |
+|---|---|
+| §1 Tujuan & prinsip | Tambah prinsip provenance, coverage-before-completeness, dan server-side aggregation |
+| §2 Persona & otorisasi | Tambah akses baca untuk modul baru; Production Settings ADMIN LAN |
+| §3.1 Route | Tambah R01–R06 |
+| §3.2 Sidebar | Struktur baru §2.2 dokumen ini |
+| §6 Komponen | Tambah C01–C23 |
+| §7 State | Tambah lima state baru §6 dokumen ini |
+| §8 Halaman | Tambah 8.18–8.23 (R01–R06); revisi M01–M09 |
+| §9 Data & visualisasi | Tambah aturan provenance, N+1, coverage, ekspor, komparatif, event-context |
+| §10 Keamanan UX | Tidak berubah; invarian dipertegas |
+| §11 Aksesibilitas | Tidak berubah; komponen baru mengikuti aturan yang sama |
+| §12 Acceptance | Tambah kriteria §10 dokumen ini |
+| §13 Fase | Tambah D8–D12 |
+| §14 Keputusan | Tambah keputusan: provenance wajib, rollup server-only, coverage-before-completeness, proposal-endpoint gating |
+| Lampiran A | Tambah baris endpoint aktif + baris `PROPOSAL` B01–B13 dengan penanda jelas |
+| Lampiran B | Tambah referensi JIPM OEE dan ISO 22400 sebagai basis metodologi, bukan kontrak API |
+
+---
+
+## 14. Urutan Eksekusi
+
+| Gelombang | Isi | Kriteria selesai |
+|---|---|---|
+| G1 (frontend-now) | R01, R02, M01/M02/M04/M05, C01–C07/C10–C14, state baru, provenance, coverage fallback | monitor + history berjalan terhadap backend LAN; tanpa klaim lengkap; tanpa N+1 |
+| G2 (backend P0) | B01, B02, B03, B04, B05, B06 → R03, R06, rollup, OEE per run | denominator availability benar; target ber-provenance; rollup weighted tersedia |
+| G3 (backend P1) | B07, B08 → R04, R05, ekspor tergabung | laporan tergabung + coverage flag; MTBF/MTTR server-side |
+| G4 (backend P1) | B09–B13 → micro-stop, reject reason, eskalasi, retention, coverage | fitur industri lengkap; retensi terlihat; eskalasi teruji |
+| QA | V01–V10 ditutup; uji integrasi LAN per modul baru; contrast + responsive | spec v1.1 dirilis; v1.0 digantikan |
+
+**Definisi selesai pembaruan:** seluruh item G1 terimplementasi dan teruji terhadap backend sungguhan di LAN; item G2–G4 boleh tetap bertanda `backend-dependent` asalkan state defensifnya berjalan dan tidak ada endpoint usulan yang dipanggil sebelum kontrak ada. Spec v1.1 dianggap lengkap bila changelog §13 diterapkan seluruhnya ke dokumen induk dan tidak ada invarian §1 yang dilanggar.

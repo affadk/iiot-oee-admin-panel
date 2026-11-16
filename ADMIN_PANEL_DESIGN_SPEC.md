@@ -1,0 +1,776 @@
+# Spesifikasi Desain Admin Panel — IIoT OEE
+
+| Kontrol dokumen | Nilai |
+|---|---|
+| Versi | 1.0 |
+| Tanggal | 12 November 2026 |
+| Status | Spesifikasi desain mengikat untuk implementasi frontend Admin Panel |
+| Sumber utama | `ADMIN_PANEL_BUILD_GUIDE.md` |
+| Sumber tambahan | `OEE_FrontendDesign_System_Spec_v1.1.md` |
+| Prioritas | Kode backend → build guide → OEE spec → rekomendasi dokumen ini |
+| Lingkup | Admin Panel saja (`/login`, `/admin/*`) |
+| Di luar lingkup | HMI lantai produksi, OEE Wallboard `/oee`, Station `/station/*`, aktuasi mesin |
+
+Dokumen ini berdiri sendiri sebagai acuan desain. Kontrak API, otorisasi, dan perilaku klien mengikuti build guide; bagian yang bersifat rekomendasi UX ditandai eksplisit.
+
+---
+
+## 1. Tujuan & Prinsip Desain
+
+Admin Panel adalah konsol back-office untuk ADMIN, SUPERVISOR, dan tim IT/OT: master data, audit, telemetri, IAM, dan infrastruktur broker. Bukan versi ringkas HMI dan bukan layar monitoring produksi.
+
+Prinsip mengikat:
+
+- **Industrial-first.** Layout mendukung keputusan operasional dan administratif; bukan dekorasi dashboard.
+- **Information hierarchy.** Status layanan, konflik, downtime aktif, dan kesehatan perangkat harus dapat dipindai dalam satu pandangan.
+- **ISA-101 / ISO 9241.** Warna terkendali, layout konsisten, kontrol dapat dipahami tanpa pelatihan panjang.
+- **Data integrity.** Semua angka, status, target, dan agregat berasal dari API. Jangan menghitung ulang OEE, membuat kategori palsu, atau menampilkan data dummy di lingkungan terhubung.
+- **Operational safety.** Setiap mutasi berisiko memerlukan permission, konfirmasi eksplisit, dan umpan balik hasil server.
+- **LAN-first security.** Remote tunnel adalah read-only; UI mencerminkannya sebelum request dikirim. Backend tetap otoritas final.
+- **Accessibility.** WCAG 2.2 AA minimum; AAA 7:1 untuk angka kritis. Status tidak pernah dibedakan hanya dengan warna.
+
+Aturan mutlak:
+
+1. Tidak ada tombol `PAUSE`, `RESUME`, `RESET_COUNTER`, dan tidak ada panggilan `POST /devices/:id/command` di seluruh Admin Panel (ADR-003).
+2. Tidak ada mutasi apa pun yang aktif pada mode remote.
+3. Tidak ada secret (password, private key, token) di tabel, toast, log, URL, atau storage persisten.
+4. Tidak ada fitur draft (OOE/TEEP/AI/SPC/SMED/DBR) yang tampil sebagai fitur aktif.
+5. Tidak ada endpoint tebakan atau simulasi sukses operasi broker.
+
+---
+
+## 2. Persona & Otorisasi UI
+
+### 2.1 Persona
+
+| Persona | Peran sistem | Kebutuhan utama | Surface |
+|---|---|---|---|
+| Administrator pabrik | ADMIN | Semua modul, IAM, MQTT, konfigurasi broker | Admin desktop LAN |
+| Supervisor produksi | SUPERVISOR | Monitoring, roster operator, WO, analitik, refresh rekonsiliasi, baca konfigurasi broker | Admin desktop LAN |
+| Tim IT/OT | ADMIN | Devices, health, telemetri, Dynamic Security, Configuration Manager | Admin desktop LAN |
+| Operator | OPERATOR | Baca dashboard/WO/downtime; dispatch/complete WO sesuai matriks | Admin terbatas; workflow utama di Station/HMI |
+| Maintenance | MAINTENANCE | Baca status, downtime, telemetri | Admin terbatas |
+| Pengamat remote | Semua role | Baca saja via tunnel | Admin mode observasi |
+
+### 2.2 Matriks kemampuan UI
+
+| Kemampuan | ADMIN | SUPERVISOR | OPERATOR | MAINTENANCE | Remote |
+|---|---|---|---|---|---|
+| Dashboard, live-state, telemetri, audit (baca) | ✓ | ✓ | ✓ | ✓ | baca |
+| Ack event | ✓ | ✓ | ✓ | verifikasi policy | ✗ |
+| Kelola device/machine/product | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Operator: baca | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Operator: create/rotasi password/status | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Operator: ubah profil/hapus | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Dispatch/complete WO | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Cancel WO | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Downtime reason | ✓ | ✓ | ✓ | verifikasi policy | ✗ |
+| Refresh rekonsiliasi | ✓ | ✓ | ✗ | ✗ | ✗ |
+| IAM | ✓ | ✗ | ✗ | ✗ | ✗ |
+| MQTT Dynamic Security | ✓ | ✗ | ✗ | ✗ | ✗ |
+| MQTT konfigurasi | ✓ | baca saja | ✗ | ✗ | ✗ |
+| Aktuasi mesin | Di luar lingkup seluruh surface dokumen ini | | | | |
+
+Aturan penerapan:
+
+- Gate UI diturunkan dari `role` pada respons login; jangan parse JWT; tidak ada endpoint `/me/permissions`.
+- `403` menurunkan kemampuan terkait untuk sesi berjalan; tampilkan pesan server apa adanya.
+- `AUTHZ_MODE=shadow` (default): matriks statis yang memutuskan; policy dinamis hanya diaudit. `enforce`: policy DB yang memutuskan. UI tidak boleh menyimpulkan mode dari perilaku; tampilkan badge bila tersedia.
+- Mutasi IAM menaikkan `authz_version` → setelah sukses, refetch + tampilkan notice "Izin sesi lain dapat berubah; sarankan login ulang".
+- Scope assignment dapat mempersempit izin pada mode enforce; pesan 403 memuat action/resource/alasan — tampilkan apa adanya.
+
+### 2.3 Mode remote (tunnel)
+
+- Deteksi: `location.port === "8080"` atau indikator perimeter lain.
+- Banner persisten di atas header: "Mode observasi — perubahan dinonaktifkan. Akses penuh tersedia dari LAN pabrik."
+- Seluruh tombol create/edit/delete/bind/unbind/ack/refresh/apply/rollback/dispatch/complete/cancel: disabled dengan tooltip alasan.
+- Menu IAM disembunyikan; tautan `/docs` disembunyikan.
+- Jangan memanggil endpoint mutasi lalu menampilkan error; cegah di lapisan UI.
+
+---
+
+## 3. Arsitektur Informasi
+
+### 3.1 Peta route
+
+| Route | Halaman | Akses |
+|---|---|---|
+| `/login` | Login operator/admin | publik (LAN) |
+| `/admin` | Overview | semua |
+| `/admin/devices` | Registry perangkat | semua baca; tulis ADMIN |
+| `/admin/machines` | Master mesin + binding | semua baca; tulis ADMIN |
+| `/admin/products` | Master produk | semua baca; tulis ADMIN |
+| `/admin/operators` | Roster + akun operator | ADMIN/SUPERVISOR |
+| `/admin/work-orders` | Daftar, detail, lifecycle WO | baca semua; cancel ADMIN |
+| `/admin/downtime` | Insiden aktif + histori + label | semua baca |
+| `/admin/audit` | Operational events + ack | semua |
+| `/admin/telemetry` | Histori, agregat, ekspor | semua baca |
+| `/admin/shift-analytics` | Shift summary + timeline | semua baca |
+| `/admin/quality` | Reject Pareto | semua baca |
+| `/admin/reconciliation` | Job CAGG + refresh | baca semua; refresh SUPERVISOR/ADMIN |
+| `/admin/access-control` | Konsol IAM | ADMIN + LAN |
+| `/admin/mqtt/security` | Dynamic Security | ADMIN + LAN |
+| `/admin/mqtt/configuration` | Configuration Overview | ADMIN tulis; SUPERVISOR baca |
+| `/admin/mqtt/configuration/listeners` | Listeners & WebSocket | sama |
+| `/admin/mqtt/configuration/tls` | TLS / Certificates | sama |
+| `/admin/mqtt/configuration/bridges` | MQTT Bridges | sama |
+| `/admin/mqtt/configuration/persistence` | Persistence & Storage | sama |
+| `/admin/mqtt/configuration/logging` | Logging | sama |
+| `/admin/mqtt/configuration/limits` | Connection & Resource Limits | sama |
+| `/admin/mqtt/configuration/review` | Review & Apply | sama |
+| `/admin/mqtt/configuration/history` | History & Rollback | sama |
+| `/admin/system/health` | Health & Diagnostics | semua |
+
+Redirect: `/` → `/admin`; path lama tanpa prefix (`/devices`, `/machines`, dst.) → `/admin/*`. Detail resource dibuka via drawer dengan URL state (`?detail=<id>`) agar dapat dibagikan; route detail terpisah tidak diperlukan.
+
+### 3.2 Struktur sidebar
+
+```
+Overview
+Production
+  ├─ Work Orders
+  ├─ Downtime Events
+  └─ Operational Events
+Assets
+  ├─ Devices
+  ├─ Machines
+  ├─ Products
+  └─ Operators
+Data & Analytics
+  ├─ Telemetry
+  ├─ Shift Analytics
+  ├─ Quality & Rejects
+  └─ Reconciliation
+MQTT & Connectivity
+  ├─ Dynamic Security
+  └─ Broker Configuration
+       ├─ Configuration Overview
+       ├─ Listeners & WebSocket
+       ├─ TLS / Certificates
+       ├─ MQTT Bridges
+       ├─ Persistence & Storage
+       ├─ Logging
+       ├─ Connection & Resource Limits
+       ├─ Review & Apply
+       └─ History / Rollback
+System
+  ├─ Health & Diagnostics
+  ├─ Access Control        (ADMIN saja)
+  └─ API Reference         (LAN saja; tautan ke /docs)
+```
+
+Aturan navigasi:
+
+- Item yang tidak dapat diakses role disembunyikan, bukan disabled.
+- Grup MQTT hanya tampil untuk ADMIN; SUPERVISOR melihat sub-grup Broker Configuration sebagai baca-saja.
+- Item aktif: latar `surface-subtle` + garis kiri 3 px `brand` + teks `brand`.
+- Badge numerik opsional pada Downtime Events (jumlah insiden aktif) dan Work Orders (jumlah ACTIVE); sumber dari query yang sudah ada, bukan polling tambahan.
+- Sidebar collapse: ikon + tooltip; state collapse persisten di memori (bukan localStorage untuk data sensitif; preferensi UI non-sensitif boleh localStorage — rekomendasi).
+
+---
+
+## 4. Shell & Layout
+
+### 4.1 Desktop (≥1280 px)
+
+| Elemen | Spesifikasi |
+|---|---|
+| Sidebar | Lebar 248 px; collapse 72 px; fixed kiri; scroll independen; item tinggi 44–48 px |
+| Header | Tinggi 64 px; sticky; berisi toggle sidebar, breadcrumb ringkas, badge environment (LAN/Remote), badge AUTHZ_MODE bila tersedia, status WS bila realtime aktif, indikator sesi, menu pengguna (nama, role, logout) |
+| Banner remote | Di atas header; persisten; tinggi ±40 px; latar `warning-bg`, teks `warning-fg` |
+| Konten | Max-width 1600 px; padding 24–32 px; centered |
+| Breadcrumb | Di atas judul halaman; item terakhir non-link |
+| Drawer detail | Kanan; lebar 480–640 px; overlay scrim rgba(16,24,40,0.45); tutup via Escape/scrim/tombol |
+| Area tabel | Scroll vertikal independen; header sticky |
+
+### 4.2 Tablet (768–1279 px)
+
+- Sidebar menjadi drawer overlay (lebar 280 px) dengan toggle di header.
+- Form satu kolom; drawer detail menjadi panel full-height lebar 90%.
+- Tabel tetap tabel bila kolom ≤6; di atas itu, kolom sekunder disembunyikan ke drawer.
+
+### 4.3 Mobile (<768 px)
+
+- Fokus baca, pencarian, detail, dan aksi aman.
+- Tabel berubah menjadi stacked resource cards: judul = ID resource, baris kunci = status + 2–3 field utama, aksi di overflow menu.
+- Konfigurasi kompleks (IAM policy editor, Configuration Manager) tidak dipaksakan menjadi grid lebar; tampilkan pesan "Gunakan desktop untuk konfigurasi lanjutan" + mode baca ringkas.
+- Touch target minimum 44 px; 56 px hanya bila mode touch/station terdeteksi (di luar lingkup utama admin).
+
+### 4.4 Template halaman standar
+
+```
+Breadcrumb
+Judul halaman + deskripsi singkat          [Primary action — bila berhak]
+Summary metric cards (opsional, maks 3–4)
+Toolbar: search + filter chips + date range
+Main content: tabel / list / chart
+Pagination / load more
+Drawer detail / modal create-edit (on demand)
+```
+
+Konsistensi wajib: setiap halaman data memiliki loading, empty, error, stale, dan conflict state (§7). Primary action selalu di kanan atas; aksi destruktif tidak pernah menjadi primary action.
+
+---
+
+## 5. Design Tokens
+
+### 5.1 Warna — Admin Light Theme
+
+| Token | Nilai | Penggunaan |
+|---|---|---|
+| `color.canvas` | `#F3F5F7` | Background aplikasi |
+| `color.surface` | `#FFFFFF` | Card, tabel, modal, drawer |
+| `color.surface-subtle` | `#F8FAFC` | Row hover, filter area, sidebar aktif |
+| `color.text-primary` | `#101828` | Heading, body |
+| `color.text-secondary` | `#344054` | Deskripsi, helper |
+| `color.text-tertiary` | `#667085` | Metadata, placeholder (kontras diverifikasi) |
+| `color.border` | `#98A2B3` | Batas card/input/tabel |
+| `color.border-subtle` | `#D0D5DD` | Divider internal |
+| `color.brand` | `#153E75` | Primary action, link aktif, focus ring |
+| `color.brand-hover` | `#102F59` | Hover primary |
+| `color.brand-subtle` | `#E8EEF7` | Latar item aktif, chip brand |
+| `color.success-fg` / `bg` | `#14532D` / `#DCFCE7` | Sukses, running, online |
+| `color.warning-fg` / `bg` | `#78350F` / `#FEF3C7` | Peringatan, stale, remote mode |
+| `color.danger-fg` / `bg` | `#7F1D1D` / `#FEE2E2` | Error, alarm, unplanned stop |
+| `color.info-fg` / `bg` | `#164E63` / `#CFFAFE` | Informasi, planned stop |
+| `color.scrim` | `rgba(16,24,40,0.45)` | Overlay drawer/modal |
+
+Verifikasi seluruh pasangan fg/bg via automated contrast test sebelum rilis. Border dan focus indicator memenuhi non-text contrast 3:1.
+
+### 5.2 Warna chart (kategorikal, 8 hue)
+
+| Token | Nilai | Pasangan tipikal |
+|---|---|---|
+| `chart.1` | `#153E75` | OEE, seri utama |
+| `chart.2` | `#0E7490` | Availability |
+| `chart.3` | `#B45309` | Performance |
+| `chart.4` | `#9D174D` | Quality |
+| `chart.5` | `#166534` | Good count |
+| `chart.6` | `#B91C1C` | Reject / downtime |
+| `chart.7` | `#475569` | Netral / pembanding |
+| `chart.8` | `#6D28D9` | Seri tambahan |
+
+Separasi wajib melalui luminance + direct label atau pattern; jangan mengandalkan hue saja. Palet ini hanya untuk chart; status semantik tetap memakai token §5.1.
+
+### 5.3 Tipografi
+
+| Elemen | Ukuran / berat | Catatan |
+|---|---|---|
+| Font UI | Inter atau sans sistem | Konsisten seluruh aplikasi |
+| Font angka | `font-variant-numeric: tabular-nums` | Wajib untuk semua metrik |
+| Font kode | Monospace | Device ID, MAC, IP, WO ID, event code, cursor tidak ditampilkan |
+| H1 | 28–32 px / semibold | Judul halaman |
+| H2 | 20–24 px / semibold | Judul section |
+| H3 / card title | 16–18 px / semibold | Card, drawer section |
+| Body | 14–16 px / regular | Tabel, form, deskripsi |
+| Helper / metadata | ≥12 px | Jangan memakai kontras rendah |
+| Angka kritis (KPI) | 28–36 px / semibold | Metric card; kontras AAA 7:1 |
+
+### 5.4 Spacing, radius, elevation
+
+- Spacing base 4 px: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`.
+- Card padding 20–24 px; form field gap 16 px; section gap 24–32 px.
+- Radius: control 8 px; card 12 px; modal/drawer 14 px; badge 6 px.
+- Elevation: border untuk struktur utama; shadow lembut hanya untuk dropdown/drawer/modal.
+- Z-index: header 30; banner 35; drawer 40; dialog 50; toast 60; tooltip 70.
+
+### 5.5 Breakpoints
+
+| Breakpoint | Lebar | Perilaku |
+|---|---|---|
+| sm | 640 px | Stacked cards/form |
+| md | 768 px | Sidebar drawer, 1–2 kolom |
+| lg | 1024 px | Desktop compact |
+| xl | 1280 px | Navigasi penuh + tabel |
+| 2xl | 1536 px | Konten lebar, drawer lebih luas |
+
+### 5.6 Ikonografi & motion
+
+- Ikon: Lucide; ukuran 16/20/24 px; stroke 1.75–2; selalu dipasangkan teks atau accessible label.
+- Motion: micro-interaction 120–180 ms; drawer/dialog 200–240 ms; easing `cubic-bezier(0.2, 0, 0, 1)`.
+- Skeleton shimmer halus (≤1.2 s siklus); tanpa animasi dekoratif yang mengganggu pemindaian tabel.
+- `prefers-reduced-motion`: nonaktifkan transisi non-esensial; perubahan state tetap terlihat instan.
+- Alarm/event baru: highlight border + timestamp; jangan memindahkan layout mendadak.
+
+---
+
+## 6. Inventaris Komponen
+
+### 6.1 Foundation
+
+| Komponen | Spesifikasi wajib |
+|---|---|
+| `Button` | Varian primary/secondary/outline/ghost/danger; ukuran sm/md/lg; state default/hover/active/focus/disabled/loading; loading memakai spinner + label tetap |
+| `IconButton` | Wajib `aria-label` + tooltip; ukuran hit area ≥40 px |
+| `TextField` / `Textarea` | Label eksplisit, helper, error inline terkait `aria-describedby`; state valid/invalid/disabled |
+| `PasswordField` | Toggle tampil/sembunyi; tidak pernah menampilkan nilai lama; autocomplete sesuai konteks |
+| `Select` / `Combobox` | Searchable untuk dataset >20; keyboard navigable; empty state "tidak ditemukan" |
+| `DateRangePicker` | ISO 8601 dengan offset; preset (24 jam, 7 hari, shift berjalan); validasi from ≤ to |
+| `Badge` / `StatusIndicator` | Teks + ikon + warna semantik; tidak pernah warna saja |
+| `Card` / `MetricCard` | MetricCard: label, nilai tabular, satuan, delta/freshness opsional; maks 4 per baris |
+| `DataTable` | Sorting, filter chips, cursor pagination, row selection bila diperlukan; header sticky; row 48–56 px (compact 40 px untuk log) |
+| `Drawer` | Focus trap, Escape, scrim, judul + close; footer aksi sticky |
+| `Dialog` / `ConfirmationDialog` | Focus trap; aksi destruktif memakai varian danger; tidak tertutup saat operasi berjalan |
+| `Toast` | Sukses/info singkat (auto-dismiss 4–6 s); error/conflict tidak memakai toast untuk keputusan |
+| `Skeleton` | Per struktur konten (tabel/card/chart), bukan spinner layar penuh |
+| `EmptyState` | Sebab + aksi utama; tanpa data dummy |
+| `ErrorState` | Pesan Indonesia + "Coba lagi" (kecuali 401/403) |
+| `OfflineBanner` / `RemoteBanner` | Persisten; membedakan device offline vs API down vs remote mode |
+| `Tabs` | Underline aktif; keyboard panah; badge count opsional |
+| `Breadcrumbs` | Maks 4 level; overflow dipotong dengan tooltip |
+| `PaginationSummary` | "Menampilkan N item · cursor berikutnya tersedia"; tanpa page-number palsu |
+
+### 6.2 Komponen industrial
+
+| Komponen | Perilaku |
+|---|---|
+| `MachineStateBadge` | Menerima 6 enum FSM kanonis → label + semantic style (§6.3); enum asli tetap untuk logic |
+| `DevicePresenceIndicator` | Memakai `isOnline` dari backend (TTL 300 s, sweep 30 s); bukan heartbeat lokal |
+| `FreshnessIndicator` | Umur data relatif ("Diperbarui 12 d lalu") + timestamp absolut di tooltip; stale bila melewati ambang halaman |
+| `DeletedRelationLabel` | `[dihapus]` + ID historis; non-link; untuk relasi null/`"[deleted]"` |
+| `ProtectedAccountBadge` | Ikon gembok + tooltip "Akun dilindungi sistem" (ADM-001) |
+| `SessionIndicator` | Sisa sesi di header; peringatan pada <20% TTL; refresh proaktif otomatis |
+
+### 6.3 Mapping FSM → tampilan
+
+| Enum | Label UI | Semantic |
+|---|---|---|
+| `UNCONFIGURED` | Belum dikonfigurasi | neutral |
+| `READY` | Siap | info |
+| `RUNNING` | Berjalan | success |
+| `PLANNED_DOWNTIME` | Berhenti terencana | info |
+| `UNPLANNED_DOWNTIME` | Berhenti tidak terencana | danger |
+| `BATCH_FINISHED` | Batch selesai | neutral/success |
+| Legacy `STANDBY` | Normalisasi defensif ke Siap | Jangan tampil sebagai state baru |
+
+### 6.4 Komponen Configuration Manager
+
+`BrokerRuntimeStatus`, `ConfigVersionBadge`, `ConfigDriftBanner`, `ListenerTable`, `ListenerEditor`, `TlsProfileCard`, `CertificateMetadata`, `BridgeTable`, `BridgeEditor`, `SecretReferenceField`, `PersistenceSettingsForm`, `LoggingSettingsForm`, `ResourceLimitForm`, `ConfigDiffViewer`, `ValidationReport`, `ApplyImpactPanel`, `OperationProgress`, `RollbackDialog`, `ConfigurationHistoryTable`.
+
+Spesifikasi perilaku terperinci di §8.15.
+
+### 6.5 Pola tabel & densitas data
+
+- Header sticky; angka rata kanan + tabular; ID/kode monospace dan tidak wrap; nama/deskripsi boleh wrap.
+- Filter aktif tampil sebagai chips yang dapat dihapus satu per satu + "Hapus semua".
+- Cursor pagination: tombol "Berikutnya" memakai `nextCursor`; "Sebelumnya" via cursor stack di memori; tampilkan `count` dan indikator `hasMore`; jangan parse cursor atau membuat page number.
+- Detail lengkap via drawer, bukan kolom tabel yang melebar.
+- Jangan render 1000 bar sekaligus; paginasi server atau virtualization untuk log padat.
+
+### 6.6 Pola form
+
+- Validasi klien cermin backend (regex, panjang, range) sebelum submit; error inline per field + ringkasan di atas form bila >3 error.
+- Submit: tombol loading + disabled; cegah double-submit; form dipertahankan saat gagal; kosongkan hanya setelah sukses.
+- Field yang tidak dapat diubah (deviceId, macAddress, productId, machineId pada edit) tampil read-only dengan penjelasan.
+- Password: input satu kali; tidak pernah ditampilkan ulang; tidak masuk log/state global yang di-serialize.
+
+---
+
+## 7. Pola Status & Umpan Balik
+
+| State | Visual | Copy / perilaku |
+|---|---|---|
+| Initial loading | Skeleton sesuai struktur | Tanpa konten kosong atau spinner penuh |
+| Empty | Ilustrasi netral + teks sebab + aksi utama | "Belum ada perangkat terdaftar" + "Daftarkan perangkat" |
+| Error | Pesan Indonesia + Coba lagi | 401 → login; 403 → alasan + turunkan kemampuan; tanpa retry otomatis 4xx |
+| Stale | Label "Data delayed" + timestamp terakhir | Data REST terakhir tetap tampil; overlay halus |
+| Partial | Komponen sukses tetap tampil; sumber gagal ditandai | Jangan gagalkan seluruh halaman karena satu query gagal |
+| Device offline | Presence indicator + alasan | Bedakan dari API down; hentikan aksi yang butuh device online |
+| Broker unavailable | Service-level warning | 502/503/504 → "Broker tidak merespons"; coba lagi manual |
+| Conflict 409 | Dialog, bukan toast | Kode domain + penyebab + tindakan korektif + tautan resource terkait |
+| Remote | Banner + semua mutasi disabled | "Mode observasi — perubahan dinonaktifkan" |
+| Success mutation | Toast singkat + refetch daftar/detail | Jangan sisipkan baris manual; hasil server yang tampil |
+| Rate limit 429 | Hitung mundur pada aksi | Larang retry otomatis; tombol disabled sampai window lewat |
+
+Taksonomi konfirmasi:
+
+- **Standar** (create/update/ack/label): satu dialog konfirmasi dengan ringkasan perubahan.
+- **Destruktif** (delete/unbind/disable/cancel/rotate): dialog danger dengan ID resource, dampak historis/relasi, dan daftar guard yang diketahui.
+- **Berdampak layanan** (config apply/rollback, perubahan policy IAM): dialog dengan diff/impact terlihat, alasan opsional, progres operasi; tidak tertutup sebelum status akhir; tanpa auto-retry.
+
+---
+
+## 8. Spesifikasi Halaman
+
+Format per halaman: tujuan · sumber data · struktur · aksi & guard · state khusus.
+
+### 8.1 Login (`/login`)
+
+- Tujuan: autentikasi operator/admin; bukan PIN lama.
+- Sumber: `POST /auth/login`, `POST /auth/refresh`.
+- Struktur: kartu terpusat (max 420 px) di kanvas polos; logo sistem; field Operator ID (contoh `ADM-001`) + password + station_id opsional; tombol masuk; footer versi build bila tersedia.
+- Perilaku: token di memori; jadwalkan refresh pada 80% TTL; indikator sisa sesi muncul di header setelah login; reload = login ulang (D5).
+- State khusus: 401 inline "ID atau password salah"; 429 hitung mundur (5 percobaan/60 s per IP+station); jangan retry loop.
+
+### 8.2 Overview (`/admin`)
+
+- Tujuan: satu pandangan kesehatan sistem dan aktivitas yang membutuhkan perhatian.
+- Sumber: `GET /health`, `GET /live-state`, `GET /downtime-events/active`, `GET /work-orders?status=ACTIVE&envelope=true`, `GET /operational-events/` (terbaru).
+- Struktur: 4 metric cards (API/DB status, perangkat online/total, downtime aktif, WO aktif) → service health strip (MQTT, WS, buffer_pending, uptime) → dua kolom: antrean downtime aktif (kiri, 60%) + event terbaru (kanan, 40%).
+- Aksi: hanya navigasi ke modul; tanpa mutasi di overview.
+- State khusus: `/health` sebagai indikator, bukan blocker; tanpa agregat OEE pabrik kecuali endpoint aggregate menyediakannya; jangan merata-ratakan OEE antarmesin.
+
+### 8.3 Devices (`/admin/devices`)
+
+- Tujuan: registry perangkat STM32, health, dan binding.
+- Sumber: `GET /devices`, `GET /devices/:id`, `GET /devices/:id/health`; mutasi `POST/PUT/DELETE`.
+- Kolom tabel: Device ID (mono), MAC (mono), mesin terikat (link atau "—"), online (presence), firmware, IP (mono), last seen (relatif + absolut tooltip), aksi.
+- Drawer detail: identitas → health panel (`heapFree`, `tasksHealthy/Total`, `staleCount`, `staleTasks`, `ageSec`, `eventFlags`) → snapshot telemetri terkait → info binding → aksi edit/hapus.
+- Aksi & guard: ADMIN + LAN. Create: deviceId regex `^STM32-[A-Za-z0-9_-]+$`, MAC EUI-48, ipAddress opsional, firmware ≤50. Edit: hanya ipAddress + firmwareVersion; ID/MAC read-only. Delete: dialog dampak (histori tetap ada; relasi null).
+- State khusus: `ageSec: 999999` + field nol = cache miss → "Belum ada data health", bukan "sehat". Tanpa kolom "model" (tidak ada di kontrak). `isOnline` dari backend, bukan kalkulasi lokal.
+
+### 8.4 Machines (`/admin/machines`)
+
+- Tujuan: master mesin dan binding perangkat 1:1.
+- Sumber: `GET/POST /machines`, `GET/PUT/DELETE /machines/:id`, `POST …/bind`, `POST …/unbind`.
+- Kolom: Machine ID/name, device terikat, online (via device), Modbus Slave ID, created at, aksi.
+- Drawer: identitas → binding state + selector → slave ID → histori WO/downtime terkait (tautan).
+- Aksi & guard: ADMIN + LAN. Create: machineId `^CNC-[A-Z0-9_-]{3,32}$`, name 3–100, deviceId nullable, slaveId 1–247 unik global. Edit: hanya name + slaveId. Bind: selector hanya device belum terikat; konfirmasi. Unbind: konfirmasi + dampak. Delete: guard active WO/downtime.
+- State khusus: `DEVICE_ALREADY_BOUND`/`MACHINE_ALREADY_BOUND` → dialog + refetch; `MODBUS_SLAVE_CONFLICT` → tampilkan mesin pemilik; `MACHINE_NOT_BOUND` ditangani via pesan 409 server sampai kontrak diverifikasi.
+
+### 8.5 Products (`/admin/products`)
+
+- Tujuan: master produk dan standard cycle time.
+- Sumber: `GET/POST /products`, `GET/PUT/DELETE /products/:id`.
+- Kolom: Product ID, name, standard cycle time (format desimal + satuan `s`, tabular), created at, aksi.
+- Aksi & guard: ADMIN + LAN. Create: productId `^[A-Z0-9_-]{3,32}$`, name 3–100, stdCycleTimeSec >0 maks 9999. Edit: hanya name + stdCycleTimeSec.
+- State khusus: delete diblokir `PRODUCT_HAS_ACTIVE_WO` (PENDING/ACTIVE) → dialog + tautan WO; COMPLETED/ABORTED aman (relasi null) — jelaskan di dialog. `stdCycleTimeSec` string desimal (`"12.00"`) → parse untuk tampilan, jangan ubah presisi server.
+
+### 8.6 Operators (`/admin/operators`)
+
+- Tujuan: roster operator, akun, role, line, status.
+- Sumber: `GET/POST /operators`, `GET/PUT/DELETE /operators/:id`, `PATCH …/password`, `PATCH …/status`.
+- Kolom: Operator ID, name, role (badge), line, status aktif, protected (gembok ADM-001), aksi.
+- Drawer: profil → role/line → status akun → aksi rotasi password.
+- Aksi & guard: baca ADMIN/SUPERVISOR + LAN. Create/rotasi/status: ADMIN/SUPERVISOR + LAN. Ubah profil/hapus: ADMIN saja. Password min 8 (env) maks 128; role enum 4; lineId default `LINE-01`.
+- State khusus: ADM-001 locked — jangan tampilkan tombol hapus/nonaktif/ubah role; `PROTECTED_ACCOUNT` dan `PRIVILEGE_ESCALATION_DENIED` = pembatasan kebijakan, bukan konflik data; disable akun menampilkan dampak terhadap sesi berjalan.
+
+### 8.7 Work Orders (`/admin/work-orders`)
+
+- Tujuan: administrasi dan lifecycle WO.
+- Sumber: `GET /work-orders`, `GET /:wo_id`, `GET /:wo_id/resolve`; mutasi `dispatch`, `complete`, `cancel`.
+- Struktur: tabs All/Pending/Active/Completed/Aborted → filter machine/product/operator/date/status → tabel → drawer detail.
+- Kolom: WO ID, mesin, produk, operator, target, status (badge), waktu mulai/selesai, aksi.
+- Drawer: ringkasan → target & shift plan → relasi produk/operator (`[dihapus]` bila null) → status dispatch → aksi sesuai role.
+- Aksi & guard: dispatch/complete OPERATOR+ LAN; cancel ADMIN LAN. Dispatch wizard: validate → resolve (pratinjau konfigurasi + `targetPerHour` + break) → konfirmasi → dispatch → tunggu hasil transaksi server; jangan menandai sukses hanya karena publish diterima (kontrak ACK diverifikasi ke backend). Complete: `finalRejectCount` integer ≥0 dan ≤ total + notes. Cancel: reason ≤500 opsional + konfirmasi.
+- State khusus: resolve `503 DEVICE_OFFLINE` → hentikan dispatch + tampilkan status device; `WORK_ORDER_CONFLICT`/`WORK_ORDER_NOT_ACTIVE` → refetch detail; 409 dengan `active_wo_id` → tautan ke WO tersebut. Endpoint QR `validate-zone`/`initiate-from-zones` bukan bagian halaman ini (milik Station, di luar lingkup).
+
+### 8.8 Downtime Events (`/admin/downtime`)
+
+- Tujuan: antrean insiden aktif, histori, dan pelabelan alasan.
+- Sumber: `GET /downtime-events/active`, `GET /downtime-events/:device_id`, `POST /downtime-events/:id/reason`.
+- Struktur: active incidents di atas (durasi berjalan, mesin/device, state, status label "Perlu alasan") → chart "Pareto Kategori Downtime" → histori dengan filter.
+- Filter: date range + device (server); `unlabeled_only` toggle (server); kategori = filter lokal atas halaman termuat, diberi label "Filter lokal" (server tidak menyediakan filter kategori).
+- Dialog label: category enum 10 nilai, reason 3–255, notes ≤500; tampilkan badge overwrite bila respons memuat `isOverwrite` (verifikasi kontrak).
+- State khusus: `deviceId/machineId` historis `"[deleted]"` → label non-link; MAINTENANCE untuk labeling mengikuti verifikasi policy (baseline OPERATOR+).
+
+Enum kategori (final, 10): `EQUIPMENT_FAILURE`, `SETUP_AND_ADJUSTMENT`, `IDLING_AND_MINOR_STOPPAGE`, `REDUCED_SPEED`, `PROCESS_DEFECT`, `MATERIAL_SHORTAGE`, `PLANNED_MAINTENANCE`, `REST_BREAK`, `CLEANING_5S`, `OTHER`. Jangan klaim chart sebagai klasifikasi Six Big Losses lengkap.
+
+### 8.9 Operational Events / Audit (`/admin/audit`)
+
+- Tujuan: jejak audit operasional dan acknowledge.
+- Sumber: `GET /operational-events/`, `GET /operational-events/:deviceId`, `PATCH /operational-events/:id/ack`.
+- Struktur: timeline/tabel dengan event type, device/machine, actor, timestamp, ack state; filter machine/event_type/date; limit ≤200.
+- Dialog ack: operatorId wajib (atau `operator_id`), note ≤500 opsional; bukan field `ackNote`.
+- Perilaku: ack idempoten; tampilkan `acknowledgedAt/By` dari respons; jangan optimistic update.
+- State khusus: event yang sudah di-ack tampil locked dengan metadata ack; jangan tampilkan tombol ack ulang yang mengubah data.
+
+### 8.10 Telemetry History (`/admin/telemetry`)
+
+- Tujuan: inspeksi data mentah, agregat, dan ekspor.
+- Sumber: `GET /telemetry/:id`, `/hourly`, `/aggregate`, `/export`.
+- Struktur: device selector → date range → tabs Raw/Hourly/Aggregate/Export → chart/table toggle.
+- Raw: limit ≤1000, cursor; badge `is_buffered` = "Backlog", bukan live. Hourly: limit ≤500 default 72; catatan "nilai per jam adalah delta per bucket". Aggregate: bucket selector `1m|5m|15m|1h|1d` (default 5m); array tanpa paginasi.
+- Export: format csv/ndjson + limit; rate limit 5/menit → hitung mundur pada tombol.
+- State khusus: jangan bandingkan live-state kumulatif dengan hourly delta; empty chart tanpa data dummy; debounce filter 300 ms + abort request lama.
+
+### 8.11 Shift Analytics (`/admin/shift-analytics`)
+
+- Tujuan: ringkasan shift dan timeline FSM per mesin/periode.
+- Sumber: `GET /oee/shift-summary`, `GET /oee/shift-timeline`.
+- Struktur: filter mesin/periode (window dapat diturunkan dari WO aktif) → KPI breakdown A/P/Q/OEE dari API → timeline state band → tabel ringkasan.
+- Aturan: overnight-safe (shift lintas tengah malam ditampilkan benar); jangan merata-ratakan OEE pabrik secara sederhana; tanpa filter pabrik, prioritaskan tampilan per mesin.
+- State khusus: periode tanpa data → empty state dengan sebab; jangan menyimpulkan nilai saat input absen.
+
+### 8.12 Quality & Rejects (`/admin/quality`)
+
+- Tujuan: breakdown reject per perangkat.
+- Sumber: `GET /quality/rejects/:device_id`.
+- Struktur: device selector + date range → Pareto horizontal (count + persentase bila endpoint menyediakan) → tabel detail.
+- State khusus: `[]` → "Tidak ada reject pada periode ini"; tanpa kategori atau nilai palsu.
+
+### 8.13 Data Reconciliation (`/admin/reconciliation`)
+
+- Tujuan: status worker CAGG dan refresh manual.
+- Sumber: `GET /telemetry/reconciliation/jobs`, `POST /telemetry/reconciliation/refresh`.
+- Struktur: job status cards (state, last refresh, pending) → riwayat job → tombol refresh.
+- Aksi & guard: SUPERVISOR/ADMIN + LAN; rate limit 10/menit; dialog konfirmasi dengan window from/to (maks 72 h — verifikasi ke worker backend).
+- State khusus: refresh berjalan → progress + jangan double-submit; hasil menampilkan status server apa adanya.
+
+### 8.14 Access Control / IAM (`/admin/access-control`)
+
+- Tujuan: kelola role, permission, assignment, policy casbin, dan audit keputusan.
+- Sumber: 16 operasi `/access-control/*`; ADMIN + LAN + policy read/manage.
+- Struktur: tabs Roles / Permissions / Assignments / Policies / Audit.
+  - **Roles**: daftar + level privilege + policy terkait; CRUD role non-sistem; role sistem (4 enum) tanpa tombol hapus.
+  - - **Permissions**: katalog `action × resource_type`; create permission baru.
+  - **Assignments**: operator → role + scope; selector hierarki `ORGANIZATION > SITE > AREA > LINE > MACHINE > DEVICE`; jelaskan efek cakupan (leluhur mencakup turunan; resource generik hanya ORGANIZATION).
+  - **Policies**: editor `role, action, resource_pattern, eft (ALLOW/DENY), abac_condition (JSON)`; validasi JSON; anti-lockout inline — DENY/nonaktif pada ADMIN ditolak, jelaskan sebelum submit.
+  - **Audit**: tabel keputusan (subject, decision, mode, action, resource, waktu); filter + limit ≤1000.
+- State khusus: badge `AUTHZ_MODE` (shadow/enforce) bila tersedia; notice pasca-mutasi `authz_version`; `PROTECTED_ACCOUNT`/`PRIVILEGE_ESCALATION_DENIED` sebagai pesan kebijakan; jangan tampilkan editor yang menyiratkan izin dapat diintrospeksi penuh (tidak ada `/me/permissions`).
+
+### 8.15 MQTT Dynamic Security (`/admin/mqtt/security`)
+
+- Tujuan: kelola identitas MQTT, klien, role, grup, ACL, dan provisioning perangkat.
+- Sumber: 23 operasi `/mqtt/dynamic-security/*`; ADMIN; mutasi LAN.
+- Struktur: tabs Status / Clients / Roles / Groups / Provisioning.
+  - **Status**: koneksi broker/plugin, status integrasi admin.
+  - **Clients**: username, clientid, roles, enabled; create (mode eksplisit `{username,password,clientid?,roles[]}` min 1 role, atau provisioning `{username,password,deviceId,access}`); rotasi password; enable/disable; delete.
+  - **Roles**: ACL list + topic patterns; CRUD; assign/remove ACL.
+  - **Groups**: members + roles; CRUD.
+  - **Provisioning**: deviceId + access `publish|subscribe|readwrite` → klien + role per-device.
+- Password sekali tampil: dialog khusus setelah 201 dengan tombol salin + peringatan "Simpan sekarang; nilai tidak dapat ditampilkan lagi"; jangan simpan di state global/log; jangan tampilkan setelah dialog ditutup.
+- State khusus: disable = putus koneksi klien (konfirmasi); DELETE → 204 tanpa body; 502/503/504 = status layanan broker, bukan kegagalan form; 409/404 kode `MQTT_*` dipetakan ke dialog/empty state.
+
+### 8.16 MQTT Configuration Manager (`/admin/mqtt/configuration/*`)
+
+- Tujuan: kelola konfigurasi infrastruktur broker (listener, TLS, bridge, persistence, logging, limits) dengan versioning, validasi, apply, dan rollback.
+- Sumber (kanonis, 13 operasi version-based): `GET /`, `/raw`, `/status`; `POST /configurations` (stage); `GET /configurations`, `/:versionId`, `/:versionId/diff`; `DELETE /:versionId`; `POST /:versionId/apply`, `/rollback`; `GET /operations`, `/operations/:operationId`; `GET /backups`.
+- Model UX: seluruh sub-halaman adalah editor terstruktur atas **satu dokumen kandidat lokal**; bukan endpoint per-direktif. Alur: edit lokal (DRAFT) → stage `POST /configurations` (STAGED; validasi + diff + impact; 422 bila gagal) → review diff → konfirmasi → apply (APPLYING) → poll operation → verifikasi `GET /status` (VERIFYING) → ACTIVE atau FAILED.
+- Hak akses: ADMIN tulis + LAN; SUPERVISOR baca-saja; remote tanpa mutasi.
+
+Sub-halaman:
+
+| Sub-halaman | Isi | Guard UX |
+|---|---|---|
+| Overview | Runtime state, versi broker bila tersedia, versi aktif, last applied, drift indicator (`In sync`/`Draft changes`/`Apply required`/`Failed`/`Unknown`), ringkasan listener/TLS/bridge/persistence, operasi terakhir | Bedakan broker disconnected vs Configuration API unavailable |
+| Listeners & WebSocket | Tabel listener (nama, bind address, port, protocol, enabled, TLS profile, anonymous policy, max connections); editor drawer | Bedakan port internal container vs host-published port; perubahan mapping = deployment change, bukan selesai saat conf berubah; ringkasan auth policy per listener; jangan beri kesan aman bila auth tidak terpasang |
+| TLS / Certificates | Profil TLS + metadata sertifikat (subject, issuer, validity, expiry, fingerprint, path tersanitasi) bila backend menyediakan | Private key tidak pernah ditampilkan/di-parse di browser; secret masked; hanya referensi + `isConfigured`; tampilkan mismatch/unavailable/invalid chain dari backend |
+| MQTT Bridges | Daftar bridge (remote address, port, protocol version, state, TLS, topic mappings); editor | Credential write-only ("Credential configured"); preview direction `in/out/both` + QoS |
+| Persistence & Storage | Enable, location reference, autosave interval, availability/permission | Tanpa tombol delete/clear persistence data; perubahan lokasi = risiko maintenance/restart + konfirmasi |
+| Logging | Destination (stdout/stderr/file/syslog bila didukung), log type, timestamp, connection messages | Jangan asumsikan log selalu file; container dapat stdout/stderr |
+| Connection & Resource Limits | Max clients/connections, packet size, queue/inflight limits, max QoS; satuan + nilai efektif + nilai draft + valid range dari schema | Jangan hardcode directive yang belum diverifikasi pada versi Mosquitto aktual |
+| Review & Apply | Semantic diff Current vs Proposed; ValidationReport (errors/warnings/unsupported directives/protected conflicts); ApplyImpactPanel (reload/restart/deployment action); konfirmasi eksplisit; OperationProgress; verifikasi health + versi aktif | Jangan tutup dialog sebelum status akhir; tanpa auto-retry apply; peringatkan risiko putus koneksi UI + pastikan jalur pemulihan sebelum konfirmasi listener/port |
+| History & Rollback | Daftar versi (id, actor, timestamp, status, change summary, checksum); detail diff tersanitasi; rollback dengan preview + validasi + konfirmasi + operation + verify | Rollback = operasi baru, bukan penulisan ulang histori; audit trail + actor per perubahan |
+
+State global Configuration Manager:
+
+- `DRAFT` (lokal) → `STAGED` → `APPLYING` → `VERIFYING` → `ACTIVE | FAILED`.
+- `API_NOT_AVAILABLE`: hanya sebagai fallback defensif bila verifikasi kode menunjukkan rute absen; form dapat ditinjau, mutasi disabled; jangan kirim request tebakan atau simulasi sukses.
+- `BROKER_UNAVAILABLE`: API ada tetapi broker tak terjangkau; jangan menyatakan apply sukses.
+- `Cancel draft` selalu tersedia; jangan simpan perubahan parsial diam-diam.
+- Fixture hanya untuk Storybook/design preview, bukan data produksi.
+
+### 8.17 System Health & Diagnostics (`/admin/system/health`)
+
+- Tujuan: diagnostik layanan dan tautan referensi API.
+- Sumber: `GET /health` (+ Dynamic Security status bila ADMIN).
+- Struktur: cards status API/DB/MQTT/WS, uptime, `ws_clients`, `buffer_pending`, ingest metrics; panel informasi build/env bila tersedia dari endpoint (jangan fabrikasi).
+- API Reference: tautan ke `/docs` hanya di LAN dan hanya bila diizinkan; sembunyikan di remote.
+- State khusus: bedakan service-level failure dari device offline; tanpa tombol restart/reload broker di halaman ini (milik Configuration Manager).
+
+---
+
+## 9. Pola Data & Visualisasi
+
+### 9.1 Normalisasi respons (lapisan service)
+
+| Bentuk | Perlakuan UI |
+|---|---|
+| Naked array (`GET /live-state`, daftar tanpa envelope) | Normalisasi ke struktur internal; jangan paksa backend berubah |
+| Envelope `{data, meta}` | Pakai `meta.count/hasMore/nextCursor` untuk pagination |
+| Objek tunggal | Detail drawer |
+| Stream CSV/NDJSON | Unduhan; progress + rate limit |
+| `204` tanpa body | Khusus DELETE dynsec; sukses tanpa parse JSON |
+| Gagal parse Zod | `INVALID_RESPONSE`; jangan tulis state parsial |
+
+### 9.2 Format tampilan
+
+- Angka: tabular, rata kanan; desimal dari string (`"12.00"`, `"85.5"`) diparse tanpa mengubah presisi sumber; satuan eksplisit (`%`, `pcs`, `s`, `rpm`, `°C`).
+- ID/kode: monospace, tidak wrap, tidak dipotong tanpa tooltip.
+- Tanggal: REST ISO → format lokal (`12 Nov 2026, 14:32 WIB`) + relatif untuk freshness; tooltip ISO asli. WS Unix detik → adapter tunggal; jangan anggap milidetik.
+- Relasi terhapus: `[dihapus]` + ID historis, non-link; jangan sembunyikan baris historis.
+- Status: teks + ikon + warna; jangan warna saja.
+- Threshold OEE: dari konfigurasi bisnis/endpoint bila tersedia; tanpa data → jangan tampilkan garis target; jangan hardcode benchmark.
+
+### 9.3 Filter & query state
+
+- Filter tercermin di `queryKey` dan URL query (rekomendasi: agar dapat dibagikan dan konsisten saat kembali).
+- Date range ISO 8601 dengan offset; preset relatif dihitung di klien lalu dikirim absolut.
+- Debounce 300 ms untuk search/filter; abort request lama.
+- `staleTime`: 30 s master data; 0–5 s operasional.
+
+### 9.4 Aturan chart
+
+- Library: Apache ECharts (canvas); kompatibel CSP tanpa `unsafe-eval`.
+- Setiap chart: judul, satuan, time window, legend, empty state; tooltip memuat timestamp + nilai mentah.
+- Downsample via `bucket`/`hourly`/`aggregate`; jangan tarik ribuan titik raw tanpa kebutuhan.
+- Tanpa dual-axis kecuali kebutuhan terbukti; Pareto menampilkan count/duration + persentase bila tersedia.
+- Catatan eksplisit saat hourly = delta per bucket vs live-state = kumulatif lifetime.
+- Palet chart §5.2; separasi luminance + direct label/pattern.
+
+| Visual | Penggunaan | Sumber |
+|---|---|---|
+| KPI metric | OEE/A/P/Q, counters | live-state / shift-summary |
+| Line | Tren OEE/A/P/Q | hourly/aggregate/shift |
+| Horizontal Pareto | Kategori downtime / reject | downtime / quality |
+| Timeline/state band | FSM per shift | shift-timeline |
+| Scatter | Actual vs standard cycle time | last cycle + std cycle time (window sebanding) |
+| Small multiples | Perbandingan antar mesin | live-state + machines |
+| Event stream | Alarm/lifecycle | operational-events + WS |
+
+### 9.5 Realtime (opsional di Admin)
+
+- Satu koneksi `WS /ws/telemetry` per sesi; semua komponen berbagi; bukan `/ws/live` dan tanpa alur ticket (tidak ada endpoint penerbit).
+- Status koneksi di header: Live / Reconnecting / Disconnected.
+- Envelope `{type, topic?, device_id?, machine_id?, data, received_at}`; 17 tipe kanonis; abaikan tipe tak dikenal tanpa memutus koneksi.
+- Heartbeat aplikasi: kirim `"ping"`, terima `"pong"`; reconnect backoff 1 s → 30 s + jitter; setelah tersambung, refetch `live-state`.
+- `is_buffered: true` = backlog historis; jangan dipakai untuk angka live.
+- Debounce invalidation lifecycle event; jangan refetch seluruh aplikasi per frame telemetri.
+- Rate limit 120 koneksi/menit/IP → close 4429 → tampilkan "Terlalu banyak koneksi; coba lagi nanti".
+
+---
+
+## 10. Keamanan UX
+
+- Token hanya di memori; refresh proaktif 80% TTL; single-flight; 401 pada operasi apa pun = sesi berakhir → login; mutasi gagal 401 tidak diulang.
+- Indikator sesi di header; logout lokal = hapus token + batalkan timer.
+- Password operator dan MQTT: input satu kali; tidak pernah ditampilkan ulang; tidak masuk log/state persisten/URL.
+- Password MQTT hanya tampil sekali pada dialog 201 dengan tombol salin + peringatan; setelah ditutup, hilang permanen dari UI.
+- Secret/private key konfigurasi broker: write-only; hanya referensi + `isConfigured`; tidak pernah di diff, toast, audit detail, atau response UI.
+- Remote mode: cegah mutasi di UI sebelum request; banner persisten; `/docs` tidak ditautkan.
+- Dialog destruktif wajib menyebut: data master hilang permanen; relasi histori menjadi null/`[dihapus]`; telemetri tetap dapat di-query.
+- Tidak ada kredensial di bundle produksi; `VITE_*` bukan tempat secret.
+- CSP tanpa `unsafe-eval`; chart canvas; header keamanan mengikuti deployment guide.
+
+---
+
+## 11. Aksesibilitas
+
+- Semua aksi dapat dioperasikan keyboard; dialog/drawer focus trap + Escape; focus kembali ke pemicu saat ditutup.
+- Focus ring 2 px `brand`, offset 2 px, visible via `:focus-visible`.
+- Label form eksplisit (`label`/`aria-describedby`); error terkait field; ringkasan error di atas form.
+- `aria-live=polite` untuk toast sukses/info; `assertive` untuk error kritis.
+- Kontras: teks AA minimum; angka kritis AAA 7:1; non-text (border/focus) 3:1; automated contrast test sebelum rilis.
+- Hit area: control ≥40 px; sidebar item 44–48 px; touch mode 56 px.
+- Tabel: `scope` header benar; sorting dapat dioperasikan keyboard; row action memiliki accessible name.
+- Status tidak dibedakan hanya dengan warna; ikon + teks wajib.
+- `prefers-reduced-motion` dihormati; tanpa konten berkedip >3 Hz.
+- Skip link ke konten utama; landmark navigation/main/header benar.
+
+---
+
+## 12. Kriteria Keberterimaan Desain
+
+### Shell & navigasi
+- [ ] Sidebar role-aware; item tidak berhak disembunyikan; remote banner persisten.
+- [ ] Header memuat environment badge, session indicator, user menu; sticky.
+- [ ] Breadcrumb + template halaman konsisten di semua modul.
+- [ ] Responsif: desktop penuh, tablet drawer, mobile stacked cards; tanpa overflow horizontal.
+
+### Tokens & komponen
+- [ ] Seluruh komponen memakai tokens; tanpa warna hardcode di luar palet.
+- [ ] Contrast test lulus (AA teks, AAA angka kritis, 3:1 non-text).
+- [ ] Tabular numerals pada semua angka; monospace pada ID/kode.
+- [ ] Focus state, keyboard nav, accessible label pada semua kontrol.
+- [ ] Status selalu teks + ikon + warna.
+
+### Halaman & state
+- [ ] Semua halaman §8 terpetakan ke endpoint kontrak; tanpa endpoint tebakan.
+- [ ] Loading/empty/error/stale/partial/conflict/remote konsisten.
+- [ ] Cursor pagination asli (`nextCursor`); tanpa page-number palsu.
+- [ ] Filter chips + date range ISO offset; tercermin di query state.
+- [ ] Relasi terhapus tampil `[dihapus]`, baris historis tidak disembunyikan.
+- [ ] Chart memiliki judul/satuan/window/legend/empty state; tanpa data dummy.
+
+### Mutasi & keamanan
+- [ ] Semua mutasi: konfirmasi, anti double-submit, refetch pasca-sukses.
+- [ ] 409 → dialog korektif; 403 → kemampuan turun + pesan server; 429 → countdown.
+- [ ] Tidak ada tombol aktuasi mesin di seluruh panel.
+- [ ] Password MQTT sekali tampil; secret broker tidak pernah bocor ke UI/log/diff.
+- [ ] Token tidak di storage persisten; reload = login ulang.
+- [ ] Remote menonaktifkan seluruh mutasi sebelum request.
+
+### IAM & MQTT
+- [ ] Role sistem tanpa tombol hapus; anti-lockout dijelaskan inline; root protection locked.
+- [ ] Scope hierarchy jelas; notice `authz_version` pasca-mutasi.
+- [ ] Dynamic Security dan Configuration Manager terpisah sebagai domain.
+- [ ] Configuration Manager: stage → diff → validate → impact → confirm → apply → operation progress → verify → active/failed; rollback dengan preview.
+- [ ] Port container vs host mapping dibedakan; jalur pemulihan diperingatkan; tanpa delete persistence data.
+- [ ] `API_NOT_AVAILABLE` hanya fallback defensif; tanpa request tebakan atau apply tiruan.
+
+---
+
+## 13. Fase Implementasi Desain
+
+| Fase | Isi | Dependensi |
+|---|---|---|
+| D1 | Tokens, tipografi, ikon, komponen foundation, chart palette, contrast test | — |
+| D2 | Auth layout, Admin shell, route guards, remote mode, session indicator, Overview | D1 |
+| D3 | Halaman aset (Devices/Machines/Products/Operators) + Production (WO/Downtime/Audit) | D2 |
+| D4 | Analytics (Telemetry/Shift/Quality/Reconciliation) + pola realtime opsional | D2 |
+| D5 | IAM (roles/permissions/assignments/policies/audit) | D3 |
+| D6 | MQTT Dynamic Security + Configuration Manager (verifikasi kontrak ke kode dulu) | D3 |
+| D7 | QA desain: a11y audit, contrast, responsive, state consistency, integrasi LAN per modul | D1–D6 |
+
+---
+
+## 14. Keputusan Desain dari Hasil Penggabungan
+
+| Keputusan | Dampak desain |
+|---|---|
+| Aktuasi mesin dilarang di Admin (ADR-003) | Tidak ada command panel, tidak ada baris matriks untuk PAUSE/RESUME/RESET |
+| Configuration Manager = 13 operasi version-based | Sub-halaman = editor terstruktur atas satu kandidat; proposal endpoint OEE dibatalkan |
+| Route prefix `/admin/*` | Semua route admin konsisten; redirect path lama |
+| IAM masuk navigasi System | Konsol 16 operasi terpetakan penuh |
+| Filter kategori downtime tidak ada di server | Filter lokal berlabel; bukan klaim filter server |
+| Enum downtime 10 nilai final | Chart bernama "Pareto Kategori Downtime", bukan Six Big Losses lengkap |
+| Kontras per surface | Admin AA + AAA angka kritis; bukan AAA menyeluruh |
+| Kolom "model" device tidak ada di kontrak | Diganti firmware/MAC |
+| WS path kanonis `/ws/telemetry` | Tanpa alur ticket `/ws/live` |
+| MAINTENANCE labeling/ack | Baseline OPERATOR+; verifikasi policy sebelum dibuka |
+| Persistensi cookie | Di luar lingkup; token memori mengikat (D5) |
+| Threshold OEE | Tanpa hardcode; dari konfigurasi bisnis/endpoint |
+| Fitur draft | Tidak tampil sebagai aktif (OOE/TEEP/AI/SPC/SMED/DBR) |
+| Shift analytics | Diadopsi sebagai halaman penuh; tanpa rata-rata OEE pabrik sederhana |
+
+---
+
+## Lampiran A — Peta Ringkas Endpoint → Halaman
+
+| Halaman | Endpoint utama | Akses tulis |
+|---|---|---|
+| Login | `POST /auth/login`, `POST /auth/refresh` | publik (LAN) |
+| Overview | `/health`, `/live-state`, `/downtime-events/active`, `/work-orders?status=ACTIVE` | — |
+| Devices | `/devices*`, `/devices/:id/health` | ADMIN |
+| Machines | `/machines*`, `/bind`, `/unbind` | ADMIN |
+| Products | `/products*` | ADMIN |
+| Operators | `/operators*`, `/password`, `/status` | ADMIN/SUPERVISOR (profil/hapus ADMIN) |
+| Work Orders | `/work-orders*`, `/resolve`, `/dispatch`, `/complete`, `/cancel` | OPERATOR+ (cancel ADMIN) |
+| Downtime | `/downtime-events*`, `/reason` | OPERATOR+ |
+| Audit | `/operational-events*`, `/ack` | OPERATOR+ |
+| Telemetry | `/telemetry/:id`, `/hourly`, `/aggregate`, `/export` | — |
+| Shift Analytics | `/oee/shift-summary`, `/shift-timeline` | — |
+| Quality | `/quality/rejects/:id` | — |
+| Reconciliation | `/telemetry/reconciliation/jobs`, `/refresh` | SUPERVISOR/ADMIN |
+| IAM | `/access-control/*` (16) | ADMIN |
+| Dynamic Security | `/mqtt/dynamic-security/*` (23) | ADMIN |
+| Configuration Manager | `/mqtt/configuration/*` (13) | ADMIN (SUPERVISOR baca) |
+| System Health | `/health` | — |
+
+Total kontrak backend: 107 operasi (55 permukaan operasional + 52 konsol ADMIN). `POST /devices/:id/command` sengaja tidak dipetakan ke halaman mana pun.
+
+---
+
+## Lampiran B — Referensi
+
+- `ADMIN_PANEL_BUILD_GUIDE.md` — kontrak API, otorisasi, klien HTTP, deployment, DoD teknis.
+- `OEE_FrontendDesign_System_Spec_v1.1.md` — design system, UX Configuration Manager, pola komponen.
+- `apps/backend/docs/API_DOCUMENTATION.md` — kontrak route/payload/auth/error.
+- `apps/backend/docs/VISUALISASI_DIAGRAM.md` — alur sistem dan matriks otorisasi.
+- `apps/backend/docs/DOKUMENTASI_FUNGSIONAL_ENDPOINT_AUTH.md` — fungsional endpoint dan auth.
+- `docs/mosquitto-dynamic-security.md`, `docs/mosquitto-configuration-manager.md`.
+- ADR-002 (read-only tunnel), ADR-003 (command actuation safety), ADR-004 (HMI segmentation), ADR-009 (Mosquitto Dynamic Security), spec 021 / ADR-0013 (dynamic access control).
+- `.sdd/context/constraints.md`.
+
+Aturan penutup: bila dokumen ini berbeda dari kode backend atau build guide, kode backend menang. Item bertanda verifikasi wajib ditutup sebelum implementasi modul terkait.

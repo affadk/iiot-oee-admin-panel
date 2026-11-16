@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Light Mode Industrial Palette */
+    --color-bg-base: #f8fafc;
+    --color-bg-surface: #ffffff;
+    --color-bg-elevated: #f1f5f9;
+    --color-bg-subtle: #e2e8f0;
+    --color-border: #cbd5e1;
+    --color-border-subtle: #e2e8f0;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748b;
+    --color-brand: #0284c7;
+    --color-brand-accent: #0369a1;
+
+    /* Industrial State Colors */
+    --state-running: #059669;
+    --state-running-bg: #ecfdf5;
+    --state-ready: #2563eb;
+    --state-ready-bg: #eff6ff;
+    --state-downtime: #dc2626;
+    --state-downtime-bg: #fef2f2;
+    --state-warning: #d97706;
+    --state-warning-bg: #fffbeb;
+    --state-offline: #64748b;
+    --state-offline-bg: #f8fafc;
+  }
+
+  .dark {
+    /* Dark Mode Industrial Engineering Palette */
+    --color-bg-base: #090d16;
+    --color-bg-surface: #0f172a;
+    --color-bg-elevated: #1e293b;
+    --color-bg-subtle: #182234;
+    --color-border: #334155;
+    --color-border-subtle: #1e293b;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-brand: #38bdf8;
+    --color-brand-accent: #0ea5e9;
+
+    /* Dark Mode State Colors */
+    --state-running: #10b981;
+    --state-running-bg: rgba(16, 185, 129, 0.12);
+    --state-ready: #3b82f6;
+    --state-ready-bg: rgba(59, 130, 246, 0.12);
+    --state-downtime: #ef4444;
+    --state-downtime-bg: rgba(239, 68, 68, 0.15);
+    --state-warning: #f59e0b;
+    --state-warning-bg: rgba(245, 158, 11, 0.12);
+    --state-offline: #94a3b8;
+    --state-offline-bg: rgba(148, 163, 184, 0.12);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom scrollbars for high data density industrial tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

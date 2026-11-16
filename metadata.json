@@ -1,0 +1,6 @@
+{
+  "name": "OEE IIoT Admin Panel",
+  "description": "Enterprise industrial administration dashboard for OEE manufacturing monitoring, asset registry, Work Orders, Mosquitto MQTT Dynamic Security, and broker configuration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

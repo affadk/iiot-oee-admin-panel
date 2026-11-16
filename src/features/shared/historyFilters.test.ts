@@ -1,0 +1,198 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  applyHistoryFilterPatch,
+  correlateWorkOrderData,
+  formatRollupPerformance,
+  parseHistoryFiltersFromSearchParams,
+  resolveWorkOrderDeviceId,
+  resolveWorkOrderWindow,
+  serializeHistoryFiltersToSearchParams,
+} from './historyFilters';
+import { WorkOrder } from '../../types/production';
+import { Machine } from '../../types/assets';
+
+test('parseHistoryFiltersFromSearchParams validates ISO 8601 with offset and rejects naive timestamps', () => {
+  const validParams = new URLSearchParams({
+    machine_id: 'CNC-MILLING-01',
+    status: 'COMPLETED',
+    from: '2026-11-01T00:00:00+07:00',
+    to: '2026-11-08T00:00:00+07:00',
+    limit: '25',
+  });
+  const validResult = parseHistoryFiltersFromSearchParams(validParams);
+  assert.equal(validResult.valid, true);
+  assert.equal(validResult.filters.machineId, 'CNC-MILLING-01');
+  assert.equal(validResult.filters.status, 'COMPLETED');
+  assert.equal(validResult.filters.limit, 25);
+  assert.equal(validResult.filters.envelope, true);
+
+  // Naive datetime without timezone offset must fail Zod validation
+  const invalidParams = new URLSearchParams({
+    from: '2026-11-01T00:00:00',
+    to: '2026-11-08T00:00:00+07:00',
+  });
+  const invalidResult = parseHistoryFiltersFromSearchParams(invalidParams);
+  assert.equal(invalidResult.valid, false);
+  assert.ok(invalidResult.errors.from);
+});
+
+test('applyHistoryFilterPatch resets cursor on any non-cursor filter change and preserves cursor when paging', () => {
+  const initial = parseHistoryFiltersFromSearchParams(
+    new URLSearchParams({
+      from: '2026-11-01T00:00:00+07:00',
+      to: '2026-11-08T00:00:00+07:00',
+      cursor: 'cursor-page-2',
+    })
+  ).filters;
+
+  assert.equal(initial.cursor, 'cursor-page-2');
+
+  const paged = applyHistoryFilterPatch(initial, { cursor: 'cursor-page-3' });
+  assert.equal(paged.cursor, 'cursor-page-3');
+
+  const filtered = applyHistoryFilterPatch(paged, { status: 'ACTIVE' });
+  assert.equal(filtered.status, 'ACTIVE');
+  assert.equal(filtered.cursor, undefined);
+
+  const serialized = serializeHistoryFiltersToSearchParams(filtered);
+  assert.equal(serialized.get('cursor'), null);
+  assert.equal(serialized.get('envelope'), 'true');
+  assert.equal(serialized.get('status'), 'ACTIVE');
+});
+
+test('correlateWorkOrderData links machine->device, preserves [dihapus] labels, and counts window matches', () => {
+  const machines: Machine[] = [
+    {
+      machine_id: 'CNC-MILLING-01',
+      name: 'CNC Milling Center Alpha',
+      code: 'CNC-M01',
+      modbus_slave_id: 1,
+      bound_device_id: 'STM32-OEE-01',
+      created_at: '2026-11-01T00:00:00Z',
+      updated_at: '2026-11-01T00:00:00Z',
+    },
+  ];
+
+  const wo: WorkOrder = {
+    wo_id: 'WO-2026-092',
+    order_number: 'WO-2026-092',
+    product_id: null,
+    product_name: null,
+    machine_id: 'CNC-MILLING-01',
+    machine_name: 'CNC Milling Center Alpha',
+    operator_id: null,
+    operator_name: null,
+    shift_name: 'Shift 1 (07:00-15:00)',
+    target_quantity: 100,
+    target_qty: 100,
+    completed_quantity: 96,
+    rejected_quantity: 4,
+    status: 'COMPLETED',
+    planned_start: '2026-11-01T07:00:00+07:00',
+    start_time: '2026-11-01T07:00:00+07:00',
+    end_time: '2026-11-01T15:00:00+07:00',
+  };
+
+  assert.equal(resolveWorkOrderDeviceId(wo, machines), 'STM32-OEE-01');
+  const win = resolveWorkOrderWindow(wo);
+  assert.match(win.from, /[+-]\d{2}:\d{2}$/);
+  assert.match(win.to, /[+-]\d{2}:\d{2}$/);
+
+  const summary = correlateWorkOrderData({
+    workOrder: wo,
+    machines,
+    telemetryRecords: [
+      {
+        id: 't1',
+        device_id: 'STM32-OEE-01',
+        timestamp: '2026-11-01T09:00:00+07:00',
+        fsm_state: 'RUNNING',
+        total_count: 50,
+        good_count: 48,
+        reject_count: 2,
+        totalCount: 50,
+        goodCount: 48,
+        rejectCount: 2,
+        oee: 85.0,
+        availability: 95.0,
+        performance: 92.0,
+        quality: 96.0,
+        cycle_time_ms: 42000,
+      },
+      {
+        id: 't-out',
+        device_id: 'STM32-OEE-01',
+        timestamp: '2026-11-02T09:00:00+07:00',
+        fsm_state: 'RUNNING',
+        total_count: 99,
+        good_count: 99,
+        reject_count: 0,
+        oee: 99,
+        availability: 100,
+        performance: 100,
+        quality: 100,
+        cycle_time_ms: 40000,
+      },
+    ],
+    hourlyPoints: [
+      {
+        hour: '14:00',
+        oee: 84,
+        availability: 92,
+        performance: 93,
+        quality: 98,
+        parts_produced: 47,
+        defect_count: 1,
+        provisional: true,
+      },
+    ],
+    downtimeEvents: [
+      {
+        id: 'dt1',
+        device_id: 'STM32-OEE-01',
+        machine_id: 'CNC-MILLING-01',
+        machine_name: 'CNC Milling Center Alpha',
+        started_at: '2026-11-01T10:00:00+07:00',
+        ended_at: '2026-11-01T10:15:00+07:00',
+        duration_seconds: 900,
+        category: 'EQUIPMENT_FAILURE',
+        reason: 'Alarm',
+        is_labeled: true,
+        created_at: '2026-11-01T10:00:00+07:00',
+      },
+    ],
+    operationalEvents: [
+      {
+        id: 'op1',
+        device_id: 'STM32-OEE-01',
+        machine_id: 'CNC-MILLING-01',
+        machine_name: 'CNC Milling Center Alpha',
+        event_type: 'WORK_ORDER_COMPLETED',
+        severity: 'INFO',
+        message: 'Done',
+        acknowledged: true,
+        timestamp: '2026-11-01T14:55:00+07:00',
+      },
+    ],
+  });
+
+  assert.equal(summary.productDeleted, true);
+  assert.equal(summary.productLabel, '[dihapus]');
+  assert.equal(summary.operatorDeleted, true);
+  assert.equal(summary.operatorLabel, '[dihapus]');
+  assert.equal(summary.telemetrySampleCount, 1);
+  assert.equal(summary.totalGoodParts, 48);
+  assert.equal(summary.totalRejectParts, 2);
+  assert.equal(summary.downtimeCount, 1);
+  assert.equal(summary.totalDowntimeSec, 900);
+  assert.equal(summary.operationalEventCount, 1);
+  assert.equal(summary.provisionalHourlyCount, 1);
+});
+
+test('formatRollupPerformance formats numeric strings and handles null/zero/unknown capacity', () => {
+  assert.equal(formatRollupPerformance(null), '— (Kapasitas 0/Unknown)');
+  assert.equal(formatRollupPerformance(undefined), '— (Kapasitas 0/Unknown)');
+  assert.equal(formatRollupPerformance('93.4'), '93.40%');
+  assert.equal(formatRollupPerformance(88.125), '88.13%');
+});
