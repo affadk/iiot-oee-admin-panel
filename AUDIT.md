@@ -451,3 +451,20 @@ kosong) dan JANGAN memfabrikasi alasan.
 `npm run build` sukses (hanya peringatan chunk-size lama);
 `vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL,
 0 pengecualian tercatat**.
+
+## 13. Audit Telemetry History, OEE Per Jam & Timeline Shift (2026-11-16)
+
+Laporan lengkap: `docs/TELEMETRY_AUDIT.md` (25 gap: 4 Tinggi, 10 Sedang,
+11 Rendah; 24 usulan peningkatan). Empat gap Tinggi — semuanya
+terverifikasi terhadap kode sebelum dilaporkan: **G1** jendela waktu tidak
+sejajar di halaman OEE (shift summary + timeline tidak mengirim `from`/`to`,
+sementara hourly/rollup memakai 7 hari sliding); **G2** total tidak bisa
+direkonsiliasi antar tampilan bahkan di demo (timeline RUNNING 409 mnt vs
+`run_time_min` 388; planned 45 vs 60; unplanned 15 vs 32); **G3** filter
+tanggal tidak berpengaruh di tab Hourly & Aggregate Telemetry History
+(`from`/`to` tidak dikirim ke server); **G4** rollup halaman OEE
+mengabaikan mesin terpilih (selalu plant-wide tanpa label). Prioritas
+usulan dalam scope: F-1 (kirim `from`/`to` ke hourly & aggregate) → F-2
+(ikat summary/timeline ke periode) → F-3 (rollup ikut mesin / label scope)
+→ F-4 (seed demo terrekoniliasi) → U-1 (label scope eksplisit). Belum
+diputuskan Fathur mana yang diimplementasikan.
