@@ -112,7 +112,7 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
   assert.match(dtExp, /^\/api\/v1\/downtime-events\/STM32-OEE-01\/export\?/);
 
   const opGlobal = buildOperationalEventsEndpoint({ device_id: 'ALL', machine_id: 'CNC-MILLING-01' });
-  assert.match(opGlobal, /^\/api\/v1\/operational-events\?/);
+  assert.match(opGlobal, /^\/api\/v1\/operational-events\/\?/);
   assert.match(opGlobal, /machine_id=CNC-MILLING-01/);
 
   const opPerDevice = buildOperationalEventsEndpoint({ device_id: 'STM32-OEE-02', event_type: 'ALARM' });

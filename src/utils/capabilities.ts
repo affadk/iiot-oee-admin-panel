@@ -54,7 +54,7 @@ export const ROLE_LEVELS: Record<UserRole, number> = {
 };
 
 export const ACCOUNT_MANAGER_MIN_LEVEL = 30;
-export const CUSTOM_ROLE_MAX_LEVEL = 100;
+export const CUSTOM_ROLE_MAX_LEVEL = 29;
 
 export const RESERVED_PERMISSIONS = [
   'manage:access_control',
@@ -63,10 +63,10 @@ export const RESERVED_PERMISSIONS = [
   'read_raw:mqtt_configuration',
 ] as const;
 
-export const SYSTEM_ROLE_NAMES = ['ADMIN'] as const;
+export const SYSTEM_ROLE_NAMES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'] as const;
 
 export function isSystemRoleName(roleName: string): boolean {
-  return roleName.trim().toUpperCase() === 'ADMIN';
+  return (SYSTEM_ROLE_NAMES as readonly string[]).includes(roleName.trim().toUpperCase());
 }
 
 export function isReservedPermission(action: string, resourceType: string): boolean {

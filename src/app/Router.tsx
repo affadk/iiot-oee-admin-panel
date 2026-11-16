@@ -6,6 +6,9 @@ import { OverviewPage } from '../features/overview/OverviewPage';
 import { WorkOrdersPage } from '../features/production/WorkOrdersPage';
 import { ProductsPage } from '../features/production/ProductsPage';
 import { OperatorsPage } from '../features/production/OperatorsPage';
+import { ProductionLinesPage } from '../features/production/ProductionLinesPage';
+import { ShiftsPage } from '../features/production/ShiftsPage';
+import { ShiftSchedulesPage } from '../features/production/ShiftSchedulesPage';
 import { MachinesPage } from '../features/assets/MachinesPage';
 import { DevicesPage } from '../features/assets/DevicesPage';
 import { LiveStatePage } from '../features/monitoring/LiveStatePage';
@@ -54,6 +57,9 @@ export const AppRouter: React.FC = () => {
           <Route path="machines" element={<MachinesPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="operators" element={<OperatorsPage />} />
+          <Route path="lines" element={<ProductionLinesPage />} />
+          <Route path="shifts" element={<ShiftsPage />} />
+          <Route path="shift-schedules" element={<ShiftSchedulesPage />} />
           <Route path="telemetry" element={<TelemetryHistoryPage />} />
           <Route path="analytics" element={<OeeAnalyticsPage />} />
           <Route path="shift-analytics" element={<OeeAnalyticsPage />} />

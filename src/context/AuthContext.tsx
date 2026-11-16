@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthMeResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
+import { resolveApiMode } from '../services/api/mode';
 import {
   CapabilityKey,
   CapabilityState,
@@ -40,22 +41,24 @@ const DEFAULT_FALLBACK_TTL = Number(import.meta.env.VITE_AUTH_TTL_FALLBACK_SEC |
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { mode } = useNetworkAccess();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  // Guide §4.4/D5: tidak ada sesi pra-login. Pengguna HARUS login lewat
+  // /login; AuthProvider tidak lagi start sebagai ADM-001.
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<{
     operator_id: string;
     name: string;
     role: UserRole;
     line_id?: string;
   }>({
-    operator_id: 'ADM-001',
-    name: 'Alexandria Vance',
-    role: 'ADMIN',
-    line_id: 'ORG-ALL',
+    operator_id: '',
+    name: '',
+    role: 'OPERATOR',
+    line_id: undefined,
   });
-  const [sessionTtlRemaining, setSessionTtlRemaining] = useState<number>(DEFAULT_FALLBACK_TTL);
-  const [sessionTtlTotal, setSessionTtlTotal] = useState<number>(DEFAULT_FALLBACK_TTL);
+  const [sessionTtlRemaining, setSessionTtlRemaining] = useState<number>(0);
+  const [sessionTtlTotal, setSessionTtlTotal] = useState<number>(0);
   const [sessionExpiredReason, setSessionExpiredReason] = useState<string | null>(null);
-  const [authzVersion, setAuthzVersion] = useState<number>(7);
+  const [authzVersion, setAuthzVersion] = useState<number>(0);
   const [authMe, setAuthMe] = useState<AuthMeResponse | null>(null);
   const [, setDenialRevision] = useState<number>(0);
 
@@ -121,6 +124,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [isAuthenticated, currentUser.role, currentUser.operator_id, refreshCapabilities]);
 
   const setRole = useCallback((role: UserRole) => {
+    // Pengalih peran adalah alat DEMO saja. Di mode Real, peran berasal dari
+    // token server (GET /auth/me) dan tidak boleh dialihkan dari UI.
+    if (resolveApiMode() !== 'demo') return;
     capabilityDenialStore.clearAll();
     apiClient.setUserRole(role);
     apiClient.setSessionActive(true);

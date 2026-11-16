@@ -4,6 +4,7 @@ import { Sun, Moon, User, Radio, Database, Menu, LogOut, Clock, KeyRound } from 
 import { useAuth, useCapability } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNetworkAccess } from '../context/NetworkAccessContext';
+import { resolveApiMode, setApiMode, ApiMode } from '../services/api/mode';
 import { UserRole } from '../types/auth';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
@@ -26,6 +27,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwSuccess, setPwSuccess] = useState<string | null>(null);
   const [pwSubmitting, setPwSubmitting] = useState(false);
+  const [apiMode, setApiModeState] = useState<ApiMode>(() => resolveApiMode());
+
+  const handleApiModeChange = (next: ApiMode) => {
+    if (next === apiMode) return;
+    // Mode dipilih saat module load (selector apiClient) — perlu reload penuh.
+    setApiMode(next);
+    setApiModeState(next);
+    window.location.reload();
+  };
 
   const handleLogout = () => {
     logout();
@@ -157,21 +167,40 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
             <span>{formatSessionTime(sessionTtlRemaining)}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-slate-400 hidden sm:inline">Role:</span>
+          <div className="flex items-center gap-1.5" title="Mode API: Demo memakai data lokal di memori; Real memakai HTTP ke backend (VITE_API_URL). Pilihan tersimpan dan halaman dimuat ulang.">
+            <span className="text-[11px] text-slate-400 hidden sm:inline">API:</span>
             <select
-              value={currentUser.role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500"
-              title="Ganti peran pengguna aktif"
-              aria-label="Active User Role"
+              value={apiMode}
+              onChange={(e) => handleApiModeChange(e.target.value as ApiMode)}
+              className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
+                apiMode === 'real'
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+              }`}
+              aria-label="API Mode"
             >
-              <option value="ADMIN">ADMIN</option>
-              <option value="SUPERVISOR">SUPERVISOR</option>
-              <option value="OPERATOR">OPERATOR</option>
-              <option value="MAINTENANCE">MAINTENANCE</option>
+              <option value="demo">Demo</option>
+              <option value="real">Real</option>
             </select>
           </div>
+
+          {apiMode === 'demo' && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-400 hidden sm:inline">Role:</span>
+              <select
+                value={currentUser.role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500"
+                title="Ganti peran pengguna aktif (hanya mode Demo)"
+                aria-label="Active User Role"
+              >
+                <option value="ADMIN">ADMIN</option>
+                <option value="SUPERVISOR">SUPERVISOR</option>
+                <option value="OPERATOR">OPERATOR</option>
+                <option value="MAINTENANCE">MAINTENANCE</option>
+              </select>
+            </div>
+          )}
 
           <button
             onClick={toggleTheme}

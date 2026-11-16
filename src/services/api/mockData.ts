@@ -405,7 +405,7 @@ export const INITIAL_DEVICE_HEALTH_OVERRIDES: Record<string, DeviceHealth> = {
     tasksHealthy: 9,
     tasksTotal: 9,
     ageSec: 4,
-    eventFlags: 7, // NTP_SYNCED | MQTT_TLS_ACTIVE | MODBUS_HEALTHY
+    eventFlags: ['NTP_SYNCED', 'MQTT_TLS_ACTIVE', 'MODBUS_HEALTHY'],
     staleCount: 0,
     staleTasks: [],
   },
@@ -416,7 +416,7 @@ export const INITIAL_DEVICE_HEALTH_OVERRIDES: Record<string, DeviceHealth> = {
     tasksHealthy: 9,
     tasksTotal: 9,
     ageSec: 6,
-    eventFlags: 7,
+    eventFlags: ['NTP_SYNCED', 'MQTT_TLS_ACTIVE', 'MODBUS_HEALTHY'],
     staleCount: 0,
     staleTasks: [],
   },
@@ -427,7 +427,7 @@ export const INITIAL_DEVICE_HEALTH_OVERRIDES: Record<string, DeviceHealth> = {
     tasksHealthy: 8,
     tasksTotal: 9,
     ageSec: 8,
-    eventFlags: 9, // NTP_SYNCED | MODBUS_RETRY
+    eventFlags: ['NTP_SYNCED', 'MODBUS_RETRY'],
     staleCount: 1,
     staleTasks: ['ModbusPollTask'],
   },
@@ -436,26 +436,34 @@ export const INITIAL_DEVICE_HEALTH_OVERRIDES: Record<string, DeviceHealth> = {
 export const INITIAL_PRODUCTS: Product[] = [
   {
     product_id: 'PRD-ARM-001',
+    sku: 'PRD-ARM-001',
     name: 'Titanium Rotor Arm A1',
     ideal_cycle_time_seconds: 42.5,
+    active: true,
     created_at: '2026-01-05T08:00:00Z',
   },
   {
     product_id: 'PRD-HOU-002',
+    sku: 'PRD-HOU-002',
     name: 'Cast Iron Bearing Housing B4',
     ideal_cycle_time_seconds: 68.0,
+    active: true,
     created_at: '2026-01-06T08:00:00Z',
   },
   {
     product_id: 'PRD-FLA-003',
+    sku: 'PRD-FLA-003',
     name: 'Sealing Flange ISO-100',
     ideal_cycle_time_seconds: 28.0,
+    active: true,
     created_at: '2026-01-07T08:00:00Z',
   },
   {
     product_id: 'PRD-SHF-004',
+    sku: 'PRD-SHF-004',
     name: 'Spline Drive Shaft 24T',
     ideal_cycle_time_seconds: 55.0,
+    active: true,
     created_at: '2026-01-08T08:00:00Z',
   },
 ];
@@ -1273,10 +1281,16 @@ export const INITIAL_BROKER_BACKUPS: BrokerBackup[] = [
 export const INITIAL_SYSTEM_HEALTH: SystemHealth = {
   status: 'ok',
   uptime: 1845920.42,
+  uptime_seconds: 1845920,
   timestamp: new Date().toISOString(),
   ws_clients: 3,
   db_connected: true,
   buffer_pending: 2,
+  buffer_dropped: 0,
+  backend: { status: 'UP', label: 'API v1', environment: 'production', latency_ms: 12 },
+  database: { engine: 'PostgreSQL (TimescaleDB)', latency_ms: 8 },
+  mqtt: { status: 'UP', connected_clients: 4, dynamic_security: 'enabled' },
+  websocket: { status: 'UP' },
   metrics: {
     totalReceived: 14820,
     validIngested: 14806,

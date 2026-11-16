@@ -420,7 +420,7 @@ export function buildDowntimeExportEndpoint(query: DowntimeExportQuery): string 
 export function buildOperationalEventsEndpoint(query: OperationalEventsQuery): string {
   const isGlobal = !query.device_id || query.device_id === 'ALL';
   const base = isGlobal
-    ? '/api/v1/operational-events'
+    ? '/api/v1/operational-events/'
     : `/api/v1/operational-events/${encodeURIComponent(query.device_id!)}`;
   const qs = buildQueryString({
     machine_id: isGlobal ? query.machine_id : undefined,

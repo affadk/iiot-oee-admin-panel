@@ -52,7 +52,7 @@ export const SystemHealthPage: React.FC = () => {
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Badge variant={health.status === 'HEALTHY' ? 'success' : 'danger'}>{health.status}</Badge>
+              <Badge variant={health.status === 'ok' ? 'success' : 'danger'}>{health.status === 'ok' ? 'HEALTHY' : health.status.toUpperCase()}</Badge>
               <span className="text-xs font-tabular text-slate-600 dark:text-slate-300">
                 Uptime: <strong>{formatDuration(health.uptime_seconds)}</strong>
               </span>

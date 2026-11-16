@@ -35,6 +35,7 @@ export interface HourlyOeePoint {
   good_count?: number;
   hourly_operating_sec?: number;
   hourly_run_sec?: number;
+  hourly_downtime_sec?: number;
   sampleCount?: number;
   targetPerHour?: number | null;
   state?: MachineFsmState | null;
@@ -69,7 +70,8 @@ export interface ShiftTimelineSegment {
 export interface RejectParetoItem {
   reason: string;
   count: number;
-  pct: number;
+  /** Persen terhadap total; opsional — demo seed hanya membawa `percentage`. */
+  pct?: number;
   percentage: number;
   cumulative_percentage: number;
 }
@@ -114,6 +116,8 @@ export interface TelemetryRollupQuery {
 
 export interface TelemetryRollupItem {
   groupBy: TelemetryRollupGroupBy;
+  /** Kunci unik baris untuk paginasi cursor (demo: machine/device/hari/bulan). */
+  groupKey: string;
   bucket: string | null;
   machineId: string | null;
   machine_id?: string | null;

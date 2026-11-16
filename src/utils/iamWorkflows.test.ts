@@ -121,7 +121,9 @@ test('Test A — Role Management: CRUD custom roles, system role protection, and
 test('Test B — Role Permission Management: fixed catalog, duplicate/reserved/wildcard guards, anti-lockout & policy sync', async () => {
   resetToAdminLan();
   const catalog = await apiClient.getIamPermissions();
-  assert.equal(catalog.length, 22);
+  // 22 awal + 7 master data (device, production_line, shift, shift_schedule
+  // read+manage — domain berjaga per API doc auth/me, FR-032-40/42).
+  assert.equal(catalog.length, 29);
 
   // 1. Permission Catalog CREATE strictly forbidden
   await assert.rejects(
@@ -219,8 +221,8 @@ test('Test C — User Management & Role Assignment: auth password verification, 
     (err: any) => err.httpStatus === 401 && err.code === 'UNAUTHORIZED'
   );
   const loginRes = await apiClient.login('OP-888', 'SecretUserPass88!', 'HMI-L2');
-  assert.equal(loginRes.user.operator_id, 'OP-888');
-  assert.equal(loginRes.user.line_id, 'LINE-02');
+  assert.equal(loginRes.operator.id, 'OP-888');
+  assert.equal(loginRes.operator.line_id, 'LINE-02');
 
   // 3. Switch back to ADM-001, suspend OP-888 and verify active session fails 401 + login fails 401
   resetToAdminLan();
@@ -337,7 +339,7 @@ test('Test D — Full 13-Step End-to-End Integration: custom role -> permissions
 
     // Step 6: Login as OP-777 & inspect GET /api/v1/auth/me
     const loginRes = await apiClient.login('OP-777', 'ProdMgrPass1!', 'STN-PM');
-    assert.equal(loginRes.user.operator_id, 'OP-777');
+    assert.equal(loginRes.operator.id, 'OP-777');
     const me = await apiClient.getAuthMe();
     assert.ok(me.effectiveRoles.some((r) => r.roleName === 'PRODUCTION_MANAGER' && r.scopeType === 'ORGANIZATION'));
     assert.equal(me.capabilities['export.telemetry'], 'allow');
@@ -386,7 +388,7 @@ test('Test D — Full 13-Step End-to-End Integration: custom role -> permissions
     );
 
     // Step 9: Switch back to ADM-001, revoke refresh:telemetry (perm-06) from PRODUCTION_MANAGER
-    const staleVersion = loginRes.authz_version ?? store.iamInfo.authzVersion;
+    const staleVersion = store.iamInfo.authzVersion;
     resetToAdminLan();
     await apiClient.removeIamRolePermission(pmRole.id, 'perm-06');
 
@@ -406,7 +408,7 @@ test('Test D — Full 13-Step End-to-End Integration: custom role -> permissions
 
     // Step 11: Re-login OP-777, verify exportTelemetryData & triggerReconciliationRefresh now fail 403, while ack still succeeds
     const reLogin = await apiClient.login('OP-777', 'ProdMgrPass1!', 'STN-PM');
-    assert.ok((reLogin.authz_version ?? 0) > staleVersion);
+    assert.ok(store.iamInfo.authzVersion > staleVersion);
     const meAfterRevoke = await apiClient.getAuthMe();
     assert.equal(meAfterRevoke.capabilities['export.telemetry'], 'deny');
     assert.equal(meAfterRevoke.capabilities['telemetry.reconciliation.refresh'], 'deny');

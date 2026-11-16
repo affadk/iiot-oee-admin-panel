@@ -1,5 +1,6 @@
 import { MachineFsmState } from '../../types/monitoring';
 import { normalizeFsmState } from '../../utils/oeeCalculations';
+import { resolveApiMode } from '../api/mode';
 
 /**
  * Build Guide §10 & API Doc §4/§7.A — Singleton Real-Time WebSocket Client (/ws/telemetry)
@@ -189,12 +190,22 @@ export function resolveWsUrl(): string {
   return 'ws://localhost/ws/telemetry';
 }
 
+/** Perangkat seed demo untuk simulasi WS lokal (id sama dengan mockData). */
+const DEMO_SIM_DEVICES: Array<{ device_id: string; machine_id: string }> = [
+  { device_id: 'STM32-OEE-01', machine_id: 'CNC-MILLING-01' },
+  { device_id: 'STM32-OEE-02', machine_id: 'CNC-LATHE-02' },
+  { device_id: 'STM32-OEE-03', machine_id: 'CNC-PRESS-03' },
+  { device_id: 'STM32-OEE-04', machine_id: 'CNC-WELD-04' },
+];
+
 class TelemetrySocketSingleton {
   private ws: WebSocket | null = null;
   private status: WsConnectionStatus = 'DISCONNECTED';
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private simTimer: ReturnType<typeof setInterval> | null = null;
+  private simCounters = new Map<string, { total: number; good: number; reject: number }>();
   private eventListeners = new Set<(event: TelemetryWsEvent) => void>();
   private statusListeners = new Set<(status: WsConnectionStatus) => void>();
   private reconnectHandlers = new Set<() => void>();
@@ -206,6 +217,13 @@ class TelemetrySocketSingleton {
   connect(onReconnectRefetch?: () => void): void {
     if (onReconnectRefetch) {
       this.reconnectHandlers.add(onReconnectRefetch);
+    }
+    // Mode Demo: tidak ada backend/WS sungguhan — simulasikan TELEMETRY_UPDATE
+    // lokal tiap 5 detik agar Live State tetap bergerak tanpa reconnect-loop
+    // ke origin yang tidak punya server WS.
+    if (resolveApiMode() === 'demo') {
+      this.startDemoSimulation();
+      return;
     }
     if (typeof WebSocket === 'undefined') return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
@@ -265,6 +283,7 @@ class TelemetrySocketSingleton {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopDemoSimulation();
     this.stopHeartbeat();
     if (this.ws) {
       this.ws.onclose = null;
@@ -301,6 +320,61 @@ class TelemetrySocketSingleton {
   private setStatus(next: WsConnectionStatus): void {
     this.status = next;
     this.statusListeners.forEach((cb) => cb(next));
+  }
+
+  /** Simulasi WS mode Demo: TELEMETRY_UPDATE lokal tiap 5 detik. */
+  private startDemoSimulation(): void {
+    if (this.simTimer) return;
+    this.setStatus('CONNECTING');
+    const emit = () => {
+      for (const dev of DEMO_SIM_DEVICES) {
+        const prev = this.simCounters.get(dev.device_id) ?? {
+          total: 1200 + Math.floor(Math.random() * 800),
+          good: 0,
+          reject: 0,
+        };
+        const produced = 1 + Math.floor(Math.random() * 3);
+        const rejects = Math.random() < 0.08 ? 1 : 0;
+        const next = {
+          total: prev.total + produced,
+          good: (prev.good || prev.total) + produced - rejects,
+          reject: prev.reject + rejects,
+        };
+        this.simCounters.set(dev.device_id, next);
+        const jitter = (base: number, span: number) => Math.round((base + Math.random() * span) * 10) / 10;
+        const event: TelemetryWsTelemetryEvent = {
+          type: 'TELEMETRY_UPDATE',
+          device_id: dev.device_id,
+          machine_id: dev.machine_id,
+          fsm_state: 'RUNNING',
+          is_buffered: false,
+          timestampIso: new Date().toISOString(),
+          counters: { total: next.total, good: next.good, reject: next.reject, last_cycle_sec: jitter(28, 6) },
+          oee: {
+            availability: jitter(88, 8),
+            performance: jitter(90, 6),
+            quality: jitter(97, 2.5),
+            total_oee: jitter(80, 9),
+          },
+          plc_modbus: {
+            spindle_rpm: Math.round(2400 + Math.random() * 400),
+            temp_c: jitter(42, 6),
+            alarm_code: 0,
+          },
+        };
+        this.eventListeners.forEach((cb) => cb(event));
+      }
+    };
+    emit();
+    this.setStatus('CONNECTED');
+    this.simTimer = setInterval(emit, 5000);
+  }
+
+  private stopDemoSimulation(): void {
+    if (this.simTimer) {
+      clearInterval(this.simTimer);
+      this.simTimer = null;
+    }
   }
 
   private startHeartbeat(): void {

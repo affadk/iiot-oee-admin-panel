@@ -62,8 +62,10 @@ export interface WorkOrderCancelResult {
 
 export interface Product {
   product_id: string;
+  sku: string;
   name: string;
   ideal_cycle_time_seconds: number;
+  active: boolean;
   created_at?: string;
 }
 

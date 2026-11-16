@@ -145,7 +145,7 @@ export const MachineDetailModal: React.FC<MachineDetailModalProps> = ({
               Dibuat: {new Date(machine.created_at).toLocaleString()}
             </div>
             <div className="p-2.5 rounded bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-              Diperbarui: {new Date(machine.updated_at).toLocaleString()}
+              Diperbarui: {new Date(machine.updated_at ?? machine.created_at).toLocaleString()}
             </div>
           </div>
 

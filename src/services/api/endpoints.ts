@@ -1,6 +1,6 @@
 /**
  * Authoritative Admin Panel Endpoint Catalog
- * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (111 Admin REST candidates + 1 WebSocket = 112)
+ * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (131 Admin REST candidates + 1 WebSocket = 132)
  * and API_DOCUMENTATION.md.
  *
  * Strictly EXCLUDES HMI-only flows:
@@ -396,8 +396,9 @@ export const ADMIN_ENDPOINTS = {
   OPERATIONAL_EVENTS_LIST: {
     key: 'OPERATIONAL_EVENTS_LIST',
     method: 'GET',
-    template: '/api/v1/operational-events',
-    buildPath: () => '/api/v1/operational-events',
+    // Guide §6.7: trailing slash WAJIB untuk endpoint list ini.
+    template: '/api/v1/operational-events/',
+    buildPath: () => '/api/v1/operational-events/',
   },
   OPERATIONAL_EVENTS_BY_DEVICE: {
     key: 'OPERATIONAL_EVENTS_BY_DEVICE',

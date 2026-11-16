@@ -189,7 +189,7 @@ export const OverviewPage: React.FC = () => {
               ? `Layar aktif: ${health.ws_clients} · Basis data: ${health.db_connected ? 'Terhubung' : 'Terputus'} · Antrean gagal: ${health.buffer_dropped}`
               : 'Menunggu data sistem...'
           }
-          statusVariant={health?.status === 'HEALTHY' ? 'success' : 'warning'}
+          statusVariant={health?.status === 'ok' ? 'success' : 'warning'}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
       </div>

@@ -271,16 +271,18 @@ test('Predefined IAM permission catalog is unique, comprehensive, and strictly r
   const keys = perms.map((p) => `${p.action}:${p.resource_type}`);
   assert.equal(new Set(keys).size, keys.length, 'Predefined permissions must have no duplicate action:resource_type');
 
+  // Kunci katalog memakai bentuk singular sesuai API Documentation
+  // (policy `ack:operational_event`, `create:operator`, `update:operator`).
   for (const required of [
     'read:access_control',
-    'ack:operational_events',
-    'manage:products',
-    'read:operators',
-    'create:operators',
-    'status:operators',
-    'update:operators',
-    'rotate_password:operators',
-    'delete:operators',
+    'ack:operational_event',
+    'manage:product',
+    'read:operator',
+    'create:operator',
+    'update_status:operator',
+    'update:operator',
+    'rotate_password:operator',
+    'delete:operator',
     'read:mqtt_admin',
     'read:mqtt_configuration',
     'read:telemetry',

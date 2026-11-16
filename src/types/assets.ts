@@ -23,6 +23,8 @@ export interface Machine {
   modbus_slave_id: number;
   line_id?: string | null;
   created_at: string;
+  updated_at?: string;
+  code?: string;
 }
 
 export interface MachineStatusHistoryItem {
@@ -40,6 +42,7 @@ export interface MachineStatusHistoryItem {
 export interface EdgeDevice {
   device_id: string;
   model?: string;
+  serial_number?: string;
   mac_address: string;
   ip_address: string | null;
   firmware_version: string | null;
@@ -58,7 +61,7 @@ export interface DeviceHealth {
   tasksHealthy: number;
   tasksTotal: number;
   ageSec: number;
-  eventFlags: number;
+  eventFlags: string[];
   staleCount: number;
   staleTasks: string[];
 }

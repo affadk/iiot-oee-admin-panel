@@ -173,7 +173,7 @@ test('ON DELETE SET NULL preserves history on deleted Product while blocking act
 
 test('Operational Events global feed vs per-device feed & DeviceHealth cache-miss behavior', async () => {
   const globalPath = buildOperationalEventsEndpoint({ device_id: 'ALL' });
-  assert.match(globalPath, /^\/api\/v1\/operational-events(?:\?|$)/);
+  assert.match(globalPath, /^\/api\/v1\/operational-events\/(?:\?|$)/);
 
   const globalExportPath = buildOperationalEventsExportEndpoint({
     device_id: 'ALL',
@@ -226,6 +226,7 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   // Machines (7)
   await apiClient.getMachines();
   await apiClient.getMachineById('CNC-MILLING-01');
+  await apiClient.getMachineStatusHistory('CNC-MILLING-01');
   const mach = await apiClient.createMachine({
     machine_id: 'CNC-TEST-99',
     name: 'Test CNC Mill 99',
@@ -265,6 +266,30 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   await apiClient.rotateOperatorPassword(op.operator_id, 'NewSecurePass99!');
   await apiClient.toggleOperatorStatus(op.operator_id, false);
   await apiClient.deleteOperator(op.operator_id);
+
+
+  // Production Lines / Shifts / Shift Schedules (15)
+  await apiClient.getProductionLinesPage();
+  await apiClient.getProductionLineById('LINE-01');
+  const testLine = await apiClient.createProductionLine({ lineId: 'LINE-TEST-99', lineName: 'Test Line 99' });
+  await apiClient.updateProductionLine(testLine.lineId, { lineName: 'Test Line 99 Updated' });
+  await apiClient.deleteProductionLine(testLine.lineId);
+  await apiClient.getShiftsPage();
+  await apiClient.getShiftById('SHIFT-1');
+  const testShift = await apiClient.createShift({
+    shiftId: 'SHIFT-TEST-99',
+    shiftName: 'Test Shift 99',
+    shiftCode: 'ST',
+    startTime: '08:00',
+    endTime: '16:00',
+  });
+  await apiClient.updateShift(testShift.shiftId, { shiftName: 'Test Shift 99 Updated' });
+  await apiClient.deleteShift(testShift.shiftId);
+  await apiClient.getShiftSchedulesPage();
+  await apiClient.getShiftScheduleById('sched-0101-s1');
+  const testSch = await apiClient.createShiftSchedule({ lineId: 'LINE-02', shiftId: 'SHIFT-1', dayOfWeek: 7 });
+  await apiClient.updateShiftSchedule(testSch.scheduleId, { dayOfWeek: 6 });
+  await apiClient.deleteShiftSchedule(testSch.scheduleId);
 
   // Work Orders (4)
   await apiClient.getWorkOrders();

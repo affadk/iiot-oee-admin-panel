@@ -15,7 +15,9 @@ export const NumericCoercionSchema = z
   });
 
 export const PaginationMetaSchema = z.object({
-  limit: z.number().int().nonnegative(),
+  // `limit` opsional: normalizer sudah fallback ke limit permintaan bila
+  // backend tidak menyertakannya di meta (D7 — envelope boleh minimal).
+  limit: z.number().int().nonnegative().optional(),
   hasMore: z.boolean().optional(),
   has_more: z.boolean().optional(),
   truncated: z.boolean().optional(),
@@ -424,6 +426,7 @@ export const BoundMachineSummarySchema = z.object({
 export const EdgeDeviceSchema = z.object({
   device_id: z.string().regex(/^STM32-[A-Za-z0-9_-]+$/),
   model: z.string().optional(),
+  serial_number: z.string().optional(),
   mac_address: z.string().regex(/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/),
   ip_address: z.string().nullable(),
   firmware_version: z.string().nullable(),
@@ -507,7 +510,7 @@ export const DeviceHealthSchema = z.object({
   tasksHealthy: z.number().int().nonnegative(),
   tasksTotal: z.number().int().nonnegative(),
   ageSec: z.number().nonnegative(),
-  eventFlags: z.number().int().nonnegative(),
+  eventFlags: z.array(z.string()),
   staleCount: z.number().int().nonnegative(),
   staleTasks: z.array(z.string()),
 });
@@ -571,6 +574,7 @@ export const TelemetryRollupItemSchema = z.object({
   oeePct: z.union([z.string(), z.number()]),
   sampleCount: z.number().int().nonnegative(),
   provisional: z.boolean(),
+  groupKey: z.string(),
 });
 
 export const TelemetryAggregatePointSchema = z.object({

@@ -1,10 +1,31 @@
 export interface SystemHealth {
   status: 'ok' | 'degraded' | 'down';
   uptime: number;
+  /** Detik sejak backend start (alias numerik dari `uptime`). */
+  uptime_seconds: number;
   timestamp: string;
   ws_clients: number;
   db_connected: boolean;
   buffer_pending: number;
+  buffer_dropped: number;
+  backend: {
+    status: 'UP' | 'DOWN';
+    label: string;
+    environment: string;
+    latency_ms: number;
+  };
+  database: {
+    engine: string;
+    latency_ms: number;
+  };
+  mqtt: {
+    status: 'UP' | 'DOWN';
+    connected_clients: number;
+    dynamic_security: string;
+  };
+  websocket: {
+    status: 'UP' | 'DOWN';
+  };
   metrics: {
     totalReceived: number;
     validIngested: number;
