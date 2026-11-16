@@ -8,12 +8,14 @@ import { ShiftTimeline } from './components/ShiftTimeline';
 import { OeeHourlyTable } from './components/OeeHourlyTable';
 import { OeeRollupTable } from './components/OeeRollupTable';
 import { QualityRejectPareto } from './components/QualityRejectPareto';
+import { formatPeriodLabel } from './scopeLabels';
 
 export const OeeAnalyticsPage: React.FC = () => {
   const analytics = useOeeAnalytics();
   const {
     canReadOee,
     canReadQuality,
+    filters,
     updateFilters,
     selectedMachine,
     rollupGroupBy,
@@ -36,6 +38,13 @@ export const OeeAnalyticsPage: React.FC = () => {
     isRefreshing,
     refetchAll,
   } = analytics;
+
+  const selectedMachineLabel =
+    machines.find((m) => m.machine_id === selectedMachine)?.name ?? selectedMachine;
+
+  // E11 T11.5 (U-1): label periode dari from/to filter aktif (default 7 hari)
+  // — diteruskan ke tiap widget sebagai label scope eksplisit.
+  const periodLabel = formatPeriodLabel(filters.from, filters.to);
 
   if (!canReadOee.canInteract) {
     return (
@@ -106,7 +115,7 @@ export const OeeAnalyticsPage: React.FC = () => {
         </div>
       </div>
 
-      <OeeSummaryCards summary={summary} />
+      <OeeSummaryCards summary={summary} fallbackPeriodLabel={periodLabel} />
 
       {/* Shift Timeline Bar (6 canonical FSM states + interactive downtime overlay) */}
       <ShiftTimeline
@@ -118,16 +127,24 @@ export const OeeAnalyticsPage: React.FC = () => {
         activeSegment={activeSegment}
         matchedDowntime={matchedDowntime}
         resolvedDeviceId={resolvedDeviceId}
+        summary={summary}
       />
 
       {/* Hourly Breakdown Table (authoritative /api/v1/oee/hourly fields) */}
-      <OeeHourlyTable hourly={hourly} resolvedDeviceId={resolvedDeviceId} />
+      <OeeHourlyTable
+        hourly={hourly}
+        resolvedDeviceId={resolvedDeviceId}
+        periodLabel={periodLabel}
+        machineLabel={selectedMachineLabel}
+      />
 
-      {/* Multi-Machine / Period Rollup Comparison */}
+      {/* Rollup — mesin terpilih (E11 T11.3 / F-3) */}
       <OeeRollupTable
         rollupRows={rollupRows}
         rollupGroupBy={rollupGroupBy}
+        machineLabel={selectedMachineLabel}
         onGroupByChange={(v: TelemetryRollupGroupBy) => updateFilters({ groupBy: v })}
+        periodLabel={periodLabel}
       />
 
       {/* Integrated Quality Reject Pareto Section (capability gated: quality.read) */}

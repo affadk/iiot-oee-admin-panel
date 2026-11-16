@@ -10,7 +10,7 @@ import { num, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, buildTelemetryRollupEndpoint } from '../../../utils/historicalExport';
 import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
-import { HourlyOeePoint, TelemetryHistoryRecord, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
+import { HourlyOeePoint, TelemetryHistoryRecord, TelemetryRangeOptions, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
 import { AuditLogItem } from '../../../types/system';
 import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery, TelemetryExportQuery, TelemetryHistoryQuery } from '../../../types/historical';
 
@@ -195,20 +195,36 @@ export const httpMonitoring = {
     ).then((p) => p.data);
   },
 
-  async getHourlyTrend(deviceId: string, signal?: AbortSignal): Promise<HourlyOeePoint[]> {
+  async getHourlyTrend(
+    deviceId: string,
+    signal?: AbortSignal,
+    options?: TelemetryRangeOptions
+  ): Promise<HourlyOeePoint[]> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqList(
-      { path: ADMIN_ENDPOINTS.TELEMETRY_HOURLY.buildPath(deviceId), signal, endpointKey: 'TELEMETRY_HOURLY', capability: 'telemetry.read', resourceId: deviceId },
+      {
+        path: ADMIN_ENDPOINTS.TELEMETRY_HOURLY.buildPath(deviceId),
+        query: {
+          ...(options?.from ? { from: options.from } : {}),
+          ...(options?.to ? { to: options.to } : {}),
+          ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+        },
+        signal,
+        endpointKey: 'TELEMETRY_HOURLY',
+        capability: 'telemetry.read',
+        resourceId: deviceId,
+      },
       mapHourly,
-      100,
+      options?.limit ?? 100,
     ).then((p) => p.data);
   },
 
   async getTelemetryAggregate(
     deviceId: string,
     bucket: '1m' | '5m' | '15m' | '1h' | '1d' = '1h',
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: TelemetryRangeOptions
   ): Promise<{
     device_id: string;
     bucket: string;
@@ -224,7 +240,12 @@ export const httpMonitoring = {
     const rows = await reqList(
       {
         path: ADMIN_ENDPOINTS.TELEMETRY_AGGREGATE.buildPath(deviceId),
-        query: { bucket },
+        query: {
+          bucket,
+          ...(options?.from ? { from: options.from } : {}),
+          ...(options?.to ? { to: options.to } : {}),
+          ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+        },
         signal,
         endpointKey: 'TELEMETRY_AGGREGATE',
         capability: 'telemetry.read',

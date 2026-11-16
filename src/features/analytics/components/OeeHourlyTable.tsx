@@ -3,13 +3,25 @@ import { Link } from 'react-router-dom';
 import { HourlyOeePoint } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { Badge } from '../../../components/ui/Badge';
+import { joinScopeLabel } from '../scopeLabels';
 
 interface OeeHourlyTableProps {
   hourly: HourlyOeePoint[];
   resolvedDeviceId: string;
+  /** Label periode dari filter aktif (from/to) — diteruskan dari halaman. */
+  periodLabel?: string;
+  /** Label mesin terpilih — diteruskan dari halaman. */
+  machineLabel?: string;
 }
 
-export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({ hourly, resolvedDeviceId }) => {
+export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
+  hourly,
+  resolvedDeviceId,
+  periodLabel,
+  machineLabel,
+}) => {
+  // E11 T11.5 (U-1): label scope eksplisit — periode (from/to filter) + mesin.
+  const scopeLabel = joinScopeLabel(periodLabel, machineLabel ? `Mesin ${machineLabel}` : '');
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
@@ -17,6 +29,9 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({ hourly, resolved
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Rincian Pencapaian OEE Per Jam
           </h2>
+          {scopeLabel && (
+            <p className="text-[11px] text-slate-500">{scopeLabel}</p>
+          )}
           <p className="text-[11px] text-slate-500">
             Setiap baris merepresentasikan delta produksi di dalam jam tersebut (bucket provisional dapat diperbarui oleh rekonsiliasi).
           </p>

@@ -8,15 +8,27 @@ import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, req
 import { mapShiftSummary, mapTimelineSegment, mapReconciliationJob, paretoFromRows } from './mappers';
 import { bool, splitList } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { ShiftSummary, ShiftTimelineSegment, RejectParetoItem, ReconciliationJob, ReconciliationRefreshRequest } from '../../../types/analytics';
+import { ShiftSummary, ShiftTimelineSegment, RejectParetoItem, ReconciliationJob, ReconciliationRefreshRequest, TelemetryRangeOptions } from '../../../types/analytics';
 
 export const httpTelemetry = {
-  async getShiftSummary(machineId?: string, signal?: AbortSignal): Promise<ShiftSummary> {
+  async getShiftSummary(
+    machineId?: string,
+    signal?: AbortSignal,
+    options?: TelemetryRangeOptions
+  ): Promise<ShiftSummary> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
+    // E11 T11.2 (F-2): kirim from/to agar ringkasan shift terikat periode
+    // yang sama dengan tabel per jam (API doc §Q.1). Tanpa options, query
+    // sama seperti sebelumnya (hanya machine_id).
+    const query: Record<string, string> = {
+      ...(machineId ? { machine_id: machineId } : {}),
+      ...(options?.from ? { from: options.from } : {}),
+      ...(options?.to ? { to: options.to } : {}),
+    };
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.OEE_SHIFT_SUMMARY.buildPath(),
-      query: machineId ? { machine_id: machineId } : undefined,
+      query: Object.keys(query).length > 0 ? query : undefined,
       signal,
       endpointKey: 'OEE_SHIFT_SUMMARY',
     });
@@ -28,14 +40,22 @@ export const httpTelemetry = {
   async getShiftTimeline(
     machineId?: string,
     bucket: '1m' | '5m' | '15m' | '1h' = '15m',
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: TelemetryRangeOptions
   ): Promise<ShiftTimelineSegment[]> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
+    // E11 T11.2 (F-2): kirim from/to agar timeline terikat periode yang
+    // sama dengan tabel per jam (API doc §Q.3).
     return reqList(
       {
         path: ADMIN_ENDPOINTS.OEE_SHIFT_TIMELINE.buildPath(),
-        query: { bucket, ...(machineId ? { machine_id: machineId } : {}) },
+        query: {
+          bucket,
+          ...(machineId ? { machine_id: machineId } : {}),
+          ...(options?.from ? { from: options.from } : {}),
+          ...(options?.to ? { to: options.to } : {}),
+        },
         signal,
         endpointKey: 'OEE_SHIFT_TIMELINE',
       },

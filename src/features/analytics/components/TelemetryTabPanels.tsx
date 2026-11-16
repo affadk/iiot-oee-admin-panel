@@ -4,6 +4,7 @@ import { UseQueryResult } from '@tanstack/react-query';
 import {
   HourlyOeePoint,
   TelemetryHistoryRecord,
+  TelemetryRollupGroupBy,
   TelemetryRollupItem,
 } from '../../../types/analytics';
 import { TimeWindowPreset } from '../../../types/historical';
@@ -18,6 +19,13 @@ import {
   TelemetryAggregateSummary,
   TelemetryTab,
 } from '../hooks/useTelemetryQueries';
+import { joinScopeLabel } from '../scopeLabels';
+
+const ROLLUP_GROUP_BY_LABEL: Record<TelemetryRollupGroupBy, string> = {
+  machine: 'Per Mesin',
+  day: 'Per Hari',
+  month: 'Per Bulan',
+};
 
 export interface TelemetryTabPanelsProps {
   activeTab: TelemetryTab;
@@ -41,6 +49,11 @@ export interface TelemetryTabPanelsProps {
   onPopCursor: () => void;
   onResetCursor: () => void;
   onPresetChange: (preset: TimeWindowPreset) => void;
+  /** Label periode dari filter aktif (from/to) — diteruskan dari halaman. */
+  periodLabel?: string;
+  /** Filter perangkat rollup (independen dari perangkat halaman) + groupBy rollup. */
+  rollupDeviceFilter?: string;
+  rollupGroupBy?: TelemetryRollupGroupBy;
 }
 
 export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
@@ -65,9 +78,28 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
   onPopCursor,
   onResetCursor,
   onPresetChange,
-}) => (
+  periodLabel,
+  rollupDeviceFilter,
+  rollupGroupBy,
+}) => {
+  // E11 T11.5 (U-1): label scope eksplisit di tiap tab — periode (from/to
+  // filter) + perangkat. Rollup memakai filter perangkatnya sendiri
+  // (rollupDeviceFilter, independen dari perangkat halaman) + groupBy.
+  const deviceScopeLabel = joinScopeLabel(periodLabel, `Perangkat ${selectedDevice}`);
+  const rollupScopeLabel = joinScopeLabel(
+    periodLabel,
+    rollupDeviceFilter && rollupDeviceFilter !== 'ALL'
+      ? `Perangkat ${rollupDeviceFilter}`
+      : 'Semua perangkat',
+    rollupGroupBy ? ROLLUP_GROUP_BY_LABEL[rollupGroupBy] : ''
+  );
+  return (
   <>
     {activeTab === 'raw' && (
+      <div className="space-y-2">
+        {deviceScopeLabel && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{deviceScopeLabel}</p>
+        )}
       <DataTable
         data={rawRecords}
         columns={rawColumns}
@@ -95,9 +127,14 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
           onResetPage: onResetCursor,
         }}
       />
+      </div>
     )}
 
     {activeTab === 'hourly' && (
+      <div className="space-y-2">
+        {deviceScopeLabel && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{deviceScopeLabel}</p>
+        )}
       <DataTable
         data={hourlyData}
         columns={hourlyColumns}
@@ -110,6 +147,7 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
         emptyTitle="Data per jam tidak tersedia"
         emptyDescription="Tidak ada bucket produksi per jam untuk perangkat ini."
       />
+      </div>
     )}
 
     {activeTab === 'aggregate' && (
@@ -120,7 +158,10 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
               Hasil Downsampling Interval {aggBucket} · {selectedDevice}
             </h3>
             <p className="text-xs text-slate-500">
-              Menyaring resolusi data telemetri berdasarkan bucket waktu untuk analisis tren cepat.
+              {joinScopeLabel(
+                periodLabel,
+                'Menyaring resolusi data telemetri berdasarkan bucket waktu untuk analisis tren cepat.'
+              )}
             </p>
           </div>
           <Badge variant="info">{aggData?.sample_count ?? 0} sampel</Badge>
@@ -165,6 +206,10 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
     )}
 
     {activeTab === 'rollup' && (
+      <div className="space-y-2">
+        {rollupScopeLabel && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{rollupScopeLabel}</p>
+        )}
       <DataTable
         data={rollupRecords}
         columns={rollupColumns}
@@ -190,6 +235,8 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
           onResetPage: onResetCursor,
         }}
       />
+      </div>
     )}
   </>
-);
+  );
+};

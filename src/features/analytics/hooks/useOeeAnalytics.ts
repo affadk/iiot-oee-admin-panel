@@ -37,11 +37,15 @@ export const useOeeAnalytics = () => {
     return matched?.bound_device_id ?? matched?.boundDevice?.device_id ?? 'STM32-OEE-01';
   }, [machines, selectedMachine]);
 
+  // E11 T11.2 (F-2): periode (filters.from/to — sama dengan hourly) masuk
+  // queryKey + dikirim ke server, sehingga ganti periode via URL me-refetch
+  // summary/timeline juga; satu halaman, satu periode (gap G1).
   const shiftSummaryQuery = useQuery({
-    queryKey: ['oee-shift-summary', selectedMachine],
+    queryKey: ['oee-shift-summary', selectedMachine, filters.from, filters.to],
     enabled: canReadOee.canInteract,
     staleTime: HISTORY_DATA_STALE_TIME_MS,
-    queryFn: ({ signal }) => apiClient.getShiftSummary(selectedMachine, signal),
+    queryFn: ({ signal }) =>
+      apiClient.getShiftSummary(selectedMachine, signal, { from: filters.from, to: filters.to }),
   });
 
   const hourlyQuery = useQuery({
@@ -56,10 +60,14 @@ export const useOeeAnalytics = () => {
   });
 
   const timelineQuery = useQuery({
-    queryKey: ['oee-shift-timeline', selectedMachine, timelineBucket],
+    queryKey: ['oee-shift-timeline', selectedMachine, timelineBucket, filters.from, filters.to],
     enabled: canReadOee.canInteract,
     staleTime: HISTORY_DATA_STALE_TIME_MS,
-    queryFn: ({ signal }) => apiClient.getShiftTimeline(selectedMachine, timelineBucket, signal),
+    queryFn: ({ signal }) =>
+      apiClient.getShiftTimeline(selectedMachine, timelineBucket, signal, {
+        from: filters.from,
+        to: filters.to,
+      }),
   });
 
   const downtimeOverlayQuery = useQuery({
@@ -86,14 +94,20 @@ export const useOeeAnalytics = () => {
     },
   });
 
+  // E11 T11.3 (F-3): rollup mengikuti mesin terpilih — sama seperti
+  // hourly/summary/timeline di hook ini (gap G4). Sebelumnya machineId dan
+  // deviceId dipaksa undefined sehingga rollup selalu agregat semua mesin.
+  // Hanya machineId yang diteruskan: mesin adalah scope yang dipilih di
+  // halaman ini, dan deviceId sengaja dikosongkan agar mesin tanpa device
+  // terikat (mis. CNC-GRIND-05) tetap mendapat barisnya.
   const rollupFilters = useMemo(
     () => ({
       ...filters,
-      machineId: undefined,
+      machineId: selectedMachine,
       deviceId: undefined,
       groupBy: rollupGroupBy,
     }),
-    [filters, rollupGroupBy]
+    [filters, rollupGroupBy, selectedMachine]
   );
   const rollupQuery = useTelemetryRollupQuery(rollupFilters, undefined, canReadOee.canInteract);
 

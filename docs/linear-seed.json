@@ -495,6 +495,91 @@
    ],
    "milestone": null,
    "status": "Todo"
+  },
+  {
+   "key": "E11",
+   "title": "Perbaikan Telemetry & OEE (audit 2026-11-16)",
+   "description": "Epic perbaikan dari audit Telemetry History, OEE Per Jam & Timeline Shift (bucket 15m) 2026-11-16: 25 gap (4 Tinggi, 10 Sedang, 11 Rendah). Scope epic ini: 5 usulan prioritas yang masih dalam scope rancangan sistem saat ini (panel saja; F-2 hanya butuh backend menghormati param yang sudah didokumentasikan). Acuan: docs/TELEMETRY_AUDIT.md + AUDIT.md §13.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "In Progress"
+  },
+  {
+   "key": "T11.1",
+   "title": "Kirim from/to (+limit) ke hourly & aggregate Telemetry History",
+   "description": "F-1 dari audit telemetry (gap G3, Tinggi). Tab Hourly & Aggregate di Telemetry History tidak mengirim from/to ke server — filter tanggal di layar tidak berpengaruh. Ubah: useTelemetryQueries.ts:54-67 teruskan filters.from/to ke getHourlyTrend/getTelemetryAggregate; http/monitoring.ts:198-247 bangun query dari builder/registry; demo hormati rentang. Acuan: docs/TELEMETRY_AUDIT.md (G3), API doc §K.2/§K.4/§E.",
+   "parentKey": "E11",
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T11.2",
+   "title": "Ikat shift summary + timeline ke periode/shift yang sama",
+   "description": "F-2 dari audit telemetry (gap G1, G19 — Tinggi). Shift summary + timeline tidak mengirim from/to sama sekali sementara hourly/rollup memakai 7 hari sliding. Ubah: kirim from/to (atau date/shift) ke getShiftSummary/getShiftTimeline; masukkan periode ke queryKey keduanya. Backend: param sudah didefinisikan API doc §Q.1/§Q.3. Acuan: docs/TELEMETRY_AUDIT.md (G1), useOeeAnalytics.ts:41,61.",
+   "parentKey": "E11",
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T11.3",
+   "title": "Rollup halaman OEE mengikuti mesin terpilih (atau label scope)",
+   "description": "F-3 dari audit telemetry (gap G4, Tinggi). Rollup halaman OEE mengabaikan mesin yang dipilih (machineId/deviceId: undefined di useOeeAnalytics.ts:91-101) — selalu plant-wide tanpa label. Ubah: teruskan selectedMachine ke rollup, atau beri judul eksplisit Rollup — Semua Mesin + toggle scope. Acuan: docs/TELEMETRY_AUDIT.md (G4), API doc §K.3c.",
+   "parentKey": "E11",
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T11.4",
+   "title": "Samakan angka seed demo agar terrekoniliasi",
+   "description": "F-4 dari audit telemetry (gap G2, G21 — Tinggi untuk kepercayaan demo). Timeline RUNNING 409 mnt vs run_time_min 388; planned 45 vs 60; unplanned 15 vs 32; Σ hourly_run_sec ≈ 420 mnt = operating_time_min, bukan run_time_min. Ubah (demo saja): sesuaikan segmen timeline dengan shift summary; Σ hourly_run_sec = 388 mnt, Σ downtime = 92 mnt; bucket: null untuk rollup machine; provisional konsisten; timeline demo hormati parameter bucket. Acuan: docs/TELEMETRY_AUDIT.md (G2, G21), demo/telemetry.ts:21-105.",
+   "parentKey": "E11",
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T11.5",
+   "title": "Label scope eksplisit di setiap widget",
+   "description": "U-1 dari audit telemetry (gap G1, G4, G23). Subjudul dinamis dari filter/query yang aktif, contoh: 7 hari terakhir · Mesin CNC-MILLING-01, Rollup — Semua Mesin, Shift 1 · 07:00–15:00 · Asia/Jakarta — di OeeSummaryCards, OeeHourlyTable, OeeRollupTable, ShiftTimeline, dan tab Telemetry History. Panel saja, tanpa perubahan logika. Acuan: docs/TELEMETRY_AUDIT.md (U-1).",
+   "parentKey": "E11",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T11.6",
+   "title": "Pecah demo/telemetry.ts — checker 1 FAIL akibat E11",
+   "description": "T11.6, tindak lanjut E11. Pekerjaan T11.1/T11.2/T11.4 menambah src/services/api/demo/telemetry.ts dari 519 baris (pre-E11, commit 23f3dea) menjadi 725 baris — melewati batas keras 600 untuk modul domain api (docs/DIRECTORY_STRUCTURE.md §2), sehingga npm run check:structure 1 FAIL. Pecah per domain mengikuti pola R9.2 (demo/ + barrel); permukaan publik demoTelemetry harus identik. Jangan catat pengecualian.",
+   "parentKey": "E11",
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
   }
  ],
  "labelsToCreate": [
@@ -559,7 +644,7 @@
    "name": "docs"
   }
  ],
- "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.]",
+ "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.] [v5 2026-11-16 malam: E11 + T11.1–T11.5 ditambah dari audit telemetry (docs/TELEMETRY_AUDIT.md, 25 gap); FAT-43–FAT-48. Hitung ulang: 29 Done / 3 In Progress / 12 Todo, 44 issue.] [v6 2026-11-16 malam: T11.1–T11.5 -> Done (AUDIT.md §14; 5 commit lokal E11: from/to hourly+aggregate, summary/timeline ikut periode, rollup ikut mesin, seed demo terrekoniliasi, label scope; tsc 0, test 117/117, build OK, preview 200, checker 1 FAIL pre-existing demo/telemetry.ts 726 baris). Hitung ulang: 34 Done / 3 In Progress / 7 Todo.] [v7 2026-11-16 malam: T11.6 ditambah setelah verifikasi independen menemukan checker 1 FAIL yang diperkenalkan E11 (telemetry.ts 519 -> 725 baris); FAT-49. Hitung ulang: 29 Done / 3 In Progress / 13 Todo, 45 issue.] [v8 2026-11-16 malam: T11.6 -> Done (split demo/telemetry.ts per domain, checker kembali 0 FAIL); E11 tuntas. Hitung ulang: 35 Done / 3 In Progress / 7 Todo, 45 issue.]",
  "project": {
   "description": "Admin Panel IIoT OEE — 131 operasi Admin REST + 1 WebSocket (Guide Lamp. A). Repo: github.com/fadk-dev/iiot-oee-admin-panel. Acuan: ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md. Mode Demo (default) vs Real via VITE_API_MODE; belum ada backend, mode Real belum terverifikasi. Laporan audit: AUDIT.md di repo. Metodologi tracking: docs/LINEAR.md.",
   "milestones": [
@@ -576,7 +661,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 4,
+ "version": 8,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -621,7 +706,14 @@
    "R9.6": "FAT-42",
    "E10": "FAT-34",
    "A10.1": "FAT-41",
-   "A10.2": "FAT-40"
+   "A10.2": "FAT-40",
+   "E11": "FAT-43",
+   "T11.1": "FAT-44",
+   "T11.2": "FAT-47",
+   "T11.3": "FAT-48",
+   "T11.4": "FAT-46",
+   "T11.5": "FAT-45",
+   "T11.6": "FAT-49"
   },
   "verified": {
    "total": 28,

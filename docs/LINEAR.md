@@ -18,7 +18,7 @@
 
 ## 1. Struktur
 
-### 1.1 Satu Project, sepuluh Epic
+### 1.1 Satu Project, sebelas Epic
 
 | Epic (parent issue) | Fase Guide | Isi |
 | --- | --- | --- |
@@ -32,6 +32,7 @@
 | E8 Verifikasi, Testing & Go-live | §11–15 | A11y/perf, matriks uji §12, deployment §13, DoD §15 |
 | E9 Refactoring struktur direktori | — | Kontrak `docs/DIRECTORY_STRUCTURE.md` + checker + pecah god-file per domain |
 | E10 Mode Akses Private/Public | D1, §4.1–4.2 | Switch `VITE_ACCESS_MODE` + enforcement + kebutuhan backend (B1–B25) |
+| E11 Perbaikan Telemetry & OEE | §6.8, §Q, §K | Audit 2026-11-16: 25 gap Telemetry History / OEE per jam / Timeline Shift — 5 usulan prioritas dalam scope (F-1–F-4, U-1) |
 
 Setiap Epic adalah **parent issue**; modul di bawahnya adalah **child issue**
 (`parentId` ke Epic). Tidak ada issue yatim: semua task harus punya parent Epic,
@@ -96,6 +97,13 @@ dianggap selesai penuh.
 | E10 | Mode Akses Private/Public (LAN vs Internet) | — | **In Progress** | High | `security`, `feature` |
 | A10.1 | Switch Private/Public di panel (env + enforcement + UI) | E10 | Done | High | `security`, `feature` |
 | A10.2 | Kebutuhan backend mode akses (B1–B25, checklist V1–V12) | E10 | **Todo — Blocked** | High | `security`, `real-backend`, `blocked` |
+| E11 | Perbaikan Telemetry & OEE (audit 2026-11-16) | — | **In Progress** | High | `fase-3` |
+| T11.1 | Kirim from/to (+limit) ke hourly & aggregate Telemetry History | E11 | Done | High | `fase-3` |
+| T11.2 | Ikat shift summary + timeline ke periode/shift yang sama | E11 | Done | High | `fase-3` |
+| T11.3 | Rollup halaman OEE mengikuti mesin terpilih (atau label scope) | E11 | Done | High | `fase-3` |
+| T11.4 | Samakan angka seed demo agar terrekoniliasi | E11 | Done | High | `fase-3`, `demo` |
+| T11.5 | Label scope eksplisit di setiap widget | E11 | Done | Medium | `fase-3` |
+| T11.6 | Pecah demo/telemetry.ts — checker 1 FAIL akibat E11 | E11 | Done | High | `fase-3` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -289,11 +297,15 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **38 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **29 Done, 2 In Progress, 7 Todo**, 10 Epic tanpa parent, 28 child dengan
+- Issue: **45 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
+  **35 Done, 3 In Progress, 7 Todo**, 11 Epic tanpa parent, 34 child dengan
   `parentId` — persis sesuai §1.3 (28 awal + E9/R9.1–R9.6 + E10/A10.1–A10.2,
   dibuat 2026-11-16 ~14:20 WIB; R9.2/R9.3/R9.4/R9.5/R9.6 Done 2026-11-16 malam,
-  tersisa A10.2 + V8.1–V8.5).
+  tersisa A10.2 + V8.1–V8.5; E11/T11.1–T11.5 dibuat 2026-11-16 malam dari
+  audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —
+  AUDIT.md §14; T11.6 ditambah setelah verifikasi independen menemukan
+  checker 1 FAIL yang diperkenalkan E11, Done 2026-11-16 malam setelah
+  split `demo/telemetry.ts` per domain + checker kembali 0 FAIL).
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 
@@ -320,6 +332,10 @@ tapi status implementasi yang berlaku adalah status di Linear.
 | R9.1 | FAT-35 | E10 Akses | FAT-34 |
 | R9.2 | FAT-37 | A10.1 | FAT-41 |
 | R9.3 | FAT-36 | A10.2 | FAT-40 |
+| E11 Telemetry | FAT-43 | T11.1 | FAT-44 |
+| T11.2 | FAT-47 | T11.3 | FAT-48 |
+| T11.4 | FAT-46 | T11.5 | FAT-45 |
+| T11.6 | FAT-49 | | |
 
 Perhatian: nomor FAT tidak berurutan per fase — Linear memberinya sesuai
 urutan pembuatan paralel, jadi selalu pakai tabel ini (dan `docs/linear-seed.json`

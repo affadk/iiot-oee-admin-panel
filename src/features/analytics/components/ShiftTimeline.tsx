@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
-import { ShiftTimelineSegment } from '../../../types/analytics';
+import { ShiftSummary, ShiftTimelineSegment } from '../../../types/analytics';
 import { DowntimeEvent, MachineFsmState } from '../../../types/monitoring';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { Badge } from '../../../components/ui/Badge';
 import { mapDowntimeToSixBigLoss } from '../../../utils/historicalExport';
 import { formatDuration } from '../../../utils/oeeCalculations';
+import { formatShiftScopeLabel, joinScopeLabel } from '../scopeLabels';
 import { TimelineBucket } from '../hooks/useOeeAnalytics';
 
 const FSM_SEGMENT_COLORS: Record<MachineFsmState, string> = {
@@ -27,6 +28,8 @@ interface ShiftTimelineProps {
   activeSegment: ShiftTimelineSegment | null;
   matchedDowntime: DowntimeEvent | null;
   resolvedDeviceId: string;
+  /** Ringkasan shift aktif — sumber label shift + tz (window/tz dari data summary). */
+  summary: ShiftSummary | null;
 }
 
 export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
@@ -38,13 +41,23 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
   activeSegment,
   matchedDowntime,
   resolvedDeviceId,
+  summary,
 }) => {
+  // E11 T11.5 (U-1): label scope eksplisit — shift + tz dari data summary
+  // (window shift_start/shift_end + tz) + bucket yang dipilih. Bila summary
+  // belum ada (memuat/gagal), hanya bucket yang ditampilkan — tanpa tebakan shift.
+  const scopeLabel = joinScopeLabel(formatShiftScopeLabel(summary), `bucket ${timelineBucket}`);
   return (
     <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Timeline Status Mesin Shift (Bucket {timelineBucket})
-        </h2>
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Timeline Status Mesin Shift
+          </h2>
+          {scopeLabel && (
+            <p className="text-[11px] text-slate-500">{scopeLabel}</p>
+          )}
+        </div>
         <span className="text-[11px] text-slate-500">
           Klik segmen downtime (kuning/merah) untuk melihat korelasi penyebab henti mesin. Interval 1m berlaku maks 6 jam.
         </span>

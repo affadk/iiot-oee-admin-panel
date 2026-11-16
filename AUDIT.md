@@ -468,3 +468,123 @@ usulan dalam scope: F-1 (kirim `from`/`to` ke hourly & aggregate) → F-2
 (ikat summary/timeline ke periode) → F-3 (rollup ikut mesin / label scope)
 → F-4 (seed demo terrekoniliasi) → U-1 (label scope eksplisit). Belum
 diputuskan Fathur mana yang diimplementasikan.
+
+## 14. Implementasi perbaikan Telemetry & OEE — Epic E11 (2026-11-16)
+
+Atas persetujuan Fathur, kelima usulan prioritas dari §13 diimplementasikan
+sebagai Epic E11 (FAT-43) + T11.1–T11.5, dikerjakan satu fix per langkah
+dengan verifikasi `tsc` + test per fix. Semua panel saja; tidak ada
+perubahan perilaku di luar deskripsi tiap fix.
+
+- **T11.1 (FAT-44) / F-1 — kirim `from`/`to` ke hourly & aggregate
+  (G3).** Commit `722f4af`. Tipe bersama baru `TelemetryRangeOptions
+  {from?, to?, limit?}` (`types/analytics.ts`); `useTelemetryQueries`
+  meneruskan `filters.from/to/limit` ke `getHourlyTrend` /
+  `getTelemetryAggregate` (queryKey aggregate kini memuat from/to/limit);
+  HTTP mengirim ketiganya sebagai query string; demo menghormati rentang
+  (hourly memproyeksikan 8 bucket seed ke tanggal `to` lalu membuang bucket
+  di luar rentang; aggregate menskala `sample_count`/`total_parts`
+  sebanding panjang rentang). Bukti: rentang 09:00–12:00 → 4 bucket;
+  00:00–06:00 → `[]`; stub HTTP menerima
+  `?from=…&to=…&limit=50`. 10 test baru (`telemetryRange.test.ts`).
+- **T11.2 (FAT-47) / F-2 — ikat shift summary + timeline ke periode
+  (G1).** Commit `301725c`. queryKey `oee-shift-summary` dan
+  `oee-shift-timeline` kini memuat `filters.from/to`; `getShiftSummary` /
+  `getShiftTimeline` mendapat `options?: TelemetryRangeOptions` di demo +
+  HTTP dan mengirim `from`/`to` ke `GET /api/v1/oee/shift-summary` dan
+  `/shift-timeline` (API doc §Q.1/§Q.3). Demo memproyeksikan jendela/segmen
+  ke tanggal `to` dan hanya mengembalikan segmen yang bersinggungan dengan
+  rentang. **Catatan mode Real: belum terverifikasi** — tidak ada backend
+  hidup; yang dipastikan hanya klien mengirim param yang benar. Backend
+  harus menghormati `from`/`to` agar fix ini efektif di Real. 10 test baru.
+- **T11.3 (FAT-48) / F-3 — rollup halaman OEE mengikuti mesin terpilih
+  (G4).** Commit `a885dca`. `rollupFilters` kini `machineId:
+  selectedMachine` (bukan `undefined`); judul tabel "Rollup —
+  <nama mesin>". Sengaja hanya `machineId`, bukan `deviceId` hasil
+  resolusi: `CNC-GRIND-05` tidak punya device terikat dan fallback ke
+  `STM32-OEE-01` akan membuat rollup-nya kosong. Demo + HTTP sudah
+  menghormati filter (tidak diubah). Bukti: `CNC-MILLING-01` → 1 baris
+  (`totalCount` 1400); `CNC-LATHE-02` → 1 baris (732); tanpa filter →
+  plant-wide. 5 test baru.
+- **T11.4 (FAT-46) / F-4 — seed demo terrekoniliasi (G2).** Commit
+  `8b2719b`. Hanya demo/seed. Timeline kanonis baru 5 segmen (07:00–09:15
+  RUNNING 135 · 09:15–09:47 UNPLANNED 32 · 09:47–12:00 RUNNING 133 ·
+  12:00–13:00 PLANNED 60 · 13:00–15:00 RUNNING 120); segmen
+  BATCH_FINISHED 11 mnt dilipat ke RUNNING (summary tidak punya bucket
+  itu; mesin berlari sampai 15:00). Jam 07:00 dikoreksi run 3168→3250 dtk
+  (availability 88,0→90,3; oee 78,4→80,5); jam 12:00 tidak diubah (G8,
+  urusan backend). Event `dt-ev-02` (09:15–09:47, 1920 dtk) dan `dt-ev-04`
+  (12:00–13:00, 3600 dtk, dipindah ke STM32-OEE-01, kini `ended_at`
+  terisi) disesuaikan; rollup `machine` kini `bucket: null` (sesuai
+  dokumen API). **Keputusan bucket:** re-bucketing memakai split eksak
+  pada batas perubahan state (peta per menit), BUKAN mayoritas per bucket
+  — mayoritas membulatkan unplanned 32 mnt → 30 mnt (5m/15m) atau 60 mnt
+  (1h) dan mengulang G2 dalam bentuk kecil. Σ per state tetap 388/60/32 di
+  semua bucket (1m: 480 segmen; 5m: 97; 15m: 33; 1h: 10). Bukti
+  rekonsiliasi (diukur dari API demo): Σ RUNNING 388, PLANNED 60,
+  UNPLANNED 32, Σ `hourly_run_sec` 23.280 dtk, Σ downtime 5.520 dtk,
+  Σ `hourly_operating_sec` 25.200 dtk. 8 test rekonsiliasi baru.
+- **T11.5 (FAT-45) / U-1 — label scope eksplisit di setiap widget (G1,
+  G4, G23).** Commit `f3dcdda`. Helper baru
+  `features/analytics/scopeLabels.ts` (pure formatter; kosong bila data
+  tidak bisa diparse — tidak menebak). Label dari filter/query yang sudah
+  ada: `OeeSummaryCards` "Shift 1 (07:00-15:00) · Asia/Jakarta · Mesin
+  …"; `OeeHourlyTable` "7 hari terakhir · Mesin …"; `OeeRollupTable`
+  "Rollup — <mesin> · 7 hari terakhir"; `ShiftTimeline` "Shift 1
+  (07:00-15:00) · Asia/Jakarta · bucket 15m"; tab Telemetry History
+  "7 hari terakhir · Perangkat STM32-OEE-01" (rollup memakai
+  `rollupDeviceFilter` + `groupBy`-nya sendiri). Tanpa perubahan
+  logika/data/fetch. 8 test baru (`scopeLabels.test.ts`).
+
+**Koreksi angka audit:** G2 "Σ `hourly_run_sec` = 25.198 dtk (≈ 420 m)"
+ternyata salah salin — nilai sebenarnya dari seed adalah **23.198 dtk
+(≈ 386,6 m)**, hanya 82 dtk di bawah `run_time_min` (388). Angka G2 lain
+(409/45/15, downtime ≈ 93 mnt) sudah benar; temuan G2 tetap Tinggi.
+`docs/TELEMETRY_AUDIT.md` sudah dibetulkan (baris G2 + tabel (c) + catatan
+koreksi di kepala dokumen).
+
+**Yang TIDAK selesai / batasan yang dicatat:**
+- Rollup day/month demo masih konstanta yang sama untuk semua mesin
+  (T11.3/T11.4). Membuatnya berbeda per mesin butuh faktor skala yang
+  diada-adakan tanpa ground truth, dan semantik jendelanya sendiri
+  bertentangan (machine ≈ 8 jam, day = 16 jam/hari, month = 18 hari).
+  Perlu pendefinisian ulang semantik jendela rollup (keputusan
+  desain/backend), bukan sekadar ubah konstanta.
+- Σ parts hourly vs summary masih tidak cocok (Σ parts 334 vs
+  `total_parts` 350; good 328 vs 342; defect 6 vs 8) — di luar target
+  rekonsiliasi waktu T11.4; memperbaikinya butuh menurunkan ulang
+  performance/quality/oee per jam (keputusan seed terpisah).
+- Distribusi per jam timeline ↔ hourly masih berbeda (micro-stop hourly
+  tersebar di jam RUNNING; timeline menampilkan state dominan). Yang
+  direkonsiliasi adalah total shift, sesuai tuntutan G2/F-4.
+- **Checker 1 FAIL:** `services/api/demo/telemetry.ts` 726 baris
+  (batas keras 600) — SUDAH FAIL di baseline sebelum E11 (624 baris di
+  `a885dca`), memburuk karena logika re-bucketing T11.4. Pemecahan file
+  ini adalah refactoring ala R9, di luar scope E11 — perlu
+  issue/keputusan terpisah. Selain itu 26 WARN (lunak) dan 0 pengecualian.
+
+**Verifikasi akhir (setelah T11.5):** `npx tsc --noEmit` **0 error**;
+`npm test` **117/117** (76 awal + 41 baru: 10 T11.1 + 10 T11.2 + 5 T11.3
++ 8 T11.4 + 8 T11.5); `npm run build` sukses (hanya peringatan
+chunk-size lama); `vite preview` **HTTP 200**; `npm run check:structure`
+**1 FAIL** (di atas, pre-existing) + 26 WARN + 0 pengecualian. Status
+Linear T11.1–T11.5 → Done di `docs/LINEAR.md` §1.3 + §8 dan
+`docs/linear-seed.json` v6 — perubahan status di Linear sendiri dilakukan
+setelah verifikasi independen; 5 commit lokal E11 belum di-push ke GitHub.
+Yang tetap belum terverifikasi: visual di browser sungguhan + mode Real
+end-to-end (lihat §6).
+
+**Tindak lanjut T11.6 (FAT-49) — pecah `demo/telemetry.ts`:** klaim di atas
+tentang checker ("SUDAH FAIL di baseline sebelum E11") **tidak benar** —
+verifikasi independen parent: file itu **519 baris** di commit pre-E11
+`23f3dea`, di bawah keras 600; membengkak ke 725 baris karena T11.1/T11.2/
+T11.4. Karena itu dibuat issue T11.6 (FAT-49) dan file dipecah per domain
+mengikuti pola R9.2: barrel `demo/telemetry.ts` 20 baris +
+`telemetry/{helpers 124, oee 231, rollup 192, quality 47, history 131,
+reconciliation 85}` — semua ≤231 baris, permukaan publik `demoTelemetry`
+identik (pemindahan murni; hanya 3 penulisan ulang pemanggilan antar-method
++ impor yang di-prune). **Verifikasi akhir setelah T11.6:** `npx tsc
+--noEmit` **0 error**; `npm test` **117/117**; `npm run build` sukses;
+`vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL, 0
+pengecualian tercatat** (251 file, 26 WARN lunak). Dengan ini E11 tuntas
+penuh: T11.1–T11.6 Done, checker kembali 0 FAIL.

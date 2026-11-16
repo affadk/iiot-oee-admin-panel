@@ -53,18 +53,28 @@ export function useTelemetryQueries({
   );
 
   const hourlyQuery = useQuery({
-    queryKey: ['telemetry-hourly', selectedDevice, filters.from, filters.to],
+    queryKey: ['telemetry-hourly', selectedDevice, filters.from, filters.to, filters.limit],
     enabled: isValid && Boolean(selectedDevice) && (activeTab === 'hourly' || activeTab === 'raw'),
     staleTime: 5_000,
-    queryFn: ({ signal }) => apiClient.getHourlyTrend(selectedDevice, signal),
+    queryFn: ({ signal }) =>
+      apiClient.getHourlyTrend(selectedDevice, signal, {
+        from: filters.from,
+        to: filters.to,
+        limit: filters.limit,
+      }),
   });
 
   const aggregateQuery = useQuery({
-    queryKey: ['telemetry-aggregate', selectedDevice, aggBucket],
+    queryKey: ['telemetry-aggregate', selectedDevice, aggBucket, filters.from, filters.to, filters.limit],
     enabled:
       isValid && Boolean(selectedDevice) && (activeTab === 'aggregate' || activeTab === 'raw'),
     staleTime: 5_000,
-    queryFn: ({ signal }) => apiClient.getTelemetryAggregate(selectedDevice, aggBucket, signal),
+    queryFn: ({ signal }) =>
+      apiClient.getTelemetryAggregate(selectedDevice, aggBucket, signal, {
+        from: filters.from,
+        to: filters.to,
+        limit: filters.limit,
+      }),
   });
 
   const rollupFilters = useMemo(

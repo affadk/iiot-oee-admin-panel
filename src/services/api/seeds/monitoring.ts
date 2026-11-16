@@ -163,19 +163,24 @@ export const INITIAL_DOWNTIME_EVENTS: DowntimeEvent[] = [
     created_at: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
   },
   {
+    // E11 T11.4 (F-4): event ini terikat segmen timeline UNPLANNED
+    // 09:15–09:47 (32 mnt) pada shift 2026-11-11 — waktu + durasi dibuat
+    // cocok dengan segmennya supaya overlay timeline menampilkan event
+    // dengan durasi/waktu yang cocok. Sebelumnya: started relatif
+    // (now−3j) dengan durasi 400 dtk (6m 40s) vs segmen 15 mnt.
     id: 'dt-ev-02',
     device_id: 'STM32-OEE-01',
     machine_id: 'CNC-MILLING-01',
     machine_name: 'CNC Milling Center Alpha',
-    started_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    ended_at: new Date(Date.now() - 2.9 * 60 * 60 * 1000).toISOString(),
-    duration_seconds: 400,
-    durationFormatted: '6m 40s',
+    started_at: '2026-11-11T09:15:00+07:00',
+    ended_at: '2026-11-11T09:47:00+07:00',
+    duration_seconds: 1920,
+    durationFormatted: '32m 0s',
     category: 'SETUP_AND_ADJUSTMENT',
     reason: 'Tooling insert change on station 4 carbide cutter',
     is_labeled: true,
     acknowledged_by: 'Kenji Sato',
-    created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    created_at: '2026-11-11T09:15:00+07:00',
   },
   {
     id: 'dt-ev-03',
@@ -193,19 +198,27 @@ export const INITIAL_DOWNTIME_EVENTS: DowntimeEvent[] = [
     created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   },
   {
+    // E11 T11.4 (F-4): event ini terikat segmen timeline PLANNED
+    // 12:00–13:00 (60 mnt) pada shift 2026-11-11 — dipindah ke mesin
+    // shift itu (STM32-OEE-01 / CNC-MILLING-01; sebelumnya milik
+    // STM32-OEE-04 / CNC-WELD-04 sehingga overlay timeline mesin ini
+    // hanya bisa menemukannya lewat daftar active) dan diberi waktu
+    // berakhir 13:00 + durasi 3600 dtk (1h 0m 0s) yang cocok dengan
+    // segmennya. Sebelumnya: aktif tanpa ended_at (ongoing) dengan
+    // durasi 8260 dtk (2h 17m 40s) vs segmen 45 mnt.
     id: 'dt-ev-04',
-    device_id: 'STM32-OEE-04',
-    machine_id: 'CNC-WELD-04',
-    machine_name: 'Robotic Welding Cell Delta',
-    started_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    ended_at: null,
-    duration_seconds: 8260,
-    durationFormatted: '2h 17m 40s',
+    device_id: 'STM32-OEE-01',
+    machine_id: 'CNC-MILLING-01',
+    machine_name: 'CNC Milling Center Alpha',
+    started_at: '2026-11-11T12:00:00+07:00',
+    ended_at: '2026-11-11T13:00:00+07:00',
+    duration_seconds: 3600,
+    durationFormatted: '1h 0m 0s',
     category: 'PLANNED_MAINTENANCE',
     reason: 'Quarterly servo calibration and shielding gas nozzle replacement',
     is_labeled: true,
     acknowledged_by: 'Elena Rostova',
-    created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    created_at: '2026-11-11T12:00:00+07:00',
   },
   {
     id: 'dt-ev-05',

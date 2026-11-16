@@ -20,6 +20,7 @@ import { TelemetryFilterBar } from './components/TelemetryFilterBar';
 import { TelemetrySummaryStrip } from './components/TelemetrySummaryStrip';
 import { TelemetryTabs } from './components/TelemetryTabs';
 import { TelemetryTabPanels } from './components/TelemetryTabPanels';
+import { formatPeriodLabel } from './scopeLabels';
 
 export type { AggBucket, TelemetryTab };
 
@@ -40,6 +41,9 @@ export const TelemetryHistoryPage: React.FC = () => {
   const selectedDevice = filters.deviceId || 'STM32-OEE-01';
   const aggBucket: AggBucket = filters.bucket ?? '1h';
   const groupBy: TelemetryRollupGroupBy = filters.groupBy ?? 'machine';
+  // E11 T11.5 (U-1): label periode dari from/to filter aktif — diteruskan
+  // ke tiap tab sebagai label scope eksplisit.
+  const periodLabel = formatPeriodLabel(filters.from, filters.to);
   const canExport = useCapability('export.telemetry', selectedDevice);
 
   const handleFilterChange = (patch: Partial<HistoryFilters>) => {
@@ -207,6 +211,9 @@ export const TelemetryHistoryPage: React.FC = () => {
         }
         onResetCursor={() => setCursorStack([undefined])}
         onPresetChange={handlePresetChange}
+        periodLabel={periodLabel}
+        rollupDeviceFilter={rollupDeviceFilter}
+        rollupGroupBy={groupBy}
       />
     </div>
   );

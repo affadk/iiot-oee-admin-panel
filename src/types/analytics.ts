@@ -43,6 +43,17 @@ export interface HourlyOeePoint {
   provisional?: boolean;
 }
 
+/**
+ * Rentang waktu (+ limit) untuk query telemetry per jam / agregat.
+ * Dipakai konsisten oleh mode Demo dan Real (E11 T11.1 / F-1): tanpa
+ * options, perilaku sama seperti sebelumnya (default server/demo).
+ */
+export interface TelemetryRangeOptions {
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
 export interface TelemetryAggregatePoint {
   bucket: string;
   totalCount: number;

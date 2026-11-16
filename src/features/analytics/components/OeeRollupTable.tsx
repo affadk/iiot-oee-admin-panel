@@ -2,27 +2,39 @@ import React from 'react';
 import { TelemetryRollupGroupBy, TelemetryRollupItem } from '../../../types/analytics';
 import { formatRollupPerformance } from '../../shared/historyFilters';
 import { formatDuration, formatDeletedRelationLabel, parseServerMetric } from '../../../utils/oeeCalculations';
+import { joinScopeLabel } from '../scopeLabels';
 
 interface OeeRollupTableProps {
   rollupRows: TelemetryRollupItem[];
   rollupGroupBy: TelemetryRollupGroupBy;
+  machineLabel: string;
   onGroupByChange: (next: TelemetryRollupGroupBy) => void;
+  /** Label periode dari filter aktif (from/to) — diteruskan dari halaman. */
+  periodLabel?: string;
 }
 
 export const OeeRollupTable: React.FC<OeeRollupTableProps> = ({
   rollupRows,
   rollupGroupBy,
+  machineLabel,
   onGroupByChange,
+  periodLabel,
 }) => {
+  // E11 T11.5 (U-1): judul "Rollup — <mesin>" sudah per-mesin sejak T11.3
+  // (F-3); tambahkan periode dari filter aktif ke subjudul.
+  const scopeNote = joinScopeLabel(
+    periodLabel,
+    'Performa dihitung dengan kapasitas berbobot waktu; mesin dengan kapasitas 0 atau tidak diketahui menampilkan tanda kapasitas 0/unknown.'
+  );
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Rollup Analitik Multi-Mesin &amp; Periode
+            Rollup — {machineLabel}
           </h2>
           <p className="text-[11px] text-slate-500">
-            Performa dihitung dengan kapasitas berbobot waktu; mesin dengan kapasitas 0 atau tidak diketahui menampilkan tanda kapasitas 0/unknown.
+            {scopeNote}
           </p>
         </div>
         <select
