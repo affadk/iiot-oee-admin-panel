@@ -1,0 +1,153 @@
+/**
+ * Seed data demo — domain production.
+ *
+ * Dipisah dari file god-file pada refactoring R9 (kontrak docs/DIRECTORY_STRUCTURE.md).
+ * Satu file = satu domain. Barrel penggabung ada di file induknya.
+ */
+import { ProductionLine, Shift, ShiftSchedule } from '../../../types/production';
+
+export const INITIAL_PRODUCTION_LINES: ProductionLine[] = [
+  {
+    lineId: 'LINE-01',
+    lineName: 'Lini Produksi 1 — Machining Precision',
+    description: 'Lini pemesinan CNC Milling, Turning, dan Finishing presisi tinggi',
+    isActive: true,
+    createdAt: '2026-01-02T07:00:00.000Z',
+  },
+  {
+    lineId: 'LINE-02',
+    lineName: 'Lini Produksi 2 — Stamping & Welding',
+    description: 'Lini pressing hidraulik dan sel pengelasan robotik',
+    isActive: true,
+    createdAt: '2026-01-02T07:05:00.000Z',
+  },
+];
+
+export const INITIAL_SHIFTS: Shift[] = [
+  {
+    shiftId: 'SHIFT-1',
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    isActive: true,
+    createdAt: '2026-01-02T07:00:00.000Z',
+  },
+  {
+    shiftId: 'SHIFT-2',
+    shiftName: 'Shift 2 (Siang)',
+    shiftCode: 'S2',
+    startTime: '15:00',
+    endTime: '23:00',
+    isActive: true,
+    createdAt: '2026-01-02T07:05:00.000Z',
+  },
+  {
+    shiftId: 'SHIFT-3',
+    shiftName: 'Shift 3 (Malam Dini)',
+    shiftCode: 'S3',
+    startTime: '00:00',
+    endTime: '07:00',
+    isActive: true,
+    createdAt: '2026-01-02T07:10:00.000Z',
+  },
+];
+
+export const INITIAL_SHIFT_SCHEDULES: ShiftSchedule[] = [
+  {
+    scheduleId: 'sched-0101-s1',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 1,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:00:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0101-s2',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-2',
+    dayOfWeek: 1,
+    isActive: true,
+    shiftName: 'Shift 2 (Siang)',
+    shiftCode: 'S2',
+    startTime: '15:00',
+    endTime: '23:00',
+    createdAt: '2026-01-03T07:05:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0102-s1',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 2,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:10:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0103-s1',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 3,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:15:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0104-s1',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 4,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:20:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0105-s1',
+    lineId: 'LINE-01',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 5,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:25:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0201-s1',
+    lineId: 'LINE-02',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 1,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:30:00.000Z',
+  },
+  {
+    scheduleId: 'sched-0202-s1',
+    lineId: 'LINE-02',
+    shiftId: 'SHIFT-1',
+    dayOfWeek: 2,
+    isActive: true,
+    shiftName: 'Shift 1 (Pagi)',
+    shiftCode: 'S1',
+    startTime: '07:00',
+    endTime: '15:00',
+    createdAt: '2026-01-03T07:35:00.000Z',
+  },
+];

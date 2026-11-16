@@ -1,6 +1,502 @@
 {
  "generated": "2026-11-16",
- "issues": 38,
+ "issues": [
+  {
+   "key": "E1",
+   "title": "Fase 1 — Fondasi (§4)",
+   "description": "Epic Fase 1 — Fondasi (Guide §4): env, HTTP client 131 operasi, error envelope, sesi JWT, capability-first, paginasi.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-1",
+    "demo"
+   ],
+   "milestone": "M1 Fondasi (§4)",
+   "status": "Done"
+  },
+  {
+   "key": "F1.1",
+   "title": "Transport HTTP 131 operasi + switch Demo/Real",
+   "description": "Transport HTTP 131 operasi admin + switch Demo/Real (mode.ts, httpClient.ts).",
+   "parentKey": "E1",
+   "priority": 2,
+   "labels": [
+    "fase-1",
+    "demo",
+    "real-backend"
+   ],
+   "milestone": "M1 Fondasi (§4)",
+   "status": "Done"
+  },
+  {
+   "key": "F1.2",
+   "title": "Env single source of truth (`mode.ts`) + preset login mati di env real + hapus ganti-role",
+   "description": "Env single source of truth (mode.ts); preset login demo mati di env real; hapus ganti-role langsung.",
+   "parentKey": "E1",
+   "priority": 2,
+   "labels": [
+    "fase-1",
+    "env",
+    "security"
+   ],
+   "milestone": "M1 Fondasi (§4)",
+   "status": "Done"
+  },
+  {
+   "key": "F1.3",
+   "title": "Sesi & Auth: login wajib, token hanya di memori, refresh single-flight",
+   "description": "Sesi & Auth: login wajib, token hanya di memori, refresh single-flight, TTL 900s.",
+   "parentKey": "E1",
+   "priority": 2,
+   "labels": [
+    "fase-1",
+    "security"
+   ],
+   "milestone": "M1 Fondasi (§4)",
+   "status": "Done"
+  },
+  {
+   "key": "F1.4",
+   "title": "Capability-first UI, paginasi & filter (§4.5, 4.7–4.9)",
+   "description": "Capability-first UI, paginasi & filter (Guide §4.5, 4.7–4.9).",
+   "parentKey": "E1",
+   "priority": 3,
+   "labels": [
+    "fase-1",
+    "demo"
+   ],
+   "milestone": "M1 Fondasi (§4)",
+   "status": "Done"
+  },
+  {
+   "key": "E2",
+   "title": "Fase 2 — Kerangka UI (§5)",
+   "description": "Epic Fase 2 — Kerangka UI (Guide §5): routes, sidebar, topbar, layout.",
+   "parentKey": null,
+   "priority": 3,
+   "labels": [
+    "fase-2",
+    "demo"
+   ],
+   "milestone": "M2 Kerangka UI (§5)",
+   "status": "Done"
+  },
+  {
+   "key": "F2.1",
+   "title": "Routes / Sidebar / Layout / Topbar + Network banner",
+   "description": "Routes / Sidebar / Layout / Topbar + Network banner.",
+   "parentKey": "E2",
+   "priority": 3,
+   "labels": [
+    "fase-2",
+    "demo",
+    "verification"
+   ],
+   "milestone": "M2 Kerangka UI (§5)",
+   "status": "Done"
+  },
+  {
+   "key": "E3",
+   "title": "Fase 3 — Modul Baca (§6)",
+   "description": "Epic Fase 3 — Modul Baca (Guide §6): halaman baca semua domain.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.1",
+   "title": "Dashboard, Live State & Analitik OEE (§6.1)",
+   "description": "Dashboard, Live State & Analitik OEE (§6.1).",
+   "parentKey": "E3",
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.2",
+   "title": "Devices & Machines + bind lifecycle (§6.2–6.3)",
+   "description": "Devices & Machines + bind lifecycle (§6.2–6.3).",
+   "parentKey": "E3",
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.3",
+   "title": "Products, Work Orders, Operators (§6.4–6.5)",
+   "description": "Products, Work Orders, Operators (§6.4–6.5).",
+   "parentKey": "E3",
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.4",
+   "title": "Downtime, Operational Events & Audit Sistem (§6.6–6.7)",
+   "description": "Downtime, Operational Events & Audit Sistem (§6.6–6.7).",
+   "parentKey": "E3",
+   "priority": 3,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.5",
+   "title": "Telemetri, Ekspor & Rekonsiliasi (§6.8)",
+   "description": "Telemetri, Ekspor & Rekonsiliasi (§6.8).",
+   "parentKey": "E3",
+   "priority": 3,
+   "labels": [
+    "fase-3",
+    "demo"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "F3.6",
+   "title": "Master Lines / Shifts / Shift-Schedules — halaman baru (§5, Lamp. L–N)",
+   "description": "Master Lines / Shifts / Shift-Schedules — halaman baru (§5, Lamp. L–N).",
+   "parentKey": "E3",
+   "priority": 2,
+   "labels": [
+    "fase-3",
+    "demo",
+    "feature"
+   ],
+   "milestone": "M3 Modul Baca (§6)",
+   "status": "Done"
+  },
+  {
+   "key": "E4",
+   "title": "Fase 4 — Modul Tulis (§7)",
+   "description": "Epic Fase 4 — Modul Tulis (Guide §7): mutasi, validasi, konflik 409, preservasi histori.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-4",
+    "demo"
+   ],
+   "milestone": "M4 Modul Tulis (§7)",
+   "status": "Done"
+  },
+  {
+   "key": "F4.1",
+   "title": "Mutasi, validasi client, matriks konflik 409, preservasi histori",
+   "description": "Mutasi tulis semua domain + validasi + konflik 409 + preservasi histori setelah hapus master.",
+   "parentKey": "E4",
+   "priority": 2,
+   "labels": [
+    "fase-4",
+    "demo"
+   ],
+   "milestone": "M4 Modul Tulis (§7)",
+   "status": "Done"
+  },
+  {
+   "key": "E5",
+   "title": "Fase 5 — Konsol IAM (§8)",
+   "description": "Epic Fase 5 — Konsol IAM (Guide §8): Access Control, 18 rute.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-5",
+    "demo"
+   ],
+   "milestone": "M5 Konsol IAM (§8)",
+   "status": "Done"
+  },
+  {
+   "key": "F5.1",
+   "title": "Konsol IAM — 18 rute Access Control",
+   "description": "Konsol IAM: roles, permissions, assignments, policies, audit decisions (18 rute admin).",
+   "parentKey": "E5",
+   "priority": 2,
+   "labels": [
+    "fase-5",
+    "demo",
+    "security"
+   ],
+   "milestone": "M5 Konsol IAM (§8)",
+   "status": "Done"
+  },
+  {
+   "key": "E6",
+   "title": "Fase 6 — Konsol MQTT (§9)",
+   "description": "Epic Fase 6 — Konsol MQTT (Guide §9.1–9.3): Dynamic Security 23 ops, Broker Config 13 ops, Overview.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-6",
+    "demo"
+   ],
+   "milestone": "M6 Konsol MQTT (§9)",
+   "status": "Done"
+  },
+  {
+   "key": "F6.1",
+   "title": "Dynamic Security 23 ops + Broker Config 13 ops + Overview",
+   "description": "Konsol MQTT: Dynamic Security, Broker Config, Overview.",
+   "parentKey": "E6",
+   "priority": 2,
+   "labels": [
+    "fase-6",
+    "demo",
+    "security"
+   ],
+   "milestone": "M6 Konsol MQTT (§9)",
+   "status": "Done"
+  },
+  {
+   "key": "E7",
+   "title": "Fase 7 — Realtime (§10)",
+   "description": "Epic Fase 7 — Realtime (Guide §10): WebSocket telemetry.",
+   "parentKey": null,
+   "priority": 3,
+   "labels": [
+    "fase-7",
+    "demo"
+   ],
+   "milestone": "M7 Realtime (§10)",
+   "status": "Done"
+  },
+  {
+   "key": "F7.1",
+   "title": "WebSocket telemetry + reconnect + simulasi demo 5 dtk",
+   "description": "WebSocket telemetry live + heartbeat/reconnect.",
+   "parentKey": "E7",
+   "priority": 3,
+   "labels": [
+    "fase-7",
+    "demo",
+    "real-backend"
+   ],
+   "milestone": "M7 Realtime (§10)",
+   "status": "Done"
+  },
+  {
+   "key": "E8",
+   "title": "Verifikasi, Testing & Go-live (§11–15)",
+   "description": "Epic Verifikasi, Testing & Go-live (Guide §11–15).",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "verification"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "V8.1",
+   "title": "Verifikasi visual di browser sungguhan (3 halaman baru + Topbar)",
+   "description": "Verifikasi visual di browser sungguhan (semua halaman).",
+   "parentKey": "E8",
+   "priority": 2,
+   "labels": [
+    "verification"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "V8.2",
+   "title": "Verifikasi Mode Real end-to-end vs backend",
+   "description": "Verifikasi mode Real end-to-end lawan backend (BLOCKED — belum ada backend).",
+   "parentKey": "E8",
+   "priority": 2,
+   "labels": [
+    "verification",
+    "real-backend",
+    "blocked"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "V8.3",
+   "title": "Uji integrasi LAN per modul (Guide §12, 1 alur E2E/modul)",
+   "description": "Uji LAN vs tunnel (dual-vhost D1) (BLOCKED — butuh jaringan pabrik).",
+   "parentKey": "E8",
+   "priority": 2,
+   "labels": [
+    "verification",
+    "real-backend",
+    "blocked"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "V8.4",
+   "title": "Deployment Nginx §13 (Vite statis, port 80/8080, CSP, no-store)",
+   "description": "Deployment (Vercel/Render) + env produksi.",
+   "parentKey": "E8",
+   "priority": 3,
+   "labels": [
+    "deployment"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "V8.5",
+   "title": "Definition of Done §15 — checklist per modul",
+   "description": "Definition of Done §15 — checklist per modul.",
+   "parentKey": "E8",
+   "priority": 2,
+   "labels": [
+    "verification",
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "E9",
+   "title": "Refactoring struktur direktori & kontrak penulisan kode",
+   "description": "Epic refactoring 2026-11-16: perketat aturan penulisan kode — pemisahan fungsi per directory kerja, riset baris ideal per file, kontrak directory-structure + checker otomatis. Acuan: docs/DIRECTORY_STRUCTURE.md. Baseline audit: 81 file, 34.784 baris; god-file client.ts 4.602, httpClient.ts 3.371, AccessControlPage.tsx 2.001.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "In Progress"
+  },
+  {
+   "key": "R9.1",
+   "title": "Kontrak directory-structure + checker otomatis",
+   "description": "Kontrak docs/DIRECTORY_STRUCTURE.md + checker scripts/check-directory-contract.mjs + npm run check:structure (terikat di npm run lint). Baseline checker: 6 FAIL, 10 pengecualian halaman tercatat (R9.5).",
+   "parentKey": "E9",
+   "priority": 2,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "R9.2",
+   "title": "Pecah services/api: mockData, schemas, endpoints per domain",
+   "description": "mockData.ts -> seeds/ per domain + barrel; schemas.ts -> schemas/transport.ts + schemas/dto.ts + barrel; endpoints.ts -> endpoints/definition.ts + 11 file domain + barrel (131 key, urutan dipertahankan).",
+   "parentKey": "E9",
+   "priority": 2,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "R9.3",
+   "title": "Pecah client.ts demo + httpClient.ts per domain",
+   "description": "client.ts 4.602 -> demo/store.ts + demo/helpers.ts + 13 file domain + barrel. httpClient.ts 3.371 -> http/transport.ts + http/primitives.ts + http/mappers/* + 13 file domain + barrel. Tanpa this. antar-method; permukaan apiClient/store tidak berubah.",
+   "parentKey": "E9",
+   "priority": 2,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "R9.4",
+   "title": "Pecah utils/capabilities.ts per concern",
+   "description": "capabilities.ts 1.115 -> utils/capabilities/ per concern + barrel. Hapus validator mati bila aman; satukan dekoder event-flag; hapus duplikasi path operational-events.",
+   "parentKey": "E9",
+   "priority": 3,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "R9.5",
+   "title": "Halaman besar: ekstraksi tab/modal per halaman",
+   "description": "Pengecualian checker (DIRECTORY_STRUCTURE.md §4): AccessControlPage 2.001, OperatorsPage 1.012, MachinesPage 884, TelemetryHistoryPage 862, WorkOrdersPage 859, DynamicSecurityPage 858, DevicesPage 652, BrokerConfigManagerPage 627, OperationalEventsPage 610, OeeAnalyticsPage 593, historicalExport.ts 618.",
+   "parentKey": "E9",
+   "priority": 3,
+   "labels": [
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "R9.6",
+   "title": "Verifikasi refactoring: tsc, tests, build, preview + AUDIT.md",
+   "description": "Penutup epic refactoring: npm run lint (tsc + check:structure 0 FAIL), npm test hijau, build sukses, preview HTTP 200, AUDIT.md diperbarui, push GitHub.",
+   "parentKey": "E9",
+   "priority": 2,
+   "labels": [
+    "verification",
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "E10",
+   "title": "Mode Akses Private/Public (LAN vs Internet)",
+   "description": "Epic 2026-11-16: switch mode akses — Private (akses penuh HANYA dari LAN, via internet read-only) vs Public (akses penuh juga via internet). Switch di env VITE_ACCESS_MODE (default private, terkunci). Acuan: AUDIT.md §9, docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "security",
+    "feature"
+   ],
+   "milestone": null,
+   "status": "In Progress"
+  },
+  {
+   "key": "A10.1",
+   "title": "Switch Private/Public di panel (env + enforcement + UI)",
+   "description": "Selesai 2026-11-16. Env VITE_ACCESS_MODE + VITE_ALLOW_ACCESS_MODE_SWITCH; resolver resolveAccessMode/resolveEffectiveAccess/isMutationAllowed; enforcement demo assertLanAccess + HTTP assertLanForMutation; capability evaluateCapability + helper canPerformMutation; context isReadOnly efektif; banner 4 keadaan; Topbar badge/select Akses. Bukti: tsc 0, tests 76/76 (6 baru accessMode.test.ts), build OK, preview HTTP 200. Laporan: AUDIT.md §9.",
+   "parentKey": "E10",
+   "priority": 2,
+   "labels": [
+    "security",
+    "feature"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "A10.2",
+   "title": "Kebutuhan backend mode akses (B1–B25, checklist V1–V12)",
+   "description": "Backend WAJIB menyediakan (docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md): flag server ACCESS_MODE (default private, fail-closed); klasifikasi kanal dari ingress nyata; middleware tolak semua mutasi dari tunnel saat private (403); endpoint GET /api/v1/system/access-mode + field di GET /auth/me; PUT /admin/access-mode (ADMIN-only, audit trail); bila public: TLS + auth penuh + rate limit ketat di tunnel. Status: BLOCKED — belum ada backend.",
+   "parentKey": "E10",
+   "priority": 2,
+   "labels": [
+    "security",
+    "real-backend",
+    "blocked"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  }
+ ],
  "labelsToCreate": [
   {
    "color": "#4EA7FC",
@@ -63,7 +559,7 @@
    "name": "docs"
   }
  ],
- "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar.",
+ "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.]",
  "project": {
   "description": "Admin Panel IIoT OEE — 131 operasi Admin REST + 1 WebSocket (Guide Lamp. A). Repo: github.com/fadk-dev/iiot-oee-admin-panel. Acuan: ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md. Mode Demo (default) vs Real via VITE_API_MODE; belum ada backend, mode Real belum terverifikasi. Laporan audit: AUDIT.md di repo. Metodologi tracking: docs/LINEAR.md.",
   "milestones": [
@@ -80,7 +576,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 2,
+ "version": 3,
  "created": {
   "date": "2026-11-16",
   "project": {

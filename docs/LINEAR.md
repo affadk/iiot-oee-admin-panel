@@ -88,11 +88,11 @@ dianggap selesai penuh.
 | V8.5 | Definition of Done §15 — checklist per modul | E8 | **Todo** | High | `verification`, `docs` |
 | E9 | Refactoring struktur direktori & kontrak penulisan kode | — | **In Progress** | High | `docs` |
 | R9.1 | Kontrak directory-structure + checker otomatis | E9 | Done | High | `docs` |
-| R9.2 | Pecah services/api: mockData, schemas, endpoints per domain | E9 | **Todo** | High | `docs` |
-| R9.3 | Pecah client.ts demo + httpClient.ts per domain | E9 | **Todo** | High | `docs` |
-| R9.4 | Pecah utils/capabilities.ts per concern | E9 | **Todo** | Medium | `docs` |
+| R9.2 | Pecah services/api: mockData, schemas, endpoints per domain | E9 | Done | High | `docs` |
+| R9.3 | Pecah client.ts demo + httpClient.ts per domain | E9 | Done | High | `docs` |
+| R9.4 | Pecah utils/capabilities.ts per concern | E9 | Done | Medium | `docs` |
 | R9.5 | Halaman besar: ekstraksi tab/modal per halaman | E9 | **Todo** | Medium | `docs` |
-| R9.6 | Verifikasi refactoring: tsc, tests, build, preview + AUDIT.md | E9 | **Todo** | High | `verification`, `docs` |
+| R9.6 | Verifikasi refactoring: tsc, tests, build, preview + AUDIT.md | E9 | Done | High | `verification`, `docs` |
 | E10 | Mode Akses Private/Public (LAN vs Internet) | — | **In Progress** | High | `security`, `feature` |
 | A10.1 | Switch Private/Public di panel (env + enforcement + UI) | E10 | Done | High | `security`, `feature` |
 | A10.2 | Kebutuhan backend mode akses (B1–B25, checklist V1–V12) | E10 | **Todo — Blocked** | High | `security`, `real-backend`, `blocked` |
@@ -290,9 +290,10 @@ tapi status implementasi yang berlaku adalah status di Linear.
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
 - Issue: **38 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **24 Done, 2 In Progress, 12 Todo**, 10 Epic tanpa parent, 28 child dengan
+  **28 Done, 2 In Progress, 8 Todo**, 10 Epic tanpa parent, 28 child dengan
   `parentId` — persis sesuai §1.3 (28 awal + E9/R9.1–R9.6 + E10/A10.1–A10.2,
-  dibuat 2026-11-16 ~14:20 WIB).
+  dibuat 2026-11-16 ~14:20 WIB; R9.2/R9.3/R9.4/R9.6 Done 2026-11-16 malam,
+  tersisa R9.5 + A10.2 + V8.1–V8.5).
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 

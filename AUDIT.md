@@ -263,3 +263,60 @@ HTTP vs stub port 3002 — 403 sebelum fetch vs 201, capability + helper);
 `npm run build` sukses; `vite preview` HTTP 200. Yang tetap belum
 terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat §6)
 + seluruh daftar B1–B25/V1–V12 di sisi backend (belum ada backend).
+
+## 10. Refactoring struktur direktori — kontrak & pemisahan god-file (2026-11-16)
+
+**Latar:** 81 file `src`, 34.784 baris; 6 god-file di atas batas keras
+(`client.ts` 4.602, `httpClient.ts` 3.371, `mockData.ts` 1.574,
+`capabilities.ts` 1.115, `endpoints.ts` 883, `schemas.ts` 603). Riset
+anggaran (Clean Code Bab 5: file jarang > 500 baris, sweet spot 100–200;
+umum: optimal 100–300, maks 500; route/komponen < 500; fungsi 5–20/maks 50).
+
+**Kontrak:** `docs/DIRECTORY_STRUCTURE.md` + checker
+`scripts/check-directory-contract.mjs` (`npm run check:structure`, terikat
+di `npm run lint`). Baseline checker: **6 FAIL**; setelah refactoring:
+**0 FAIL** (18 WARN di atas batas lunak, 10 pengecualian halaman tercatat
+di kontrak §4 — R9.5, belum dikerjakan).
+
+**Yang dipecah (script migrasi `/tmp/split-api.mjs`, stages 1–4; bukan
+bagian repo — parser berbasis baris + hitung kurung karena proyek memakai
+TypeScript 7 tanpa API klasik):**
+
+| Stage | Dari | Menjadi | Hasil |
+| --- | --- | --- | --- |
+| R9.2a | `mockData.ts` 1.574 | `seeds/{production,assets,operators,monitoring,mqtt,system}.ts` + barrel | file ≤ 400 |
+| R9.2b | `schemas.ts` 603 | `schemas/{transport,dto}.ts` + barrel | 225 / 391 |
+| R9.2c | `endpoints.ts` 883 | `endpoints/{definition + 11 domain}.ts` + barrel, urutan 131 key dipertahankan | file ≤ 276 |
+| R9.3a | `client.ts` 4.610 | `demo/{store,helpers,core,auth,health,devices,machines,products,production,operators,workOrders,monitoring,telemetry,mqttDynsec,mqttConfig,iam}.ts` + barrel 50 baris | file ≤ 574 |
+| R9.3b | `httpClient.ts` 3.379 | `http/{primitives,transport,auth,health,devices,machines,products,operators,production,workOrders,monitoring,telemetry,iam,mqttDynsec,mqttConfig}.ts` + `http/mappers/{assets,monitoring,system}.ts` + barrel 40 baris | file ≤ 394 |
+| R9.4 | `capabilities.ts` 1.126 | `capabilities/{specs,abac,engine,casbin,network,validators}.ts` + barrel | file ≤ 335 |
+
+**Aturan yang ditegakkan script:** batas kelompok dari NAMA method pertama
+tiap section (bukan nomor baris — tahan terhadap edit mode akses +8 baris);
+`this.X` antar-method ditulis ulang ke objek domain (`demoX.Y` /
+`httpX.Y`); impor di-prune + digeser sedalam subfolder; deklarasi
+non-export di file baru diberi `export`; state modul HTTP yang ditulis
+method domain (`httpToken`) diakses lewat setter `setHttpToken`
+(binding impor ESM read-only); `AuthClientHooks` lokal dipindah ke
+`demo/helpers.ts`; header doc §4.2 dipertahankan di `http/transport.ts`.
+
+**Kode mati yang dihapus (R9.4, diverifikasi 0 pemakaian di seluruh src
+termasuk internal & test):** `decodeDeviceEventFlags`,
+`validateSubjectMatch` + `SUBJECT_MATCH_REGEX`, `computeCatalogueVersion`,
+`isGuardedPermissionPair` + `GUARDED_PERMISSION_PAIRS`. Yang TIDAK dihapus
+meski audit awal menduganya mati: kelima validator `validate*Input`
+(ternyata dipakai halaman + demo) dan `validateAbacCondition` (dipakai
+`matchAbacCondition`).
+
+**Perilaku dipertahankan:** permukaan publik tidak berubah — `apiClient`,
+`store`, `ADMIN_ENDPOINTS` (131 key, urutan sama), semua `map*`, semua
+validator. Tidak ada perubahan UI/fitur.
+
+**Verifikasi:** `tsc` 0 error; `npm test` **76/76**; `npm run build`
+sukses (peringatan chunk-size lama); `vite preview` HTTP 200;
+`npm run check:structure` **0 FAIL**. Yang tetap belum terverifikasi:
+visual di browser sungguhan + mode Real end-to-end (lihat §6).
+
+**Sisa:** R9.5 (10 halaman besar di atas batas keras — ekstraksi tab/modal,
+kontrak §4) dan R9.6 (verifikasi akhir) — R9.5 masih Todo di Linear
+(FAT-39).
