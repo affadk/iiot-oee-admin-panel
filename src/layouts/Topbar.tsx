@@ -5,6 +5,12 @@ import { useAuth, useCapability } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNetworkAccess } from '../context/NetworkAccessContext';
 import { resolveApiMode, setApiMode, isApiModeSwitchAllowed, resolvePlantLabel, ApiMode } from '../services/api/mode';
+import {
+  resolveAccessMode,
+  setAccessMode,
+  isAccessModeSwitchAllowed,
+  AccessMode,
+} from '../services/api/mode';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -37,6 +43,20 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
     // Mode dipilih saat module load (selector apiClient) — perlu reload penuh.
     setApiMode(next);
     setApiModeState(next);
+    window.location.reload();
+  };
+
+  // Switch mode akses dari UI hanya hidup bila dibuka di env
+  // (VITE_ALLOW_ACCESS_MODE_SWITCH=true, dev lokal). Bila terkunci, Topbar
+  // hanya menampilkan badge read-only — mode berasal dari VITE_ACCESS_MODE.
+  // Private = akses penuh hanya dari LAN; Public = akses penuh juga via internet.
+  const [accessMode, setAccessModeState] = useState<AccessMode>(() => resolveAccessMode());
+  const accessModeSwitchAllowed = isAccessModeSwitchAllowed();
+
+  const handleAccessModeChange = (next: AccessMode) => {
+    if (!accessModeSwitchAllowed || next === accessMode) return;
+    setAccessMode(next);
+    setAccessModeState(next);
     window.location.reload();
   };
 
@@ -207,6 +227,46 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
             )}
           </div>
 
+          {/* Switch mode akses Private/Public — mirroring pola badge API di atas.
+              Private (biru) = akses penuh hanya dari LAN pabrik, via internet
+              read-only. Public (amber) = akses penuh juga via internet. */}
+          <div
+            className="flex items-center gap-1.5"
+            title={
+              accessModeSwitchAllowed
+                ? 'Mode Akses: Private = akses penuh hanya dari LAN pabrik (via internet read-only); Public = akses penuh juga via internet publik. Pilihan tersimpan dan halaman dimuat ulang.'
+                : 'Mode Akses terkunci di env (VITE_ACCESS_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang.'
+            }
+          >
+            <span className="text-[11px] text-slate-400 hidden sm:inline">Akses:</span>
+            {accessModeSwitchAllowed ? (
+              <select
+                value={accessMode}
+                onChange={(e) => handleAccessModeChange(e.target.value as AccessMode)}
+                className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
+                  accessMode === 'public'
+                    ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                    : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300'
+                }`}
+                aria-label="Mode Akses"
+              >
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+              </select>
+            ) : (
+              <span
+                className={`text-xs border rounded px-2 py-1 font-semibold ${
+                  accessMode === 'public'
+                    ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                    : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300'
+                }`}
+                aria-label={`Mode Akses: ${accessMode} (terkunci di env)`}
+              >
+                {accessMode === 'public' ? 'Public' : 'Private'}
+              </span>
+            )}
+          </div>
+
           {/* Ganti peran TIDAK ada di sini: peran berasal dari login.
               Untuk ganti peran: logout, lalu login sebagai operator lain. */}
 
@@ -237,7 +297,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
               }}
               disabled={isReadOnly}
               className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 rounded transition-colors disabled:opacity-40"
-              title={isReadOnly ? 'Ganti password dinonaktifkan dari remote tunnel' : 'Ganti Password Sendiri'}
+              title={isReadOnly ? 'Ganti password dinonaktifkan (mode observasi)' : 'Ganti Password Sendiri'}
               aria-label="Ganti Password"
             >
               <KeyRound className="w-3.5 h-3.5" />

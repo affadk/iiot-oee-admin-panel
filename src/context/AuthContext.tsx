@@ -42,7 +42,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const DEFAULT_FALLBACK_TTL = resolveAuthTtlFallbackSec();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { mode } = useNetworkAccess();
+  const { mode, accessMode } = useNetworkAccess();
   // Guide §4.4/D5: tidak ada sesi pra-login. Pengguna HARUS login lewat
   // /login; AuthProvider tidak lagi start sebagai ADM-001.
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -191,12 +191,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return evaluateCapability(capability, {
         role: currentUser.role,
         networkMode: mode,
+        accessMode,
         isAuthenticated,
         resourceId,
         serverCapabilities: authMe?.capabilities ?? null,
       });
     },
-    [currentUser.role, mode, isAuthenticated, authMe]
+    [currentUser.role, mode, accessMode, isAuthenticated, authMe]
   );
 
   return (

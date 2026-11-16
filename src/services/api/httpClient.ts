@@ -38,6 +38,7 @@ import {
   resolveMutationTimeoutMs,
   resolveHttpRetryMaxAttempts,
   resolveWsUrl,
+  resolveEffectiveAccess,
 } from './mode';
 import {
   AuthMeResponseSchema,
@@ -928,11 +929,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Guard tulis mode Real (D1 + mode akses Private/Public): mutasi hanya bila
+ * akses efektif mengizinkan — LAN selalu boleh; tunnel hanya bila mode
+ * `public`. Ini pertahanan lapis pertama; backend WAJIB menegakkan aturan
+ * yang sama di server (lihat docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md).
+ */
 function assertLanForMutation(): void {
-  if (networkMode === 'REMOTE_TUNNEL') {
+  const effective = resolveEffectiveAccess(networkMode);
+  if (!effective.canMutate) {
     throw new ApiError({
       code: 'FORBIDDEN',
-      message: 'Mode observasi (remote tunnel): perubahan dinonaktifkan. Aksi tulis hanya dari LAN pabrik.',
+      message: effective.reason,
       httpStatus: 403,
     });
   }

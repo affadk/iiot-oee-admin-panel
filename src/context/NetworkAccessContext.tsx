@@ -1,11 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { NetworkAccessMode } from '../types/auth';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { AccessMode, NetworkAccessMode } from '../types/auth';
 import { apiClient } from '../services/api/client';
-import { resolveNetworkMode } from '../services/api/mode';
+import { resolveAccessMode, resolveEffectiveAccess, resolveNetworkMode } from '../services/api/mode';
 
 interface NetworkAccessContextType {
   mode: NetworkAccessMode;
   setMode: (mode: NetworkAccessMode) => void;
+  /** Mode akses deployment (Private/Public) — dari env, bukan dari klik UI. */
+  accessMode: AccessMode;
+  /** Boleh mutasi pada kombinasi mode akses + kanal saat ini. */
+  canMutate: boolean;
+  /** Alias lama: true bila akses efektif read-only (tunnel + mode Private). */
   isReadOnly: boolean;
 }
 
@@ -33,12 +38,21 @@ export const NetworkAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     apiClient.setNetworkMode(mode);
   }, [mode]);
 
+  // Mode akses berasal dari env (VITE_ACCESS_MODE, default `private`) dan
+  // stabil selama sesi — perubahan env = build/deploy ulang. Akses efektif
+  // dihitung dari mode + kanal saat ini: LAN selalu boleh mutasi, tunnel
+  // hanya bila mode `public`.
+  const accessMode = useMemo(() => resolveAccessMode(), []);
+  const effective = resolveEffectiveAccess(mode);
+
   return (
     <NetworkAccessContext.Provider
       value={{
         mode,
         setMode,
-        isReadOnly: mode === 'REMOTE_TUNNEL',
+        accessMode,
+        canMutate: effective.canMutate,
+        isReadOnly: !effective.canMutate,
       }}
     >
       {children}

@@ -30,6 +30,15 @@ export interface RefreshTokenResponse {
 
 export type NetworkAccessMode = 'LAN' | 'REMOTE_TUNNEL';
 
+/**
+ * Mode akses deployment (lihat `services/api/mode.ts` — satu-satunya sumber
+ * kebenaran nilai env-nya):
+ * - `private` (default): akses penuh HANYA dari LAN pabrik; via internet
+ *   publik panel read-only.
+ * - `public`: akses penuh diizinkan juga via internet publik (tunnel).
+ */
+export type AccessMode = 'private' | 'public';
+
 export interface ApiErrorIssue {
   field?: string;
   path?: string;

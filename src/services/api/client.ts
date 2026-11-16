@@ -143,7 +143,7 @@ import {
   normalizeListResponse,
 } from './schemas';
 import { httpApiClient } from './httpClient';
-import { resolveApiMode, resolveAuthTtlFallbackSec } from './mode';
+import { resolveApiMode, resolveAuthTtlFallbackSec, resolveEffectiveAccess } from './mode';
 import { telemetrySocket } from '../ws/telemetrySocket';
 import {
   RETENTION_POLICY_DAYS,
@@ -416,11 +416,19 @@ function assertAuthenticated() {
   }
 }
 
+/**
+ * Guard tulis (D1 + mode akses Private/Public): mutasi hanya bila akses
+ * efektif mengizinkan — LAN selalu boleh; tunnel hanya bila mode `public`.
+ * Mode `private` (default) menolak dengan 403 + keputusan DENY tercatat.
+ * Gating di sini hanya UX/pertahanan lapis pertama — backend WAJIB menegakkan
+ * aturan yang sama di server (lihat docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md).
+ */
 function assertLanAccess(capability: CapabilityKey, resourceId?: string) {
-  if (store.networkAccessMode === 'REMOTE_TUNNEL') {
+  const effective = resolveEffectiveAccess(store.networkAccessMode);
+  if (!effective.canMutate) {
     const err = new ApiError({
       code: 'FORBIDDEN',
-      message: 'Mode observasi — perubahan dinonaktifkan saat terhubung melalui jaringan jarak jauh. Akses penuh tersedia dari jaringan lokal pabrik.',
+      message: effective.reason,
       httpStatus: 403,
     });
     store.addAuthzDecision('DENY', capability, resourceId ?? 'remote-tunnel', err.message);

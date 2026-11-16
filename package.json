@@ -8,8 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "lint": "tsc --noEmit && node scripts/check-directory-contract.mjs",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "check:structure": "node scripts/check-directory-contract.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

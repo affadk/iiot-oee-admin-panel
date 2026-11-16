@@ -1,4 +1,4 @@
-import { NetworkAccessMode, UserRole } from '../types/auth';
+import { AccessMode, NetworkAccessMode, UserRole } from '../types/auth';
 import { IamAssignment, IamPermission, IamPolicyRule } from '../types/iam';
 
 /**
@@ -578,6 +578,12 @@ export const capabilityDenialStore = new CapabilityDenialStore();
 export interface EvaluateCapabilityContext {
   role: UserRole;
   networkMode: NetworkAccessMode;
+  /**
+   * Mode akses deployment (Private/Public). Bila tidak diisi, dianggap
+   * `private` — perilaku lama (tunnel selalu read-only) dipertahankan.
+   * `public` + tunnel = capability LAN tetap boleh dipakai.
+   */
+  accessMode?: AccessMode;
   isAuthenticated: boolean;
   resourceId?: string;
   denialStore?: CapabilityDenialStore;
@@ -594,10 +600,15 @@ export function evaluateCapability(
   const spec = CAPABILITY_SPECS[capability];
   const store = ctx.denialStore ?? capabilityDenialStore;
 
-  if (spec.requiresLan && ctx.networkMode === 'REMOTE_TUNNEL') {
+  // Guard tulis (D1 + mode akses Private/Public): capability yang butuh LAN
+  // ditolak bila akses efektif read-only — LAN selalu boleh; tunnel hanya
+  // bila mode `public`. Default accessMode = `private` (perilaku lama).
+  const canMutate = ctx.networkMode === 'LAN' || (ctx.accessMode ?? 'private') === 'public';
+  if (spec.requiresLan && !canMutate) {
     return {
       state: 'denied',
       canInteract: false,
+      // Copy dipertahankan dari perilaku lama (D1) — sudah diuji & dikenal operator.
       reason: 'Mode observasi — perubahan dinonaktifkan. Akses penuh tersedia dari LAN pabrik.',
     };
   }

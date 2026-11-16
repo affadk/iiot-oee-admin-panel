@@ -18,6 +18,12 @@
  *   - Akses jaringan (D1 dual-vhost) `VITE_NETWORK_MODE` (`LAN`|`REMOTE_TUNNEL`,
  *     kosong = deteksi dari port), `VITE_TUNNEL_PORT` (8080),
  *     `VITE_ALLOW_NETWORK_MODE_SIMULATION` (default `false`)
+ *   - Mode akses Private/Public ... `VITE_ACCESS_MODE` (`private`|`public`,
+ *     default `private`), `VITE_ALLOW_ACCESS_MODE_SWITCH` (default `false`).
+ *     Private = akses penuh HANYA dari LAN pabrik, via internet read-only.
+ *     Public = akses penuh diizinkan juga via internet publik (tunnel).
+ *     Penegakan ada di `assertLanAccess` (demo) & `assertLanForMutation`
+ *     (HTTP) + `evaluateCapability` — lihat § "Mode akses" di bawah.
  *   - WebSocket .................... `VITE_WS_HEARTBEAT_MS` (25s),
  *     `VITE_WS_RECONNECT_MAX_MS` (30s), `VITE_DEMO_SIM_INTERVAL_MS` (5s)
  *   - Lockout login ................ `VITE_LOGIN_MAX_ATTEMPTS` (5),
@@ -38,7 +44,7 @@
  * Token sesi tetap hanya di memori (Guide D5), tidak pernah di env.
  */
 
-import type { NetworkAccessMode, UserRole } from '../../types/auth';
+import type { AccessMode, NetworkAccessMode, UserRole } from '../../types/auth';
 
 export type ApiMode = 'demo' | 'real';
 
@@ -263,6 +269,140 @@ export function resolveNetworkMode(): NetworkAccessMode {
  */
 export function isNetworkModeSimulationAllowed(): boolean {
   return readEnvBool('VITE_ALLOW_NETWORK_MODE_SIMULATION', false);
+}
+
+// ---------------------------------------------------------------------------
+// Mode akses Private / Public — akses penuh via LAN vs via internet publik
+// ---------------------------------------------------------------------------
+
+/**
+ * Mode akses deployment:
+ * - `private` (default): akses penuh HANYA dari LAN pabrik. Lewat internet
+ *   publik (tunnel) panel read-only — mutasi ditolak 403 baik di client
+ *   (`assertLanAccess`/`assertLanForMutation`) maupun di UI (`isReadOnly`).
+ * - `public`: akses penuh diizinkan juga via internet publik (tunnel).
+ *   Dipakai bila pabrik memang membuka panel ke internet — keputusan sadar,
+ *   bukan default, karena memperluas permukaan serangan.
+ * Tipe `AccessMode` tinggal di `types/auth.ts` (dipakai juga capability).
+ */
+export type { AccessMode } from '../../types/auth';
+
+export const ACCESS_MODE_STORAGE_KEY = 'iiot-oee-access-mode';
+
+function readQueryAccessMode(): AccessMode | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const q = new URLSearchParams(window.location.search).get('access');
+    if (q === 'private' || q === 'public') return q;
+  } catch {
+    // abaikan
+  }
+  return null;
+}
+
+function readStoredAccessMode(): AccessMode | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const v = window.localStorage.getItem(ACCESS_MODE_STORAGE_KEY);
+    if (v === 'private' || v === 'public') return v;
+  } catch {
+    // storage tidak tersedia / diblokir
+  }
+  return null;
+}
+
+/** Mode akses mentah dari env saja (tanpa override runtime). `null` bila tidak diset. */
+export function resolveEnvAccessMode(): AccessMode | null {
+  const env = (readEnv('VITE_ACCESS_MODE') ?? '').trim().toLowerCase();
+  if (env === 'public' || env === 'private') return env;
+  return null;
+}
+
+/**
+ * Apakah mode akses boleh diubah dari UI (`Topbar`) / query `?access=` /
+ * localStorage. Default TERKUNCI (`false`): env adalah satu-satunya sumber.
+ * Set `VITE_ALLOW_ACCESS_MODE_SWITCH=true` hanya untuk dev/evaluasi lokal —
+ * di produksi perubahan mode = ubah env lalu build/deploy ulang, supaya
+ * perubahan tercatat di deployment, bukan klik diam-diam di browser.
+ */
+export function isAccessModeSwitchAllowed(): boolean {
+  return readEnvBool('VITE_ALLOW_ACCESS_MODE_SWITCH', false);
+}
+
+export function resolveAccessMode(): AccessMode {
+  if (!isAccessModeSwitchAllowed()) {
+    // Terkunci: env menang atas segalanya; query + localStorage diabaikan.
+    return resolveEnvAccessMode() ?? 'private';
+  }
+  const fromQuery = readQueryAccessMode();
+  if (fromQuery) return fromQuery;
+  const stored = readStoredAccessMode();
+  if (stored) return stored;
+  return resolveEnvAccessMode() ?? 'private';
+}
+
+/**
+ * Simpan preferensi mode akses (bukan kredensial) lalu muat ulang halaman.
+ * No-op bila switch terkunci di env — mode hanya bisa diubah lewat env.
+ */
+export function setAccessMode(mode: AccessMode): void {
+  if (!isAccessModeSwitchAllowed()) return;
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ACCESS_MODE_STORAGE_KEY, mode);
+    }
+  } catch {
+    // abaikan — mode tetap berlaku untuk sesi ini via query
+  }
+}
+
+export interface EffectiveAccess {
+  accessMode: AccessMode;
+  channel: NetworkAccessMode;
+  /** Boleh mutasi (tulis) pada kombinasi mode + kanal ini. */
+  canMutate: boolean;
+  /** Penjelasan singkat untuk banner/Topbar — kenapa read-only atau tidak. */
+  reason: string;
+}
+
+/**
+ * Akses efektif dari kombinasi mode akses + kanal jaringan saat ini.
+ * Matriks: LAN selalu boleh mutasi; tunnel hanya bila mode `public`.
+ */
+export function resolveEffectiveAccess(channel: NetworkAccessMode): EffectiveAccess {
+  const accessMode = resolveAccessMode();
+  if (channel === 'LAN') {
+    return {
+      accessMode,
+      channel,
+      canMutate: true,
+      reason:
+        accessMode === 'public'
+          ? 'Mode Public — akses penuh dari LAN; akses penuh juga diizinkan via internet publik.'
+          : 'Mode Private — akses penuh dari LAN pabrik.',
+    };
+  }
+  if (accessMode === 'public') {
+    return {
+      accessMode,
+      channel,
+      canMutate: true,
+      reason: 'Mode Public — akses penuh diizinkan via internet publik (tunnel).',
+    };
+  }
+  return {
+    accessMode,
+    channel,
+    canMutate: false,
+    // Copy penolakan dipertahankan dari perilaku lama (D1) supaya pesan yang
+    // sudah diuji & dikenal operator tidak berubah: "Mode observasi".
+    reason: 'Mode observasi — perubahan dinonaktifkan. Akses penuh tersedia dari LAN pabrik.',
+  };
+}
+
+/** Jalan pintas: boleh mutasi pada kanal ini? Default kanal = deteksi saat ini. */
+export function isMutationAllowed(channel: NetworkAccessMode = resolveNetworkMode()): boolean {
+  return resolveEffectiveAccess(channel).canMutate;
 }
 
 // ---------------------------------------------------------------------------

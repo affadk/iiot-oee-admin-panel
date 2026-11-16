@@ -1,5 +1,5 @@
 import { MachineFsmState } from '../types/monitoring';
-import { UserRole, NetworkAccessMode } from '../types/auth';
+import { AccessMode, UserRole, NetworkAccessMode } from '../types/auth';
 import { CapabilityKey, evaluateCapability } from './capabilities';
 
 /**
@@ -97,16 +97,22 @@ const ACTION_TO_CAPABILITY: Record<AdminMutationAction, CapabilityKey> = {
 /**
  * Enforces network access boundaries and capability baselines.
  * Note: direct machine actuation & HMI WO dispatch/complete are strictly excluded from Admin Panel.
+ *
+ * Parameter ke-2 (`networkMode`) adalah kanal saat ini; parameter ke-4
+ * (`accessMode`, default `private`) adalah mode akses deployment —
+ * tunnel + `public` mengizinkan mutasi, tunnel + `private` menolak.
  */
 export function canPerformMutation(
   role: UserRole,
-  accessMode: NetworkAccessMode,
-  action: AdminMutationAction
+  networkMode: NetworkAccessMode,
+  action: AdminMutationAction,
+  accessMode: AccessMode = 'private'
 ): { allowed: boolean; reason?: string } {
   const cap = ACTION_TO_CAPABILITY[action];
   const evaluation = evaluateCapability(cap, {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   });
   return {
@@ -115,18 +121,28 @@ export function canPerformMutation(
   };
 }
 
-export function canCancelWorkOrder(role: UserRole, accessMode: NetworkAccessMode): boolean {
+export function canCancelWorkOrder(
+  role: UserRole,
+  networkMode: NetworkAccessMode,
+  accessMode: AccessMode = 'private'
+): boolean {
   return evaluateCapability('work_order.cancel', {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   }).canInteract;
 }
 
-export function canForceReconciliationRefresh(role: UserRole, accessMode: NetworkAccessMode): boolean {
+export function canForceReconciliationRefresh(
+  role: UserRole,
+  networkMode: NetworkAccessMode,
+  accessMode: AccessMode = 'private'
+): boolean {
   return evaluateCapability('telemetry.reconciliation.refresh', {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   }).canInteract;
 }

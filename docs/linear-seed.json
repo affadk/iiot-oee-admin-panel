@@ -1,0 +1,140 @@
+{
+ "generated": "2026-11-16",
+ "issues": 38,
+ "labelsToCreate": [
+  {
+   "color": "#4EA7FC",
+   "name": "fase-1"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-2"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-3"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-4"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-5"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-6"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "fase-7"
+  },
+  {
+   "color": "#BB87FC",
+   "name": "demo"
+  },
+  {
+   "color": "#F2994A",
+   "name": "real-backend"
+  },
+  {
+   "color": "#EB5757",
+   "name": "blocked"
+  },
+  {
+   "color": "#219653",
+   "name": "verification"
+  },
+  {
+   "color": "#4EA7FC",
+   "name": "env"
+  },
+  {
+   "color": "#EB5757",
+   "name": "security"
+  },
+  {
+   "color": "#F2994A",
+   "name": "deployment"
+  },
+  {
+   "color": "#9B9B9B",
+   "name": "docs"
+  }
+ ],
+ "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar.",
+ "project": {
+  "description": "Admin Panel IIoT OEE — 131 operasi Admin REST + 1 WebSocket (Guide Lamp. A). Repo: github.com/fadk-dev/iiot-oee-admin-panel. Acuan: ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md. Mode Demo (default) vs Real via VITE_API_MODE; belum ada backend, mode Real belum terverifikasi. Laporan audit: AUDIT.md di repo. Metodologi tracking: docs/LINEAR.md.",
+  "milestones": [
+   "M1 Fondasi (§4)",
+   "M2 Kerangka UI (§5)",
+   "M3 Modul Baca (§6)",
+   "M4 Modul Tulis (§7)",
+   "M5 IAM (§8)",
+   "M6 MQTT (§9)",
+   "M7 Realtime (§10)",
+   "M8 Go-live (§11–15)"
+  ],
+  "name": "IIoT OEE Admin Panel",
+  "teamKey": "FAT"
+ },
+ "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
+ "version": 2,
+ "created": {
+  "date": "2026-11-16",
+  "project": {
+   "id": "P-FAT-1",
+   "url": "https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571"
+  },
+  "issueMap": {
+   "E1": "FAT-9",
+   "E2": "FAT-5",
+   "E3": "FAT-12",
+   "E4": "FAT-10",
+   "E5": "FAT-6",
+   "E6": "FAT-11",
+   "E7": "FAT-8",
+   "E8": "FAT-7",
+   "F1.1": "FAT-14",
+   "F1.2": "FAT-15",
+   "F1.3": "FAT-16",
+   "F1.4": "FAT-13",
+   "F2.1": "FAT-19",
+   "F3.1": "FAT-18",
+   "F3.2": "FAT-17",
+   "F3.3": "FAT-26",
+   "F3.4": "FAT-20",
+   "F3.5": "FAT-23",
+   "F3.6": "FAT-24",
+   "F4.1": "FAT-25",
+   "F5.1": "FAT-22",
+   "F6.1": "FAT-21",
+   "F7.1": "FAT-32",
+   "V8.1": "FAT-31",
+   "V8.2": "FAT-28",
+   "V8.3": "FAT-30",
+   "V8.4": "FAT-29",
+   "V8.5": "FAT-27",
+   "E9": "FAT-33",
+   "R9.1": "FAT-35",
+   "R9.2": "FAT-37",
+   "R9.3": "FAT-36",
+   "R9.4": "FAT-38",
+   "R9.5": "FAT-39",
+   "R9.6": "FAT-42",
+   "E10": "FAT-34",
+   "A10.1": "FAT-41",
+   "A10.2": "FAT-40"
+  },
+  "verified": {
+   "total": 28,
+   "done": 22,
+   "todo": 6,
+   "parents": 8,
+   "children": 20
+  },
+  "milestonesNote": "M1-M8 NOT created in Linear: no milestone tool in the Linear MCP connector; create manually in Linear UI if wanted.",
+  "note": "E9/E10 + anak dibuat 2026-11-16 ~14:20 WIB (FAT-33 s.d. FAT-42). Milestone tidak diterapkan (tidak ada tool milestone di konektor Linear)."
+ }
+}

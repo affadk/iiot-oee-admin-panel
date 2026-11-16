@@ -216,3 +216,50 @@ jaringan kini mati secara default, dan preset login mati di env real.
 switch dev, semua resolver + default, TTL login mengikuti env);
 `npm run build` sukses; `vite preview` HTTP 200. Yang tetap belum
 terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat §6).
+
+## 9. Mode akses Private / Public — switch LAN vs internet (2026-11-16)
+
+**Permintaan:** switch untuk mengaktifkan mode Private (akses penuh hanya di
+LAN/lokal pabrik) dan mode Public (akses penuh boleh via internet publik),
+plus kebutuhan backend-nya.
+
+**Matriks akses efektif** (`resolveEffectiveAccess` di `mode.ts`):
+
+| Kanal \ Mode | Private (default) | Public |
+| --- | --- | --- |
+| LAN pabrik | Boleh mutasi | Boleh mutasi |
+| Internet (tunnel) | **Read-only** (mutasi 403) | Boleh mutasi |
+
+**Implementasi panel (frontend):**
+
+| Lapisan | Perubahan |
+| --- | --- |
+| Env (`mode.ts`, satu-satunya sumber kebenaran) | `VITE_ACCESS_MODE` (`private`\|`public`, default `private`); `VITE_ALLOW_ACCESS_MODE_SWITCH` (default `false` = terkunci, pola sama dengan `VITE_ALLOW_API_MODE_SWITCH` — override `?access=`/localStorage hanya dev). Resolver baru: `resolveEnvAccessMode`, `isAccessModeSwitchAllowed`, `resolveAccessMode`, `setAccessMode`, `resolveEffectiveAccess(channel)`, `isMutationAllowed(channel?)`. Tipe `AccessMode` tinggal di `types/auth.ts` (dipakai capability juga). |
+| Demo (`client.ts`) | `assertLanAccess` kini memakai `resolveEffectiveAccess(store.networkAccessMode)` — tunnel + public lolos, tunnel + private tetap 403 `FORBIDDEN` + keputusan DENY tercatat. Pesan penolakan dipertahankan ("Mode observasi — …") supaya copy yang sudah diuji tidak berubah. |
+| HTTP (`httpClient.ts`) | `assertLanForMutation` sama — menolak SEBELUM fetch bila akses efektif read-only. |
+| Capability UI (`capabilities.ts`) | `EvaluateCapabilityContext` + field opsional `accessMode` (default `private` = perilaku lama); penolakan `requiresLan` kini berdasarkan akses efektif. `canPerformMutation`/`canCancelWorkOrder`/`canForceReconciliationRefresh` (`oeeCalculations.ts`) mendapat parameter opsional `accessMode` (param ke-2 yang dulu bernama `accessMode` padahal isinya network mode — diganti nama jadi `networkMode`). |
+| Context (`NetworkAccessContext.tsx`) | Mengekspos `accessMode`, `canMutate`, dan `isReadOnly = !canMutate` (dulu `mode === 'REMOTE_TUNNEL'`). Semua pemakai `isReadOnly` (LoginPage, Topbar) otomatis mengikuti mode akses tanpa perubahan. |
+| Auth (`AuthContext.tsx`) | `checkCapability` meneruskan `accessMode` dari context ke `evaluateCapability`. |
+| Banner (`NetworkModeBanner.tsx`) | 4 keadaan: LAN + Private, LAN + Public, Tunnel + Private (amber, observasi), Tunnel + Public (emerald, "Internet Publik — Akses Penuh (Mode Public)" + peringatan TLS/login). |
+| Topbar (`Topbar.tsx`) | Badge/select "Akses: Private/Public" di samping badge API, pola sama (select hanya bila switch diizinkan, badge read-only bila terkunci). Private = biru, Public = amber (peringatan: terbuka ke internet). Title tombol ganti password digeneralisasi ke "(mode observasi)". |
+| Env (`.env.example`) | Dua variabel baru + komentar, termasuk peringatan bahwa backend WAJIB menegakkan aturan yang sama. |
+
+**Kebutuhan backend:** ditulis lengkap di
+`docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` (B1–B25 + checklist V1–V12).
+Intinya: satu flag server `ACCESS_MODE` (default `private`, fail-closed);
+klasifikasi kanal dari ingress nyata (tidak bisa dipalsukan client);
+**middleware yang menolak semua mutasi dari tunnel saat `private` (403,
+envelope standar)**; endpoint `GET /api/v1/system/access-mode` +
+`GET /auth/me` yang mempublikasikan mode + kanal ke panel; endpoint admin
+`PUT /admin/access-mode` (ADMIN-only, audit trail, `reason` wajib); bila
+mode `public` dipakai: TLS wajib + auth penuh + rate limit lebih ketat di
+tunnel + log kanal. **Tanpa penegakan server, switch di panel hanyalah
+kosmetik** — curl langsung ke API bisa bypass panel.
+
+**Verifikasi:** `tsc` 0 error; `npm test` **76/76** (70 lama + 6 baru di
+`src/services/api/accessMode.test.ts`: resolver default/public/invalid,
+switch terkunci/terbuka, matriks 4 kombinasi, demo tunnel private vs public,
+HTTP vs stub port 3002 — 403 sebelum fetch vs 201, capability + helper);
+`npm run build` sukses; `vite preview` HTTP 200. Yang tetap belum
+terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat §6)
++ seluruh daftar B1–B25/V1–V12 di sisi backend (belum ada backend).
