@@ -393,9 +393,61 @@ lama); `vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL,
 keras; dari R9.5: `OperatorDetailModal` 257, `useBrokerConfig` 223,
 `RolesTab` 207, `useRolePermissions` 194, `useDevices` 189,
 `useOperatorCrud` 187, `useOeeAnalytics` 175; sisanya file lama di luar
-R9.5). Semua 13 commit lokal R9.5 (11 file + 2 fixup) belum di-push ke
-GitHub; status Linear R9.5 (FAT-39) → Done di `docs/LINEAR.md` §1.3 + §8
-dan `docs/linear-seed.json` v4 — perubahan status di Linear sendiri
-dilakukan Fathur/parent setelah verifikasi independen. Yang tetap belum
+R9.5). Semua 13 commit lokal R9.5 (11 file + 2 fixup) sudah di-push ke
+GitHub sebagai `1e0bfe9` (local `b495453`), dan FAT-39 ditandai Done di
+Linear setelah verifikasi independen. Yang tetap belum
 terverifikasi: visual di browser sungguhan + mode Real end-to-end (lihat
 §6).
+
+## 12. Keputusan: reject dihitung tanpa kategori alasan (2026-11-16)
+
+**Keputusan (atas permintaan Fathur):** reject hanya dihitung sebagai angka
+biasa, tanpa kategori/alasan reject. Alasannya faktual: perangkat OEE hanya
+punya **1 tombol Reject**, jadi yang tercatat di sumber hanyalah counter
+reject — tidak ada alasan yang bisa didistribusikan.
+
+**Dasar di dokumen acuan:** API doc §R (FR-BIGR-001..003) sudah
+mengantisipasi ini — sumber pareto adalah delta `UNCLASSIFIED` per jendela,
+dan totalnya harus dapat direkonsiliasi dengan
+`device_live_state.rejectCount` (G1). Pareto tanpa kategori memang bukan
+Pareto yang bermakna (satu bar, 100%); karena itu yang ditampilkan panel
+adalah jumlah reject apa adanya, dan distribusi 80/20 yang jujur adalah
+per device — yang sudah tersedia lewat kolom `rejectCount` di tabel rollup
+OEE (`OeeRollupTable`), bukan lewat alasan cacat.
+
+**Yang diubah:**
+- `src/services/api/demo/helpers.ts` — `REJECT_PARETO_BY_DEVICE`: seed
+  multi-alasan yang dibuat-buat (mis. "Dimension Tolerance Exceeded",
+  "Surface Roughness", "Thread Pitch Defect") **dihapus** dan diganti satu
+  item `UNCLASSIFIED` per device, dengan count = `reject_count` live state
+  (`seeds/monitoring.ts`): STM32-OEE-01: 8, -02: 3, -03: 14; -04/-05 tetap
+  `[]`. Agregasi plant-wide (`getRejectParetoGlobal`) kini menghasilkan
+  satu baris `UNCLASSIFIED` 25 pcs (100%) — tanpa perubahan logika.
+- `src/features/analytics/rejectReasonLabel.ts` (baru) —
+  `displayRejectReason()`: `UNCLASSIFIED` ditampilkan sebagai
+  "Belum diklasifikasi"; alasan lain (bila kelak ada) tampil apa adanya.
+  Dipakai `QualityRejectPareto.tsx` dan `QualityRejectsPage.tsx`.
+- Copy UI yang mengklaim distribusi/kategori cacat diperbaiki:
+  `QualityRejectPareto` — "Jumlah reject tanpa klasifikasi alasan —
+  perangkat hanya punya 1 tombol Reject"; `QualityRejectsPage` —
+  "Rekapitulasi jumlah reject tanpa klasifikasi alasan…" dan judul
+  "Jumlah Reject — tanpa klasifikasi alasan".
+
+**Yang TIDAK diubah:** kontrak endpoint `{reason, count, pct}` (API doc §R)
+dan mapper HTTP `paretoFromRows`/`mapReject` — keduanya sudah memakai
+`UNCLASSIFIED` sebagai nilai kanonis tanpa alasan (bahkan sebagai default
+bila `reason` hilang); matematika OEE/Quality (`rejectCount`, `good =
+output − reject`) dan `finalRejectCount` pada WO complete — semuanya sudah
+bekerja dari angka polos tanpa alasan.
+
+**Kebutuhan backend (bila klasifikasi alasan suatu hari diinginkan):**
+klasifikasi TIDAK bisa datang dari tombol Reject — harus dari alur lain
+(mis. klasifikasi QC di panel setelah reject terjadi, atau stasiun QC
+terpisah). Itu lingkup baru, bukan bagian dari keputusan ini; sampai ada
+alur itu, backend cukup mengembalikan baris `UNCLASSIFIED` (atau `[]` bila
+kosong) dan JANGAN memfabrikasi alasan.
+
+**Verifikasi:** `npx tsc --noEmit` **0 error**; `npm test` **76/76**;
+`npm run build` sukses (hanya peringatan chunk-size lama);
+`vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL,
+0 pengecualian tercatat**.

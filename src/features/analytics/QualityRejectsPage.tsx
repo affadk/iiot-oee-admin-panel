@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { BarChart2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { RejectParetoItem } from '../../types/analytics';
+import { displayRejectReason } from './rejectReasonLabel';
 import { EdgeDevice } from '../../types/assets';
 import { Button } from '../../components/ui/Button';
 
@@ -48,8 +49,8 @@ export const QualityRejectsPage: React.FC = () => {
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {selectedDeviceId === 'ALL'
-              ? 'Rekapitulasi kategori produk cacat dari seluruh pabrik.'
-              : `Analisis produk cacat khusus untuk perangkat ${selectedDeviceId}.`}
+              ? 'Rekapitulasi jumlah reject tanpa klasifikasi alasan dari seluruh pabrik.'
+              : `Jumlah reject tanpa klasifikasi alasan untuk perangkat ${selectedDeviceId}.`}
           </p>
         </div>
 
@@ -89,7 +90,7 @@ export const QualityRejectsPage: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-red-500" />
-              <span>Distribusi Penyebab Reject ({totalRejects} pcs total)</span>
+              <span>Jumlah Reject — tanpa klasifikasi alasan ({totalRejects} pcs total)</span>
             </h2>
           </div>
 
@@ -97,7 +98,7 @@ export const QualityRejectsPage: React.FC = () => {
             {items.map((item) => (
               <div key={item.reason} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-800 dark:text-slate-200">{item.reason}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{displayRejectReason(item.reason)}</span>
                   <span className="font-tabular text-slate-600 dark:text-slate-300">
                     <strong>{item.count} pcs</strong> ({item.percentage}% · Cum. {item.cumulative_percentage}%)
                   </span>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { RejectParetoItem } from '../../../types/analytics';
 import { useCapability } from '../../../context/AuthContext';
+import { displayRejectReason } from '../rejectReasonLabel';
 
 interface QualityRejectParetoProps {
   paretoItems: RejectParetoItem[];
@@ -25,7 +26,7 @@ export const QualityRejectPareto: React.FC<QualityRejectParetoProps> = ({
             Quality Reject Pareto ({paretoScope === 'GLOBAL' ? 'Plant-Wide' : resolvedDeviceId})
           </h2>
           <p className="text-[11px] text-slate-500">
-            Distribusi cacat produksi terbanyak beserta persentase kumulatif (80/20).
+            Jumlah reject tanpa klasifikasi alasan — perangkat hanya punya 1 tombol Reject.
           </p>
         </div>
         {canReadQuality.canInteract && (
@@ -65,7 +66,7 @@ export const QualityRejectPareto: React.FC<QualityRejectParetoProps> = ({
           {paretoItems.map((item) => (
             <div key={item.reason} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-slate-800 dark:text-slate-200">{item.reason}</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{displayRejectReason(item.reason)}</span>
                 <span className="font-tabular text-slate-600 dark:text-slate-400">
                   {item.count} pcs ({item.percentage.toFixed(1)}% · Kumulatif {item.cumulative_percentage.toFixed(1)}%)
                 </span>

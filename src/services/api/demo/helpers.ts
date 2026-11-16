@@ -350,23 +350,30 @@ export function generateTelemetrySeries(deviceId: string, count = 60): Telemetry
   return list;
 }
 
+/**
+ * Pareto reject per device — SATU keranjang `UNCLASSIFIED` per device, tanpa
+ * kategori alasan. Perangkat OEE hanya punya 1 tombol Reject, jadi yang
+ * tercatat di sumber hanyalah counter reject; tidak ada alasan yang bisa
+ * didistribusikan. Ini sesuai API doc §R (FR-BIGR-001..003): sumber pareto
+ * adalah delta `UNCLASSIFIED` per jendela, dan totalnya harus dapat
+ * direkonsiliasi dengan `device_live_state.rejectCount` — karena itu count di
+ * sini = `reject_count` live state per device di `seeds/monitoring.ts`
+ * (STM32-OEE-01: 8, -02: 3, -03: 14; -04/-05: 0 → `[]`, tanpa data → `[]`).
+ * JANGAN mengembalikan seed multi-alasan (mis. "Dimension Tolerance", dst.):
+ * alasan semacam itu tidak pernah dihasilkan perangkat dan akan menampilkan
+ * analisis cacat yang tidak pernah terjadi. Bila suatu hari klasifikasi
+ * alasan benar-benar dibutuhkan, ia harus datang dari alur lain (mis.
+ * klasifikasi QC di panel) — lihat AUDIT.md §12.
+ */
 export const REJECT_PARETO_BY_DEVICE: Record<string, RejectParetoItem[]> = {
   'STM32-OEE-01': [
-    { reason: 'Dimension Tolerance Exceeded (Outer Diameter)', count: 18, percentage: 46.2, cumulative_percentage: 46.2 },
-    { reason: 'Surface Roughness Ra > 0.8um', count: 11, percentage: 28.2, cumulative_percentage: 74.4 },
-    { reason: 'Thread Pitch Defect M12', count: 6, percentage: 15.4, cumulative_percentage: 89.8 },
-    { reason: 'Burr at Parting Line', count: 3, percentage: 7.7, cumulative_percentage: 97.5 },
-    { reason: 'Material Porosity/Inclusion', count: 1, percentage: 2.5, cumulative_percentage: 100.0 },
+    { reason: 'UNCLASSIFIED', count: 8, percentage: 100, cumulative_percentage: 100 },
   ],
   'STM32-OEE-02': [
-    { reason: 'Concentricity Runout > 0.03mm', count: 9, percentage: 52.9, cumulative_percentage: 52.9 },
-    { reason: 'Tool Wear Chatter Mark', count: 5, percentage: 29.4, cumulative_percentage: 82.3 },
-    { reason: 'Chamfer Undercut', count: 3, percentage: 17.7, cumulative_percentage: 100.0 },
+    { reason: 'UNCLASSIFIED', count: 3, percentage: 100, cumulative_percentage: 100 },
   ],
   'STM32-OEE-03': [
-    { reason: 'Hydraulic Pressure Short-Shot', count: 14, percentage: 63.6, cumulative_percentage: 63.6 },
-    { reason: 'Flange Seat Warping', count: 5, percentage: 22.7, cumulative_percentage: 86.3 },
-    { reason: 'Gasket Groove Burr', count: 3, percentage: 13.7, cumulative_percentage: 100.0 },
+    { reason: 'UNCLASSIFIED', count: 14, percentage: 100, cumulative_percentage: 100 },
   ],
   'STM32-OEE-04': [],
   'STM32-OEE-05': [],
