@@ -381,7 +381,7 @@
     "docs"
    ],
    "milestone": null,
-   "status": "In Progress"
+   "status": "Done"
   },
   {
    "key": "R9.1",
@@ -832,6 +832,619 @@
    ],
    "milestone": null,
    "status": "Done"
+  },
+  {
+   "key": "E13",
+   "title": "Backend gaps — System Admin (SYS-B1–SYS-B50)",
+   "description": "Epic gap backend untuk fungsionalitas System Admin panel (BUKAN implementasi panel; backend belum ada). Audit 2026-11-17: 50 gap (12 High, 23 Medium, 15 Low) membandingkan halaman admin dengan API_DOCUMENTATION.md + ADMIN_PANEL_BUILD_GUIDE.md. Dokumen lengkap: docs/BACKEND_GAPS_SYSTEM_ADMIN.md. Dikecualikan: infra jaringan dan mode akses Private/Public (sudah B1–B25, A10.2).",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "real-backend",
+    "docs"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B1",
+   "title": "POST `/access-control/policies`: body panel tidak cocok dengan kontrak backend; `subjectMatch` tidak pernah bisa diisi",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B1.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B2",
+   "title": "PUT `/access-control/policies/:id` (+ toggle aktif/nonaktif): method PATCH vs PUT dan nama field salah",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B2.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B3",
+   "title": "ABAC: grammar/atribut panel ≠ backend; placeholder panel justru contoh yang tidak valid",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B3.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B4",
+   "title": "GET `/auth/me`: `mustChangePassword` / `isActive` / `isProtected` dibuang; tidak ada alur ganti-password-wajib",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B4.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B5",
+   "title": "PUT `/access-control/roles/:id`: panel mengirim PATCH; deskripsi saja yang benar",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B5.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B6",
+   "title": "Bentuk respons GET `/roles`, `/permissions`, `/policies`, `/user-roles`, `/subjects/...`, `/info` tidak dispesifikasi field-per-field; panel menebak dan memberi default diam-diam",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B6.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B7",
+   "title": "Role preset: panel/demo mengunci keempat preset sebagai immutable — dokumen hanya mengunci ADMIN; perilaku hapus role ber-pemakaian tidak didokumentasikan",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B7.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B8",
+   "title": "Capability `access_control.read` tidak ada di panel; kunci capability panel belum tentu sama dengan katalog backend; 403 pada read bisa salah menurunkan `manage`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B8.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B9",
+   "title": "Proyeksi capability `/auth/me`: `domain`/`surface`/`mode`/`reason` per capability dan `enforcedDomains` dibuang; mode `partial` tidak jelas sumbernya",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B9.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B10",
+   "title": "POST `/access-control/permissions`: tidak ada UI; demo aktif memblokir dengan kode karangan; casing body belum pasti",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B10.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B11",
+   "title": "GET `/access-control/audit`: tanpa filter server-side; limit di-hardcode 100; keputusan di atas 100 hilang diam-diam",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B11.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B12",
+   "title": "Inspector `GET /subjects/:operatorId/effective-permissions`: bentuk respons tidak terdokumentasi; subjek default hardcode `SUP-042`; error deep-link ditelan",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B12.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B13",
+   "title": "POST `/access-control/roles/:id/permissions`: `reason` yang diketik admin dibuang di Real mode",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B13.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B14",
+   "title": "Mutasi assignment: `reason` tidak dikirim; revoke memakai composite key tanpa `id`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B14.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B15",
+   "title": "Refresh token: panel mengembalikan `authz_version` karangan (selalu 0/stale di Real); penanganan 401 `AUTHZ_STALE`/`SUBJECT_INACTIVE` generik",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B15.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B16",
+   "title": "Login: lockout client-side (5 percobaan/30 dtk) vs rate limit server (5/60 dtk); dokumentasi `Retry-After` belum ada",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B16.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B17",
+   "title": "GET `/access-control/user-roles` & `/policies`: panel tidak mengirim filter `operatorId`/`roleId`; muat-semua + saring client-side",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B17.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B18",
+   "title": "Aturan anti-eskalasi/wildcard karangan panel/demo yang lebih ketat dari dokumen",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B18.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B19",
+   "title": "Skema item audit (`OperationalEventItem`) tidak didefinisikan di dokumen mana pun; semua kolom AuditTrailPage adalah asumsi mapper",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B19.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B20",
+   "title": "`GET /health` tidak menyediakan field yang ditampilkan SystemHealthPage; transport HTTP mensintesis data kesehatan palsu",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B20.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B21",
+   "title": "PATCH ack tidak mengirim `operatorId`; dokumen bertentangan soal wajib/tidak",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B21.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B22",
+   "title": "Filter `severity` dan `acknowledged` di halaman Operational Events dibuang oleh transport HTTP; di Demo jalan, di Real mode diam-diam diabaikan",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B22.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B23",
+   "title": "Konflik dokumen: `machine_id` pada list global dan ekspor operational-events; Guide bilang didukung, API doc tidak mencantumkannya",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B23.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B24",
+   "title": "Dukungan `event_type` pada `GET /system/audit` tidak ada di dokumen; panel bisa mengirimnya (via URL) dan demo mengabaikannya",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B24.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B25",
+   "title": "Bentuk envelope `meta` list tidak didefinisikan; paginasi cursor dan total bisa gagal diam-diam",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B25.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B26",
+   "title": "System audit tidak bisa diekspor: tidak ada endpoint ekspor dan tidak ada tombolnya di UI",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B26.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B27",
+   "title": "Tidak ada endpoint info/versi backend; SystemInfoPage murni statis",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B27.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B28",
+   "title": "Rotasi password MQTT: http memakai POST, dokumen memakai PATCH",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B28.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B29",
+   "title": "Enable/disable klien MQTT: http memakai POST + `{disabled}`, dokumen memakai PATCH + `{enabled}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B29.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B30",
+   "title": "Provisioning perangkat: http mengubah nilai `access` menjadi `telemetry` / `telemetry+state`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B30.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B31",
+   "title": "Tambah peran ke klien: http mengirim `{roles:[{rolename, priority}]}`, dokumen memakai `{rolename, priority?}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B31.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B32",
+   "title": "Tambah ACL ke peran: http mengirim `{acls:[acl]}`, dokumen memakai objek ACL tunggal `{acltype, topic, ...}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B32.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B33",
+   "title": "Buat klien: password kosong dikirim sebagai string kosong; auto-generate tidak dijamin dokumen; field `textname`/`textdescription`/`groups`/`clientid` dibuang di sebagian mode",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B33.",
+   "parentKey": "E13",
+   "priority": 2,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B34",
+   "title": "Bentuk respons `POST /clients` (password sekali tampil) tidak dinamai di dokumen",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B34.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B35",
+   "title": "Mapper `mapMqttClient`: logika `enabled` bisa terbalik bila backend mengembalikan `enabled:false`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B35.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B36",
+   "title": "Tambah klien ke grup: http mengirim `{clients:[{username}]}`, dokumen memakai `{username, priority?}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B36.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B37",
+   "title": "Tambah peran ke grup: http mengirim `{roles:[{rolename}]}`, dokumen memakai `{rolename, priority?}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B37.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B38",
+   "title": "`GET /mqtt/configuration` tanpa trailing slash; dokumen API mewajibkan trailing slash",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B38.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B39",
+   "title": "Stage konfigurasi: panel mengirim `{config, summary}`, dokumen memakai `{config, baseVersionId?, reason?, comment?}`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B39.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B40",
+   "title": "Detail error 422 staging: dokumen menyebut field `details`, panel hanya mem-parsing `issues`",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B40.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B41",
+   "title": "Apply/rollback: panel tidak mengirim `acknowledgeUnvalidated`, dan hanya polling operasi satu kali",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B41.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B42",
+   "title": "`POST /backups` tidak ada di dokumen (endpoint hantu); tidak ada restore/download backup",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B42.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B43",
+   "title": "Model konfigurasi terstruktur tidak dispesifikasi; field, default, dan enum status versi/operasi ditebak panel",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B43.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B44",
+   "title": "Overview: bentuk dalam `{dynamicSecurity, configuration}` tidak dispesifikasi; `null` (plugin nonaktif) diubah panel menjadi nilai yang menyesatkan",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B44.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B45",
+   "title": "Filter Shift Schedules: panel memakai snake_case, Guide memakai camelCase",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B45.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B46",
+   "title": "Respons list/detail Shift Schedule: field denormalisasi (`shiftName/shiftCode/startTime/endTime`) tidak dijamin dokumen",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B46.",
+   "parentKey": "E13",
+   "priority": 3,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B47",
+   "title": "Operators: `is_active` pada create dihilangkan http; proteksi `ADM-001` berbeda status demo vs dokumen",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B47.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B48",
+   "title": "List DynSec & Operators tanpa pagination/filter server-side; panel mengambil semua",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B48.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B49",
+   "title": "Hapus Production Line: demo memblokir bila line dipakai operator; dokumen hanya menyebut machines + snapshot WO",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B49.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
+  },
+  {
+   "key": "SYS-B50",
+   "title": "Hapus Shift: demo hanya memeriksa shift_schedules, bukan snapshot WO; efek ubah jam shift ke jadwal yang ada tidak dispesifikasi",
+   "description": "Gap backend System Admin — lihat docs/BACKEND_GAPS_SYSTEM_ADMIN.md SYS-B50.",
+   "parentKey": "E13",
+   "priority": 4,
+   "labels": [
+    "real-backend"
+   ],
+   "milestone": null,
+   "status": "Todo"
   }
  ],
  "labelsToCreate": [
@@ -896,7 +1509,7 @@
    "name": "docs"
   }
  ],
- "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.] [v5 2026-11-16 malam: E11 + T11.1–T11.5 ditambah dari audit telemetry (docs/TELEMETRY_AUDIT.md, 25 gap); FAT-43–FAT-48. Hitung ulang: 29 Done / 3 In Progress / 12 Todo, 44 issue.] [v6 2026-11-16 malam: T11.1–T11.5 -> Done (AUDIT.md §14; 5 commit lokal E11: from/to hourly+aggregate, summary/timeline ikut periode, rollup ikut mesin, seed demo terrekoniliasi, label scope; tsc 0, test 117/117, build OK, preview 200, checker 1 FAIL pre-existing demo/telemetry.ts 726 baris). Hitung ulang: 34 Done / 3 In Progress / 7 Todo.] [v7 2026-11-16 malam: T11.6 ditambah setelah verifikasi independen menemukan checker 1 FAIL yang diperkenalkan E11 (telemetry.ts 519 -> 725 baris); FAT-49. Hitung ulang: 29 Done / 3 In Progress / 13 Todo, 45 issue.] [v8 2026-11-16 malam: T11.6 -> Done (split demo/telemetry.ts per domain, checker kembali 0 FAIL); E11 tuntas. Hitung ulang: 35 Done / 3 In Progress / 7 Todo, 45 issue.] [v9 2026-11-17: E12 + T12.1–T12.19 ditambah dari docs/E12_PROPOSAL.md (admin-panel saja; infra Nginx + backend dikecualikan); E11 -> Done (FAT-43 ditutup). FAT-50–FAT-69. Hitung ulang: 36 Done / 3 In Progress / 26 Todo, 65 issue.] [v10 2026-11-17: E12 + T12.1–T12.19 -> Done (AUDIT.md §15; 19 commit lokal E12: filter shift, aggregate per-bucket, kolom per jam + presisi 2 desimal, planned downtime sisi panel, empty/loading/error state, indikator rekonsiliasi + investigasi parts, ekspor = layar + rollup, builder -> registry, kontrol periode OEE, toggle scope rollup, tz Asia/Jakarta, provisional konsisten, downtime N dari M + paginasi, hapus hourly_downtime_sec, mapping cycle_time_ms, refetchAll/isRefreshing, reset segmen, 6 default diselaraskan, tampilan kanonis + tautan silang; tsc 0, test 324/324, build OK, preview 200, checker 0 FAIL 0 pengecualian; selisih parts 334 vs 350 TIDAK diperbaiki — menunggu keputusan Fathur, Opsi A di AUDIT.md §15). Hitung ulang: 56 Done / 2 In Progress / 7 Todo, 65 issue.] [v11 2026-11-17: T12.6a ditambah + Done (Opsi A diterapkan, commit ec49a2a); E12 kembali Done. FAT-70. Hitung ulang: 57 Done / 2 In Progress / 7 Todo, 66 issue.]",
+ "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.] [v5 2026-11-16 malam: E11 + T11.1–T11.5 ditambah dari audit telemetry (docs/TELEMETRY_AUDIT.md, 25 gap); FAT-43–FAT-48. Hitung ulang: 29 Done / 3 In Progress / 12 Todo, 44 issue.] [v6 2026-11-16 malam: T11.1–T11.5 -> Done (AUDIT.md §14; 5 commit lokal E11: from/to hourly+aggregate, summary/timeline ikut periode, rollup ikut mesin, seed demo terrekoniliasi, label scope; tsc 0, test 117/117, build OK, preview 200, checker 1 FAIL pre-existing demo/telemetry.ts 726 baris). Hitung ulang: 34 Done / 3 In Progress / 7 Todo.] [v7 2026-11-16 malam: T11.6 ditambah setelah verifikasi independen menemukan checker 1 FAIL yang diperkenalkan E11 (telemetry.ts 519 -> 725 baris); FAT-49. Hitung ulang: 29 Done / 3 In Progress / 13 Todo, 45 issue.] [v8 2026-11-16 malam: T11.6 -> Done (split demo/telemetry.ts per domain, checker kembali 0 FAIL); E11 tuntas. Hitung ulang: 35 Done / 3 In Progress / 7 Todo, 45 issue.] [v9 2026-11-17: E12 + T12.1–T12.19 ditambah dari docs/E12_PROPOSAL.md (admin-panel saja; infra Nginx + backend dikecualikan); E11 -> Done (FAT-43 ditutup). FAT-50–FAT-69. Hitung ulang: 36 Done / 3 In Progress / 26 Todo, 65 issue.] [v10 2026-11-17: E12 + T12.1–T12.19 -> Done (AUDIT.md §15; 19 commit lokal E12: filter shift, aggregate per-bucket, kolom per jam + presisi 2 desimal, planned downtime sisi panel, empty/loading/error state, indikator rekonsiliasi + investigasi parts, ekspor = layar + rollup, builder -> registry, kontrol periode OEE, toggle scope rollup, tz Asia/Jakarta, provisional konsisten, downtime N dari M + paginasi, hapus hourly_downtime_sec, mapping cycle_time_ms, refetchAll/isRefreshing, reset segmen, 6 default diselaraskan, tampilan kanonis + tautan silang; tsc 0, test 324/324, build OK, preview 200, checker 0 FAIL 0 pengecualian; selisih parts 334 vs 350 TIDAK diperbaiki — menunggu keputusan Fathur, Opsi A di AUDIT.md §15). Hitung ulang: 56 Done / 2 In Progress / 7 Todo, 65 issue.] [v11 2026-11-17: T12.6a ditambah + Done (Opsi A diterapkan, commit ec49a2a); E12 kembali Done. FAT-70. Hitung ulang: 57 Done / 2 In Progress / 7 Todo, 66 issue.] [2026-11-17: Epic E9 (FAT-33) ditutup — semua child R9.1–R9.6 Done sejak 2026-11-16 malam; hitung ulang: 58 Done / 1 In Progress / 7 Todo.] [v12 2026-11-17: E13 + SYS-B1–SYS-B50 ditambah (Epic FAT-71, child FAT-72–FAT-121), semua Todo. Hitung ulang: 58 Done / 1 In Progress / 58 Todo, 117 issue.]",
  "project": {
   "description": "Admin Panel IIoT OEE — 131 operasi Admin REST + 1 WebSocket (Guide Lamp. A). Repo: github.com/fadk-dev/iiot-oee-admin-panel. Acuan: ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md. Mode Demo (default) vs Real via VITE_API_MODE; belum ada backend, mode Real belum terverifikasi. Laporan audit: AUDIT.md di repo. Metodologi tracking: docs/LINEAR.md.",
   "milestones": [
@@ -913,7 +1526,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 11,
+ "version": 12,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -986,14 +1599,65 @@
    "T12.17": "FAT-69",
    "T12.18": "FAT-65",
    "T12.19": "FAT-64",
-   "T12.6a": "FAT-70"
+   "T12.6a": "FAT-70",
+   "E13": "FAT-71",
+   "SYS-B1": "FAT-72",
+   "SYS-B2": "FAT-73",
+   "SYS-B3": "FAT-74",
+   "SYS-B4": "FAT-75",
+   "SYS-B5": "FAT-76",
+   "SYS-B6": "FAT-77",
+   "SYS-B7": "FAT-78",
+   "SYS-B8": "FAT-79",
+   "SYS-B9": "FAT-80",
+   "SYS-B10": "FAT-81",
+   "SYS-B11": "FAT-82",
+   "SYS-B12": "FAT-83",
+   "SYS-B13": "FAT-84",
+   "SYS-B14": "FAT-85",
+   "SYS-B15": "FAT-86",
+   "SYS-B16": "FAT-87",
+   "SYS-B17": "FAT-88",
+   "SYS-B18": "FAT-89",
+   "SYS-B19": "FAT-90",
+   "SYS-B20": "FAT-91",
+   "SYS-B21": "FAT-92",
+   "SYS-B22": "FAT-93",
+   "SYS-B23": "FAT-94",
+   "SYS-B24": "FAT-95",
+   "SYS-B25": "FAT-96",
+   "SYS-B26": "FAT-97",
+   "SYS-B27": "FAT-98",
+   "SYS-B28": "FAT-99",
+   "SYS-B29": "FAT-100",
+   "SYS-B30": "FAT-101",
+   "SYS-B31": "FAT-102",
+   "SYS-B32": "FAT-103",
+   "SYS-B33": "FAT-104",
+   "SYS-B34": "FAT-105",
+   "SYS-B35": "FAT-106",
+   "SYS-B36": "FAT-107",
+   "SYS-B37": "FAT-108",
+   "SYS-B38": "FAT-109",
+   "SYS-B39": "FAT-110",
+   "SYS-B40": "FAT-111",
+   "SYS-B41": "FAT-112",
+   "SYS-B42": "FAT-113",
+   "SYS-B43": "FAT-114",
+   "SYS-B44": "FAT-115",
+   "SYS-B45": "FAT-116",
+   "SYS-B46": "FAT-117",
+   "SYS-B47": "FAT-118",
+   "SYS-B48": "FAT-119",
+   "SYS-B49": "FAT-120",
+   "SYS-B50": "FAT-121"
   },
   "verified": {
-   "total": 65,
-   "done": 56,
-   "todo": 7,
-   "parents": 12,
-   "children": 53
+   "total": 117,
+   "done": 58,
+   "todo": 58,
+   "parents": 13,
+   "children": 104
   },
   "milestonesNote": "M1-M8 NOT created in Linear: no milestone tool in the Linear MCP connector; create manually in Linear UI if wanted.",
   "note": "E9/E10 + anak dibuat 2026-11-16 ~14:20 WIB (FAT-33 s.d. FAT-42). Milestone tidak diterapkan (tidak ada tool milestone di konektor Linear)."

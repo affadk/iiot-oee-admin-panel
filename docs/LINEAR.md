@@ -18,7 +18,7 @@
 
 ## 1. Struktur
 
-### 1.1 Satu Project, dua belas Epic
+### 1.1 Satu Project, tiga belas Epic
 
 | Epic (parent issue) | Fase Guide | Isi |
 | --- | --- | --- |
@@ -34,6 +34,7 @@
 | E10 Mode Akses Private/Public | D1, §4.1–4.2 | Switch `VITE_ACCESS_MODE` + enforcement + kebutuhan backend (B1–B25) |
 | E11 Perbaikan Telemetry & OEE | §6.8, §Q, §K | Audit 2026-11-16: 25 gap Telemetry History / OEE per jam / Timeline Shift — 5 usulan prioritas dalam scope (F-1–F-4, U-1) |
 | E12 Lanjutan Perbaikan Telemetry & OEE | §6.8, §Q, §K | Audit 2026-11-16: 19 usulan tersisa (F-5–F-13, X-1–X-6, U-2–U-5) — admin-panel saja; infra (Nginx) + backend dikecualikan |
+| E13 Backend gaps — System Admin | §3.3, §3.4, §6.7, §H, §M, §N, §O, §P | Audit 2026-11-17: 50 gap backend System Admin (SYS-B1–SYS-B50) — kontrak IAM, audit, health, MQTT DynSec/Config, master data |
 
 Setiap Epic adalah **parent issue**; modul di bawahnya adalah **child issue**
 (`parentId` ke Epic). Tidak ada issue yatim: semua task harus punya parent Epic,
@@ -88,7 +89,7 @@ dianggap selesai penuh.
 | V8.3 | Uji integrasi LAN per modul (Guide §12, 1 alur E2E/modul) | E8 | **Todo — Blocked** | High | `verification`, `real-backend`, `blocked` |
 | V8.4 | Deployment Nginx §13 (Vite statis, port 80/8080, CSP, no-store) | E8 | **Todo** | Medium | `deployment` |
 | V8.5 | Definition of Done §15 — checklist per modul | E8 | **Todo** | High | `verification`, `docs` |
-| E9 | Refactoring struktur direktori & kontrak penulisan kode | — | **In Progress** | High | `docs` |
+| E9 | Refactoring struktur direktori & kontrak penulisan kode | — | Done | High | `docs` |
 | R9.1 | Kontrak directory-structure + checker otomatis | E9 | Done | High | `docs` |
 | R9.2 | Pecah services/api: mockData, schemas, endpoints per domain | E9 | Done | High | `docs` |
 | R9.3 | Pecah client.ts demo + httpClient.ts per domain | E9 | Done | High | `docs` |
@@ -126,6 +127,57 @@ dianggap selesai penuh.
 | T12.18 | Samakan default dengan dokumen, atau catat deviasinya | E12 | Done | Low | `fase-3` |
 | T12.19 | Satu tampilan kanonis OEE per jam + tautan silang | E12 | Done | Low | `fase-3` |
 | T12.6a | Terapkan Opsi A: summary parts dari Σ hourly | E12 | Done | High | `fase-3` |
+| E13 | Backend gaps — System Admin (SYS-B1–SYS-B50) | — | **Todo** | High | `real-backend`, `docs` |
+| SYS-B1 | POST `/access-control/policies`: body panel tidak cocok dengan kontrak backend; `subjectMatch` tidak pernah bisa diisi | E13 | **Todo** | High | `real-backend` |
+| SYS-B2 | PUT `/access-control/policies/:id` (+ toggle aktif/nonaktif): method PATCH vs PUT dan nama field salah | E13 | **Todo** | High | `real-backend` |
+| SYS-B3 | ABAC: grammar/atribut panel ≠ backend; placeholder panel justru contoh yang tidak valid | E13 | **Todo** | High | `real-backend` |
+| SYS-B4 | GET `/auth/me`: `mustChangePassword` / `isActive` / `isProtected` dibuang; tidak ada alur ganti-password-wajib | E13 | **Todo** | High | `real-backend` |
+| SYS-B5 | PUT `/access-control/roles/:id`: panel mengirim PATCH; deskripsi saja yang benar | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B6 | Bentuk respons GET `/roles`, `/permissions`, `/policies`, `/user-roles`, `/subjects/...`, `/info` tidak dispesifikasi field-per-field; panel menebak dan memberi default diam-diam | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B7 | Role preset: panel/demo mengunci keempat preset sebagai immutable — dokumen hanya mengunci ADMIN; perilaku hapus role ber-pemakaian tidak didokumentasikan | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B8 | Capability `access_control.read` tidak ada di panel; kunci capability panel belum tentu sama dengan katalog backend; 403 pada read bisa salah menurunkan `manage` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B9 | Proyeksi capability `/auth/me`: `domain`/`surface`/`mode`/`reason` per capability dan `enforcedDomains` dibuang; mode `partial` tidak jelas sumbernya | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B10 | POST `/access-control/permissions`: tidak ada UI; demo aktif memblokir dengan kode karangan; casing body belum pasti | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B11 | GET `/access-control/audit`: tanpa filter server-side; limit di-hardcode 100; keputusan di atas 100 hilang diam-diam | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B12 | Inspector `GET /subjects/:operatorId/effective-permissions`: bentuk respons tidak terdokumentasi; subjek default hardcode `SUP-042`; error deep-link ditelan | E13 | **Todo** | Low | `real-backend` |
+| SYS-B13 | POST `/access-control/roles/:id/permissions`: `reason` yang diketik admin dibuang di Real mode | E13 | **Todo** | Low | `real-backend` |
+| SYS-B14 | Mutasi assignment: `reason` tidak dikirim; revoke memakai composite key tanpa `id` | E13 | **Todo** | Low | `real-backend` |
+| SYS-B15 | Refresh token: panel mengembalikan `authz_version` karangan (selalu 0/stale di Real); penanganan 401 `AUTHZ_STALE`/`SUBJECT_INACTIVE` generik | E13 | **Todo** | Low | `real-backend` |
+| SYS-B16 | Login: lockout client-side (5 percobaan/30 dtk) vs rate limit server (5/60 dtk); dokumentasi `Retry-After` belum ada | E13 | **Todo** | Low | `real-backend` |
+| SYS-B17 | GET `/access-control/user-roles` & `/policies`: panel tidak mengirim filter `operatorId`/`roleId`; muat-semua + saring client-side | E13 | **Todo** | Low | `real-backend` |
+| SYS-B18 | Aturan anti-eskalasi/wildcard karangan panel/demo yang lebih ketat dari dokumen | E13 | **Todo** | Low | `real-backend` |
+| SYS-B19 | Skema item audit (`OperationalEventItem`) tidak didefinisikan di dokumen mana pun; semua kolom AuditTrailPage adalah asumsi mapper | E13 | **Todo** | High | `real-backend` |
+| SYS-B20 | `GET /health` tidak menyediakan field yang ditampilkan SystemHealthPage; transport HTTP mensintesis data kesehatan palsu | E13 | **Todo** | High | `real-backend` |
+| SYS-B21 | PATCH ack tidak mengirim `operatorId`; dokumen bertentangan soal wajib/tidak | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B22 | Filter `severity` dan `acknowledged` di halaman Operational Events dibuang oleh transport HTTP; di Demo jalan, di Real mode diam-diam diabaikan | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B23 | Konflik dokumen: `machine_id` pada list global dan ekspor operational-events; Guide bilang didukung, API doc tidak mencantumkannya | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B24 | Dukungan `event_type` pada `GET /system/audit` tidak ada di dokumen; panel bisa mengirimnya (via URL) dan demo mengabaikannya | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B25 | Bentuk envelope `meta` list tidak didefinisikan; paginasi cursor dan total bisa gagal diam-diam | E13 | **Todo** | Low | `real-backend` |
+| SYS-B26 | System audit tidak bisa diekspor: tidak ada endpoint ekspor dan tidak ada tombolnya di UI | E13 | **Todo** | Low | `real-backend` |
+| SYS-B27 | Tidak ada endpoint info/versi backend; SystemInfoPage murni statis | E13 | **Todo** | Low | `real-backend` |
+| SYS-B28 | Rotasi password MQTT: http memakai POST, dokumen memakai PATCH | E13 | **Todo** | High | `real-backend` |
+| SYS-B29 | Enable/disable klien MQTT: http memakai POST + `{disabled}`, dokumen memakai PATCH + `{enabled}` | E13 | **Todo** | High | `real-backend` |
+| SYS-B30 | Provisioning perangkat: http mengubah nilai `access` menjadi `telemetry` / `telemetry+state` | E13 | **Todo** | High | `real-backend` |
+| SYS-B31 | Tambah peran ke klien: http mengirim `{roles:[{rolename, priority}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Todo** | High | `real-backend` |
+| SYS-B32 | Tambah ACL ke peran: http mengirim `{acls:[acl]}`, dokumen memakai objek ACL tunggal `{acltype, topic, ...}` | E13 | **Todo** | High | `real-backend` |
+| SYS-B33 | Buat klien: password kosong dikirim sebagai string kosong; auto-generate tidak dijamin dokumen; field `textname`/`textdescription`/`groups`/`clientid` dibuang di sebagian mode | E13 | **Todo** | High | `real-backend` |
+| SYS-B34 | Bentuk respons `POST /clients` (password sekali tampil) tidak dinamai di dokumen | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B35 | Mapper `mapMqttClient`: logika `enabled` bisa terbalik bila backend mengembalikan `enabled:false` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B36 | Tambah klien ke grup: http mengirim `{clients:[{username}]}`, dokumen memakai `{username, priority?}` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B37 | Tambah peran ke grup: http mengirim `{roles:[{rolename}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B38 | `GET /mqtt/configuration` tanpa trailing slash; dokumen API mewajibkan trailing slash | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B39 | Stage konfigurasi: panel mengirim `{config, summary}`, dokumen memakai `{config, baseVersionId?, reason?, comment?}` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B40 | Detail error 422 staging: dokumen menyebut field `details`, panel hanya mem-parsing `issues` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B41 | Apply/rollback: panel tidak mengirim `acknowledgeUnvalidated`, dan hanya polling operasi satu kali | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B42 | `POST /backups` tidak ada di dokumen (endpoint hantu); tidak ada restore/download backup | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B43 | Model konfigurasi terstruktur tidak dispesifikasi; field, default, dan enum status versi/operasi ditebak panel | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B44 | Overview: bentuk dalam `{dynamicSecurity, configuration}` tidak dispesifikasi; `null` (plugin nonaktif) diubah panel menjadi nilai yang menyesatkan | E13 | **Todo** | Low | `real-backend` |
+| SYS-B45 | Filter Shift Schedules: panel memakai snake_case, Guide memakai camelCase | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B46 | Respons list/detail Shift Schedule: field denormalisasi (`shiftName/shiftCode/startTime/endTime`) tidak dijamin dokumen | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B47 | Operators: `is_active` pada create dihilangkan http; proteksi `ADM-001` berbeda status demo vs dokumen | E13 | **Todo** | Low | `real-backend` |
+| SYS-B48 | List DynSec & Operators tanpa pagination/filter server-side; panel mengambil semua | E13 | **Todo** | Low | `real-backend` |
+| SYS-B49 | Hapus Production Line: demo memblokir bila line dipakai operator; dokumen hanya menyebut machines + snapshot WO | E13 | **Todo** | Low | `real-backend` |
+| SYS-B50 | Hapus Shift: demo hanya memeriksa shift_schedules, bukan snapshot WO; efek ubah jam shift ke jadwal yang ada tidak dispesifikasi | E13 | **Todo** | Low | `real-backend` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -319,8 +371,8 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **66 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **57 Done, 2 In Progress, 7 Todo**, 12 Epic tanpa parent, 54 child dengan
+- Issue: **117 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
+  **58 Done, 1 In Progress, 58 Todo**, 13 Epic tanpa parent, 104 child dengan
   `parentId` — persis sesuai §1.3 (28 awal + E9/R9.1–R9.6 + E10/A10.1–A10.2,
   dibuat 2026-11-16 ~14:20 WIB; R9.2/R9.3/R9.4/R9.5/R9.6 Done 2026-11-16 malam,
   tersisa A10.2 + V8.1–V8.5; E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
@@ -329,7 +381,7 @@ tapi status implementasi yang berlaku adalah status di Linear.
   2026-11-17 dari `docs/E12_PROPOSAL.md` — admin-panel saja, infra Nginx +
   backend dikecualikan, Done 2026-11-17 — AUDIT.md §15, Epic E12 ditutup
   2026-11-17, di-push `af5011f`; T12.6a (Opsi A, FAT-70) dibuat 2026-11-17
-  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15).
+  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15; E13/SYS-B1–SYS-B50 dibuat 2026-11-17 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` — gap backend System Admin, belum dikerjakan, Epic E13 Todo).
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 
@@ -371,6 +423,32 @@ tapi status implementasi yang berlaku adalah status di Linear.
 | T12.16 | FAT-68 | T12.17 | FAT-69 |
 | T12.18 | FAT-65 | T12.19 | FAT-64 |
 | T12.6a | FAT-70 | | |
+| E13 Backend gaps | FAT-71 | SYS-B1 | FAT-72 |
+| SYS-B2 | FAT-73 | SYS-B3 | FAT-74 |
+| SYS-B4 | FAT-75 | SYS-B5 | FAT-76 |
+| SYS-B6 | FAT-77 | SYS-B7 | FAT-78 |
+| SYS-B8 | FAT-79 | SYS-B9 | FAT-80 |
+| SYS-B10 | FAT-81 | SYS-B11 | FAT-82 |
+| SYS-B12 | FAT-83 | SYS-B13 | FAT-84 |
+| SYS-B14 | FAT-85 | SYS-B15 | FAT-86 |
+| SYS-B16 | FAT-87 | SYS-B17 | FAT-88 |
+| SYS-B18 | FAT-89 | SYS-B19 | FAT-90 |
+| SYS-B20 | FAT-91 | SYS-B21 | FAT-92 |
+| SYS-B22 | FAT-93 | SYS-B23 | FAT-94 |
+| SYS-B24 | FAT-95 | SYS-B25 | FAT-96 |
+| SYS-B26 | FAT-97 | SYS-B27 | FAT-98 |
+| SYS-B28 | FAT-99 | SYS-B29 | FAT-100 |
+| SYS-B30 | FAT-101 | SYS-B31 | FAT-102 |
+| SYS-B32 | FAT-103 | SYS-B33 | FAT-104 |
+| SYS-B34 | FAT-105 | SYS-B35 | FAT-106 |
+| SYS-B36 | FAT-107 | SYS-B37 | FAT-108 |
+| SYS-B38 | FAT-109 | SYS-B39 | FAT-110 |
+| SYS-B40 | FAT-111 | SYS-B41 | FAT-112 |
+| SYS-B42 | FAT-113 | SYS-B43 | FAT-114 |
+| SYS-B44 | FAT-115 | SYS-B45 | FAT-116 |
+| SYS-B46 | FAT-117 | SYS-B47 | FAT-118 |
+| SYS-B48 | FAT-119 | SYS-B49 | FAT-120 |
+| SYS-B50 | FAT-121 |  |  |
 
 Perhatian: nomor FAT tidak berurutan per fase — Linear memberinya sesuai
 urutan pembuatan paralel, jadi selalu pakai tabel ini (dan `docs/linear-seed.json`

@@ -783,3 +783,54 @@ badge/catatan + kedua tautan silang T12.19) + mode Real end-to-end
 (lihat §6); perilaku default 72/500 di sisi server backend hidup juga
 belum terverifikasi — yang dipastikan hanya klien tidak lagi
 mengirim/mengasumsikan nilai lama.
+
+## 16. Gap backend — Fungsionalitas System Admin (2026-11-17)
+
+**Permintaan Fathur:** periksa apakah fungsionalitas System Admin (tidak
+termasuk infra jaringan) membutuhkan penyesuaian dari sisi backend; bila ada,
+buatkan issue/dokumen gap perbaikan untuk backend.
+
+**Metode:** audit perbandingan — setiap halaman admin (IAM/Access Control,
+System Audit, Health, MQTT DynSec + Config + Overview, Lines/Shifts/
+Schedules, Operators) dicocokkan dengan `API_DOCUMENTATION.md` +
+`ADMIN_PANEL_BUILD_GUIDE.md`, lewat endpoint + mapper di `http/*` dan
+workaround di `demo/*`. Temuan High di-spot-check independen ke kode dan
+dokumen (rotasi POST vs PATCH, toggle `{disabled}`, `accessMap`,
+`{roles:[...]}`, body policy snake_case, sintesis health,
+`OperationalEventItem` tanpa skema field, `mustChangePassword` tidak dipakai,
+filter schedule API snake_case vs Guide camelCase, trailing slash config).
+
+**Hasil: 50 gap (SYS-B1–SYS-B50): 12 High, 23 Medium, 15 Low.**
+Registry endpoint panel lengkap (59 kunci di irisan ini; 131 operasi admin)
+— **tidak ada satu pun endpoint yang hilang dari registry**. Hampir semua gap
+adalah ketidaksesuaian **bentuk kontrak** (body/method/field/filter/skema
+respons), bukan endpoint yang belum didaftarkan. Dokumen lengkap:
+`docs/BACKEND_GAPS_SYSTEM_ADMIN.md` (50 gap + daftar "tidak ada gap" +
+temuan sisi panel/demo + 22 pertanyaan terbuka).
+
+**Enam tema:** (1) skema respons tidak tertulis untuk hampir seluruh
+permukaan admin — panel menebak field dengan default diam-diam; (2) panel
+mengirim snake_case / array jamak, dokumen menetapkan camelCase / objek
+tunggal; (3) method salah di transport panel (PATCH vs PUT di IAM, POST vs
+PATCH di dynsec); (4) filter yang dikirim panel tapi tidak ada di dokumen /
+bertentangan antar-dokumen, tanpa aturan apakah query param tak dikenal
+diabaikan atau ditolak 400; (5) Demo menutupi kegagalan Real mode; (6)
+kontradiksi dokumen-vs-dokumen (D-1/D-2 sudah diketahui §3; D-3–D-7 baru).
+
+**Blok terbesar:** bentuk dynsec (B28–B32, B36, B37 — 7 dari 23 operasi
+dynsec: method, body tunggal vs jamak, nilai `access`, nama field password
+sekali tampil, bentuk objek klien/peran/grup); tulis policy + ABAC (B1–B3);
+kontrak audit + health (B19, B20 — halaman tampil salah tanpa error);
+kontrak config broker (B38–B43).
+
+**Linear:** Epic E13 (FAT-71) + 50 child SYS-B1–SYS-B50 (FAT-72–FAT-121),
+semua Todo; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v12
+(117 issue: 58 Done / 1 In Progress / 58 Todo). **Bukan implementasi panel**
+— tidak ada perubahan kode di repo ini untuk E13 (hanya dokumen gap +
+entri Linear). Acceptance criteria tiap gap harus diuji melawan backend
+sungguhan di mode Real, bukan Demo.
+
+**Dikecualikan dari audit ini:** infra jaringan (Nginx/dual-vhost/port/TLS/
+tunnel) dan mode akses Private/Public — sudah tercakup
+`docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` (B1–B25, A10.2); telemetry/OEE/
+analytics — sudah diaudit E11/E12 (§14–§15).
