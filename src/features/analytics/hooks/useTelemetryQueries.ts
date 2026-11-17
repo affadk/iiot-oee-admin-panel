@@ -11,16 +11,8 @@ import {
 export type AggBucket = '1m' | '5m' | '15m' | '1h' | '1d';
 export type TelemetryTab = 'raw' | 'hourly' | 'aggregate' | 'rollup';
 
-export interface TelemetryAggregateSummary {
-  device_id: string;
-  bucket: string;
-  avg_oee: number;
-  avg_availability: number;
-  avg_performance: number;
-  avg_quality: number;
-  total_parts: number;
-  sample_count: number;
-}
+/** E12 T12.2 (F-5): hasil agregat = ringkasan + deret per-bucket (rows). */
+export type { TelemetryAggregateResult as TelemetryAggregateSummary } from '../../../types/analytics';
 
 export interface UseTelemetryQueriesInput {
   filters: HistoryFilters;

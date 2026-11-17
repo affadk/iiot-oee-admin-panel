@@ -35,7 +35,10 @@ export interface HourlyOeePoint {
   good_count?: number;
   hourly_operating_sec?: number;
   hourly_run_sec?: number;
-  hourly_downtime_sec?: number;
+  // E12 T12.14 (F-10 / FAT-66): `hourly_downtime_sec` DIHAPUS dari kontrak
+  // (API doc §D1) — downtime sumber kebenarannya ada di
+  // `downtime_events.duration_sec`, bukan di titik per jam. Jangan
+  // menambahkannya kembali ke tipe ini.
   sampleCount?: number;
   targetPerHour?: number | null;
   state?: MachineFsmState | null;
@@ -47,11 +50,20 @@ export interface HourlyOeePoint {
  * Rentang waktu (+ limit) untuk query telemetry per jam / agregat.
  * Dipakai konsisten oleh mode Demo dan Real (E11 T11.1 / F-1): tanpa
  * options, perilaku sama seperti sebelumnya (default server/demo).
+ *
+ * E12 T12.1 (X-1 / FAT-54): `date` (YYYY-MM-DD, tanggal mulai shift) dan
+ * `shift` (kode shift, mis. 'S1' — Shift.shiftCode) adalah parameter yang
+ * didefinisikan API doc §I untuk shift-summary/timeline
+ * (`?date=&shift=`); dikirim BERSAMA from/to (jendela shift yang sama)
+ * supaya server bisa memakai definisi shift-nya sendiri, bukan hanya
+ * jendela mentah. Tanpa keduanya, perilaku sama seperti sebelumnya.
  */
 export interface TelemetryRangeOptions {
   from?: string;
   to?: string;
   limit?: number;
+  date?: string;
+  shift?: string;
 }
 
 export interface TelemetryAggregatePoint {
@@ -67,6 +79,27 @@ export interface TelemetryAggregatePoint {
   oeePct: string | number;
   sampleCount: number;
   provisional: boolean;
+}
+
+/**
+ * Hasil `getTelemetryAggregate` — ringkasan + SELURUH deret per-bucket.
+ *
+ * E12 T12.2 (F-5 / FAT-51): sebelumnya hanya `rows[0]` yang dipakai sebagai
+ * satu kartu ringkasan dan deretnya dibuang. Ringkasan dipertahankan agar
+ * strip ringkasan tetap bekerja; `rows` adalah deret yang dirender tab
+ * Aggregate (tabel + grafik). Ringkasan dihitung dari seluruh rows (HTTP)
+ * atau nilai seed keseluruhan (demo) — lihat masing-masing transport.
+ */
+export interface TelemetryAggregateResult {
+  device_id: string;
+  bucket: string;
+  avg_oee: number;
+  avg_availability: number;
+  avg_performance: number;
+  avg_quality: number;
+  total_parts: number;
+  sample_count: number;
+  rows: TelemetryAggregatePoint[];
 }
 
 export interface ShiftTimelineSegment {

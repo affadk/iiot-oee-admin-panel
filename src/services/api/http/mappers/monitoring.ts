@@ -5,11 +5,12 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { num, str, bool, iso, pick, mustParse } from '../primitives';
-import { TelemetryRollupItemSchema } from '../../schemas';
+import { TelemetryRollupItemSchema, TelemetryAggregatePointSchema } from '../../schemas';
 import { normalizeFsmState } from '../../../../utils/oeeCalculations';
+import { timelineSegmentDurationMin } from '../../../../utils/historicalExport';
 import { Shift } from '../../../../types/production';
 import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory, MachineFsmState } from '../../../../types/monitoring';
-import { ShiftSummary, HourlyOeePoint, ShiftTimelineSegment, RejectParetoItem, TelemetryHistoryRecord, TelemetryRollupItem, ReconciliationJob } from '../../../../types/analytics';
+import { ShiftSummary, HourlyOeePoint, ShiftTimelineSegment, RejectParetoItem, TelemetryHistoryRecord, TelemetryRollupItem, ReconciliationJob, TelemetryAggregatePoint } from '../../../../types/analytics';
 import { AuditLogItem } from '../../../../types/system';
 
 export function mapLiveState(raw: unknown): LiveStateRecord {
@@ -132,7 +133,21 @@ export function mapTelemetryHistory(raw: unknown): TelemetryHistoryRecord {
     availability: num(pick(r.availabilityPct, r.availability), 0),
     performance: num(pick(r.performancePct, r.performance), 0),
     quality: num(pick(r.qualityPct, r.quality), 0),
-    cycle_time_ms: num(pick(r.cycleTimeMs, r.lastCycleTimeSec, r.last_cycle_time_sec), 0) * 1000,
+    // E12 T12.15 (F-11 / FAT-67): satuan cycle_time_ms ditentukan oleh NAMA
+    // field, bukan urutan fallback — `cycleTimeMs`/`cycle_time_ms` SUDAH
+    // milidetik (×1), `lastCycleTimeSec`/`last_cycle_time_sec` detik (×1000).
+    // Hitungan lama `pick(cycleTimeMs, lastCycleTimeSec, last_cycle_time_sec)
+    // × 1000` mengalikan nilai ms dengan 1000 bila server mengirim
+    // cycleTimeMs → nilai di layar Raw 1000× lebih besar tanpa tanda apa pun
+    // (G20). Prioritas: field ms dulu (tanpa konversi, paling cocok dengan
+    // nama field target), lalu field detik. Layar Raw + CSV menampilkan
+    // detik (`cycle_time_sec` = lastCycleTimeSec, fallback cycle_time_ms /
+    // 1000) — konsisten dengan nilai ms yang benar di sini.
+    cycle_time_ms: (() => {
+      const ms = pick(r.cycleTimeMs, r.cycle_time_ms);
+      if (ms !== undefined) return num(ms, 0);
+      return num(pick(r.lastCycleTimeSec, r.last_cycle_time_sec), 0) * 1000;
+    })(),
     temperature_c: num(pick(r.machineTempC, r.tempC, r.temperature_c), 0) || undefined,
     is_buffered: bool(pick(r.isBuffered, r.is_buffered), false),
   };
@@ -153,15 +168,48 @@ export function mapHourly(raw: unknown): HourlyOeePoint {
     hourly_operating_sec: num(pick(r.operatingSec, r.operating_sec), 0) || undefined,
     hourly_run_sec: num(pick(r.runSec, r.run_sec), 0) || undefined,
     sampleCount: num(pick(r.sampleCount, r.sample_count), 0) || undefined,
-    targetPerHour: (pick(r.targetPerHour, r.target_per_hour) as number | null) ?? undefined,
+    // E12 T12.3 (F-6): pertahankan null (kapasitas unknown) — `pick`
+    // membuang null sehingga sinyal kapasitas 0/unknown dari server hilang;
+    // tabel per jam memakai targetPerHour null/0 untuk menampilkan
+    // "— (Kapasitas 0/Unknown)" seperti rollup. Tanpa field dari server →
+    // undefined (nilai tampil apa adanya).
+    targetPerHour: (r.targetPerHour !== undefined ? r.targetPerHour : r.target_per_hour) as number | null | undefined,
     state: (pick(r.state) as MachineFsmState | null) ?? undefined,
     planned: bool(pick(r.planned), false),
     provisional: bool(pick(r.provisional), false),
   };
 }
 
-export function mapRollup(raw: unknown): TelemetryRollupItem {
+/**
+ * E12 T12.2 (F-5 / FAT-51): satu baris agregat per bucket — dipakai
+ * getTelemetryAggregate untuk SELURUH rows, bukan hanya rows[0].
+ * Menerima field kanonis API doc §K.4/§Q (`oeePct`, `totalCount`, …) plus
+ * alias legacy/snake_case dan bentuk ringkasan lama (`avg_oee`,
+ * `total_parts`, `sample_count`) agar respons lama tetap termuat.
+ */
+export function mapAggregate(raw: unknown): TelemetryAggregatePoint {
   const r = (raw ?? {}) as Record<string, unknown>;
+  // API doc §Q: good = max(0, output − reject) bila tidak dikirim eksplisit.
+  const totalCount = num(pick(r.totalCount, r.total_count, r.total_parts, r.totalParts), 0);
+  const rejectCount = num(pick(r.rejectCount, r.reject_count), 0);
+  const item = {
+    bucket: str(pick(r.bucket, r.bucket_start, r.bucketStart, r.hour), ''),
+    totalCount,
+    goodCount: num(pick(r.goodCount, r.good_count), Math.max(0, totalCount - rejectCount)),
+    rejectCount,
+    operatingSec: num(pick(r.operatingSec, r.operating_sec), 0),
+    runSec: num(pick(r.runSec, r.run_sec), 0),
+    availabilityPct: pick(r.availabilityPct, r.availability_pct, r.avg_availability, r.availability, 0) as string | number,
+    performancePct: (pick(r.performancePct, r.performance_pct, r.avg_performance, r.performance) as string | number | null) ?? null,
+    qualityPct: pick(r.qualityPct, r.quality_pct, r.avg_quality, r.quality, 0) as string | number,
+    oeePct: pick(r.oeePct, r.oee_pct, r.avg_oee, r.oee, 0) as string | number,
+    sampleCount: num(pick(r.sampleCount, r.sample_count), 0),
+    provisional: bool(pick(r.provisional), false),
+  };
+  return mustParse(TelemetryAggregatePointSchema, item, 'agregat telemetri');
+}
+
+export function mapRollup(raw: unknown): TelemetryRollupItem {  const r = (raw ?? {}) as Record<string, unknown>;
   const item = {
     groupBy: (pick(r.groupBy, r.group_by) as TelemetryRollupItem['groupBy']) ?? 'day',
     groupKey: str(pick(r.groupKey, r.machineId, r.machine_id, r.deviceId, r.device_id, r.bucket), 'row'),
@@ -206,6 +254,42 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
   const operatingSec = num(pick(time.operating, time.operatingSec), 0);
   const runSec = num(pick(time.run, time.runSec), 0);
   const downtimeSec = num(pick(time.downtime, time.downtimeSec), 0);
+  // E12 T12.4 (F-7 / FAT-55): planned downtime dibaca dari field-nya sendiri
+  // bila server mengirimnya (API doc §Q.1 / TELEMETRY_AUDIT F-7:
+  // `time_sec.planned`), bukan hardcode 0. Alias detik dulu (kanonis
+  // `time_sec.*`), lalu alias menit (`planned_downtime_min`). Bila tidak
+  // dikirim sama sekali → fallback 0 seperti sebelumnya. Panel HANYA membaca
+  // field ini; definisi availability untuk jam planned penuh (G8 sisi server)
+  // tetap keputusan backend/CAgg — panel tidak menghitung ulang OEE di klien
+  // (Build Guide §14.3).
+  const plannedDowntimeSec = pick(time.planned, time.plannedSec, time.plannedDowntimeSec, time.planned_downtime_sec);
+  const plannedDowntimeMinRaw = pick(r.planned_downtime_min, r.plannedDowntimeMin, time.plannedDowntimeMin, time.planned_downtime_min);
+  const plannedDowntimeMin = plannedDowntimeSec !== undefined
+    ? Math.round(num(plannedDowntimeSec) / 60)
+    : plannedDowntimeMinRaw !== undefined
+      ? Math.round(num(plannedDowntimeMinRaw))
+      : 0;
+  // E12 T12.4 (F-7 / FAT-55): planned production time dari field-nya sendiri
+  // bila dikirim server (`time_sec.planned_production`, atau
+  // `planned_operating_sec` — nama yang dipakai API doc untuk konsep yang
+  // sama di shift_plan WO resolve — atau `planned_production_time_min`
+  // beserta alias camelCase/snake_case-nya), bukan dari `operatingSec`.
+  // Bila tidak dikirim → fallback perilaku lama (`operatingSec` / 60) agar
+  // angka yang sudah ada tidak berubah.
+  const plannedProductionSec = pick(
+    time.planned_production, time.plannedProductionSec, time.planned_production_sec,
+    time.plannedOperatingSec, time.planned_operating_sec,
+    r.planned_operating_sec, r.plannedOperatingSec,
+  );
+  const plannedProductionMinRaw = pick(
+    r.planned_production_time_min, r.plannedProductionTimeMin,
+    time.plannedProductionTimeMin, time.planned_production_time_min,
+  );
+  const plannedProductionTimeMin = plannedProductionSec !== undefined
+    ? Math.round(num(plannedProductionSec) / 60)
+    : plannedProductionMinRaw !== undefined
+      ? Math.round(num(plannedProductionMinRaw))
+      : Math.round(operatingSec / 60);
   return {
     shift_name: str(pick(r.shift_name, r.shiftName, r.shift), 'Shift'),
     machine_id: str(pick(r.machine_id, r.machineId, machineId), ''),
@@ -217,12 +301,12 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
     availability: num(pick(r.availability), 0),
     performance: num(pick(r.performance), 0),
     quality: num(pick(r.quality), 0),
-    planned_production_time_min: Math.round(operatingSec / 60),
+    planned_production_time_min: plannedProductionTimeMin,
     planned_break_min: num(pick(r.planned_break_min), 0) || undefined,
     operating_time_min: Math.round(operatingSec / 60),
     run_time_min: Math.round(runSec / 60),
     unplanned_downtime_min: Math.round(downtimeSec / 60),
-    planned_downtime_min: 0,
+    planned_downtime_min: plannedDowntimeMin,
     total_parts: num(pick(r.totalCount, r.total_count), 0),
     good_parts: num(pick(r.goodCount, r.good_count), 0),
     defect_parts: num(pick(r.rejectCount, r.reject_count), 0),
@@ -240,7 +324,10 @@ export function mapTimelineSegment(raw: unknown): ShiftTimelineSegment {
     fsm_state: normalizeFsmState(str(pick(r.state), 'UNCONFIGURED')) as MachineFsmState,
     planned: bool(pick(r.planned), false),
     downtime_id: (pick(r.downtime_id, r.downtimeId) as string | null) ?? (pick(r.downtime_id) !== undefined ? String(pick(r.downtime_id)) : null),
-    duration_min: Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 60000)),
+    // E12 T12.11 (X-4 / FAT-59): durasi benar untuk ISO 8601 (Real/demo
+    // baru) MAUPUN 'HH:MM' polos (format demo lama) — `Date.parse('HH:MM')`
+    // = NaN sehingga hitungan lama menghasilkan NaN di sini.
+    duration_min: timelineSegmentDurationMin(start, end),
   };
 }
 

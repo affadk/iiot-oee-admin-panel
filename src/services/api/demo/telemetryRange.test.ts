@@ -233,9 +233,11 @@ test('Demo timeline: tanpa options mengembalikan 33 fragmen bucket 15m (E11 T11.
   const segs = await apiClient.getShiftTimeline('CNC-MILLING-01');
   // Segmen kanonis (5) dipecah eksak per bucket 15m: 32 bucket + 1 pecahan
   // di 09:45–10:00 (batas state 09:47). Σ durasi tetap 480.
+  // E12 T12.11 (X-4 / FAT-59): start/end ISO 8601 Asia/Jakarta, bukan 'HH:MM'.
+  const iso = (hhmm: string) => `2026-11-11T${hhmm}:00+07:00`;
   assert.deepEqual(
     segs.map((s) => s.start),
-    ['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30', '08:45', '09:00', '09:15', '09:30', '09:45', '09:47', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45']
+    ['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30', '08:45', '09:00', '09:15', '09:30', '09:45', '09:47', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45'].map(iso)
   );
   assert.equal(segs.reduce((acc, s) => acc + s.duration_min, 0), 480);
 });
@@ -247,10 +249,11 @@ test('Demo timeline: rentang 09:00–12:00 hanya mengembalikan segmen yang bersi
   });
   // Batas inklusif (sama seperti bucket hourly): fragmen 08:45–09:00 masih
   // bersinggungan karena berakhir tepat di `from`, dan 12:00–12:15 mulai
-  // tepat di `to`.
+  // tepat di `to`. E12 T12.11 (X-4): start ISO 8601 Asia/Jakarta.
+  const iso = (hhmm: string) => `2026-11-11T${hhmm}:00+07:00`;
   assert.deepEqual(
     segs.map((s) => s.start),
-    ['08:45', '09:00', '09:15', '09:30', '09:45', '09:47', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00']
+    ['08:45', '09:00', '09:15', '09:30', '09:45', '09:47', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00'].map(iso)
   );
 });
 
@@ -268,8 +271,8 @@ test('Demo timeline: rentang sehari penuh di tanggal lain tetap 33 fragmen (anch
     to: '2026-11-09T23:59:00+07:00',
   });
   assert.equal(segs.length, 33);
-  assert.equal(segs[0].start, '07:00');
-  assert.equal(segs[32].start, '14:45');
+  assert.equal(segs[0].start, '2026-11-09T07:00:00+07:00');
+  assert.equal(segs[32].start, '2026-11-09T14:45:00+07:00');
 });
 
 test('Demo timeline: endpoint yang tercatat memuat bucket + from/to', async () => {
@@ -540,7 +543,10 @@ test('Demo rekonsiliasi: Σ durasi timeline per state = shift summary (bucket 15
 });
 
 test('Demo rekonsiliasi: Σ durasi timeline per state sama pada semua bucket + gapless', async () => {
-  const toMin = (hhmm: string) => {
+  // E12 T12.11 (X-4 / FAT-59): start/end kini ISO 8601 — toMin mengekstrak
+  // jam-dindingnya (jam WIB, sama dengan yang tertulis di ISO +07:00).
+  const toMin = (v: string) => {
+    const hhmm = v.includes('T') ? v.slice(11, 16) : v;
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
   };
@@ -554,8 +560,8 @@ test('Demo rekonsiliasi: Σ durasi timeline per state sama pada semua bucket + g
     assert.equal(byState.get('UNPLANNED_DOWNTIME'), 32, `UNPLANNED bucket ${bucket}`);
     assert.equal(segs.reduce((acc, s) => acc + s.duration_min, 0), 480, `total bucket ${bucket}`);
     // Gapless: ujung satu segmen = awal segmen berikut, 07:00–15:00.
-    assert.equal(segs[0].start, '07:00', `awal bucket ${bucket}`);
-    assert.equal(segs[segs.length - 1].end, '15:00', `akhir bucket ${bucket}`);
+    assert.equal(segs[0].start, '2026-11-11T07:00:00+07:00', `awal bucket ${bucket}`);
+    assert.equal(segs[segs.length - 1].end, '2026-11-11T15:00:00+07:00', `akhir bucket ${bucket}`);
     for (let i = 1; i < segs.length; i++) {
       assert.equal(segs[i].start, segs[i - 1].end, `celah bucket ${bucket} idx ${i}`);
     }
@@ -580,24 +586,42 @@ test('Demo rekonsiliasi: bucket mengubah segmentasi (bukan segmen yang sama untu
   assert.deepEqual(counts, { '1m': 480, '5m': 97, '15m': 33, '1h': 10 });
 });
 
-test('Demo rekonsiliasi: Σ hourly_run_sec/downtime/operating = shift summary', async () => {
+test('Demo rekonsiliasi: Σ hourly_run_sec/operating = shift summary; downtime per jam diturunkan dari operating−run (E12 T12.14)', async () => {
   const summary = await apiClient.getShiftSummary('CNC-MILLING-01');
   const hourly = await apiClient.getHourlyTrend('STM32-OEE-01');
   const runSec = hourly.reduce((acc, p) => acc + (p.hourly_run_sec ?? 0), 0);
-  const dtSec = hourly.reduce((acc, p) => acc + (p.hourly_downtime_sec ?? 0), 0);
   const opSec = hourly.reduce((acc, p) => acc + (p.hourly_operating_sec ?? 0), 0);
   assert.equal(runSec, summary.run_time_min * 60); // 23.280 dtk = 388 mnt
-  assert.equal(dtSec, (summary.planned_downtime_min + summary.unplanned_downtime_min) * 60); // 5.520 dtk = 92 mnt
   assert.equal(opSec, summary.operating_time_min * 60); // 25.200 dtk = 420 mnt
-  // Tiap jam: run + downtime = operating (kecuali jam 12:00, G8 — lihat
-  // test di bawah; di sana operating 0 sementara run+downtime = 3600).
-  for (const p of hourly) {
-    if (p.hour === '12:00') continue;
-    assert.equal(
-      (p.hourly_run_sec ?? 0) + (p.hourly_downtime_sec ?? 0),
-      p.hourly_operating_sec,
-      `jam ${p.hour}`
-    );
+  // E12 T12.14 (F-10 / FAT-66): `hourly_downtime_sec` DIHAPUS dari tipe +
+  // seed — downtime per jam diturunkan dari data yang tersisa:
+  // operating − run. Turunan ini hanya menangkap downtime UNPLANNED
+  // (Σ 1.920 dtk = 32 mnt): jam 12:00 yang sepenuhnya planned punya
+  // operating 0 (gap G8) sehingga planned-nya tidak tertangkap turunan
+  // ini. Σ downtime penuh 92 mnt (5.520 dtk = planned 60 + unplanned 32)
+  // sumber kebenarannya ada di downtime_events — dt-ev-02 (1.920 dtk) +
+  // dt-ev-04 (3.600 dtk), dibuktikan pada test 'event downtime cocok'
+  // di bawah, bukan lagi dari titik per jam.
+  const derivedDowntimeByHour = new Map(
+    hourly.map((p) => [p.hour, (p.hourly_operating_sec ?? 0) - (p.hourly_run_sec ?? 0)])
+  );
+  assert.deepEqual(
+    [...derivedDowntimeByHour.entries()],
+    [
+      ['07:00', 350],
+      ['08:00', 274],
+      ['09:00', 216],
+      ['10:00', 360],
+      ['11:00', 252],
+      ['12:00', 0], // jam planned penuh: operating 0 (G8), turunan 0
+      ['13:00', 180],
+      ['14:00', 288],
+    ]
+  );
+  const derivedDtSec = [...derivedDowntimeByHour.values()].reduce((acc, v) => acc + v, 0);
+  assert.equal(derivedDtSec, summary.unplanned_downtime_min * 60); // 1.920 dtk = 32 mnt
+  for (const v of derivedDowntimeByHour.values()) {
+    assert.ok(v >= 0, 'downtime turunan per jam tidak boleh negatif');
   }
 });
 
@@ -607,9 +631,20 @@ test('Demo rekonsiliasi: jam 12:00 tidak diubah (sepenuhnya planned, gap G8)', a
   assert.ok(noon);
   assert.equal(noon.hourly_operating_sec, 0);
   assert.equal(noon.hourly_run_sec, 0);
-  assert.equal(noon.hourly_downtime_sec, 3600);
+  // E12 T12.14 (F-10 / FAT-66): tidak ada lagi `hourly_downtime_sec`
+  // (dulu 3600). Downtime 3.600 dtk jam ini sumber kebenarannya adalah
+  // downtime event dt-ev-04 (12:00–13:00) — dibuktikan pada test
+  // 'event downtime cocok' di bawah.
   assert.equal(noon.availability, 0);
   assert.equal(noon.state, 'PLANNED_DOWNTIME');
+});
+
+test('E12 T12.14: titik hourly seed tidak lagi membawa hourly_downtime_sec', async () => {
+  const hourly = await apiClient.getHourlyTrend('STM32-OEE-01');
+  assert.equal(hourly.length, 8);
+  for (const p of hourly) {
+    assert.ok(!('hourly_downtime_sec' in p), `jam ${p.hour} tidak boleh membawa hourly_downtime_sec`);
+  }
 });
 
 test('Demo rekonsiliasi: availability tiap jam konsisten dengan run/operating', async () => {
@@ -626,12 +661,12 @@ test('Demo rekonsiliasi: event downtime cocok dengan segmen timeline (durasi + w
   const segs = await apiClient.getShiftTimeline('CNC-MILLING-01', '15m');
   const unplanned = segs.filter((s) => s.downtime_id === 'dt-ev-02');
   assert.equal(unplanned.reduce((acc, s) => acc + s.duration_min, 0), 32);
-  assert.equal(unplanned[0].start, '09:15');
-  assert.equal(unplanned[unplanned.length - 1].end, '09:47');
+  assert.equal(unplanned[0].start, '2026-11-11T09:15:00+07:00');
+  assert.equal(unplanned[unplanned.length - 1].end, '2026-11-11T09:47:00+07:00');
   const planned = segs.filter((s) => s.downtime_id === 'dt-ev-04');
   assert.equal(planned.reduce((acc, s) => acc + s.duration_min, 0), 60);
-  assert.equal(planned[0].start, '12:00');
-  assert.equal(planned[planned.length - 1].end, '13:00');
+  assert.equal(planned[0].start, '2026-11-11T12:00:00+07:00');
+  assert.equal(planned[planned.length - 1].end, '2026-11-11T13:00:00+07:00');
 
   // Jalur yang dipakai overlay timeline (useOeeAnalytics): histori
   // downtime perangkat pada jendela 7 hari default halaman OEE.
@@ -655,6 +690,12 @@ test('Demo rekonsiliasi: event downtime cocok dengan segmen timeline (durasi + w
   assert.equal(ev04.duration_seconds, 60 * 60);
   assert.equal(ev04.started_at, '2026-11-11T12:00:00+07:00');
   assert.equal(ev04.ended_at, '2026-11-11T13:00:00+07:00');
+
+  // E12 T12.14 (F-10 / FAT-66): Σ downtime penuh shift dibuktikan dari
+  // sumber kebenaran (downtime_events), bukan dari titik per jam yang
+  // field-nya sudah dihapus: 1.920 + 3.600 = 5.520 dtk = 92 mnt
+  // (planned 60 + unplanned 32).
+  assert.equal(ev02.duration_seconds + ev04.duration_seconds, (60 + 32) * 60);
 });
 
 test('Demo rekonsiliasi: rollup machine bucket null (dokumen API, gap G21)', async () => {

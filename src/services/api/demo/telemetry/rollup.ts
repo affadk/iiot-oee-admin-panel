@@ -13,7 +13,7 @@ import { checkAbort, throwValidationIssues } from '../helpers';
 import { TelemetryRollupItem, TelemetryRollupQuery } from '../../../../types/analytics';
 import { CursorPageResponse } from '../../../../types/historical';
 import { TelemetryRollupItemSchema } from '../../schemas';
-import { buildTelemetryRollupEndpoint, paginateWithCursor } from '../../../../utils/historicalExport';
+import { buildTelemetryRollupEndpoint, paginateWithCursor, dateKeyInJakarta, monthKeyInJakarta } from '../../../../utils/historicalExport';
 
 export const demoTelemetryRollup = {
   async getTelemetryRollup(
@@ -101,7 +101,10 @@ export const demoTelemetryRollup = {
       for (let i = 0; i < days; i++) {
         const dayDate = new Date(toMs - i * 24 * 3600_000);
         if (dayDate.getTime() < fromMs - 24 * 3600_000) continue;
-        const dayKey = dayDate.toISOString().slice(0, 10);
+        // E12 T12.11 (X-4 / FAT-59): kunci hari di Asia/Jakarta, bukan
+        // UTC (`toISOString()`) — jam 00:00–06:59 WIB masih hari
+        // sebelumnya dalam UTC dan batas hari bergeser.
+        const dayKey = dateKeyInJakarta(dayDate) ?? dayDate.toISOString().slice(0, 10);
         const zeroCap = query.device_id === 'STM32-OEE-05';
         const avail = zeroCap ? 100 : Number((91.8 - (i % 4) * 1.3).toFixed(2));
         const perf = zeroCap ? null : Number((93.6 - (i % 3) * 1.1).toFixed(2));
@@ -139,9 +142,10 @@ export const demoTelemetryRollup = {
     } else {
       // month
       for (let i = 0; i < 4; i++) {
-        const d = new Date(toMs);
-        d.setUTCMonth(d.getUTCMonth() - i);
-        const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+        // E12 T12.11 (X-4 / FAT-59): kunci bulan di Asia/Jakarta, bukan
+        // UTC (`setUTCMonth`/`getUTCMonth`) — awal bulan WIB bisa masih
+        // bulan sebelumnya dalam UTC.
+        const monthKey = monthKeyInJakarta(toMs, i) ?? '1970-01';
         const zeroCap = query.device_id === 'STM32-OEE-05';
         const avail = zeroCap ? 100 : Number((90.5 - i * 0.9).toFixed(2));
         const perf = zeroCap ? null : Number((92.4 - i * 0.7).toFixed(2));
@@ -180,11 +184,14 @@ export const demoTelemetryRollup = {
 
     return paginateWithCursor(
       rows,
-      (item) => (item.bucket && /^\d{4}-\d{2}/.test(item.bucket) ? `${item.bucket}T00:00:00Z` : new Date(toMs).toISOString()),
+      (item) => (item.bucket && /^\d{4}-\d{2}/.test(item.bucket) ? `${item.bucket}T00:00:00+07:00` : new Date(toMs).toISOString()),
       {
         cursor: query.cursor,
-        limit: query.limit ?? 50,
-        maxLimit: 100,
+        // E12 T12.18 (U-4 / FAT-65): limit default dokumen 500 (API doc
+        // §K.3c) + plafon demo disamakan supaya default itu tidak
+        // terpotong diam-diam oleh maxLimit lama (100).
+        limit: query.limit ?? 500,
+        maxLimit: 500,
         getId: (item) => item.groupKey,
       }
     );

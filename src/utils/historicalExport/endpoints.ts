@@ -8,6 +8,14 @@ import {
   WorkOrdersQuery,
 } from '../../types/historical';
 import { TelemetryRollupQuery } from '../../types/analytics';
+// E12 T12.8 (F-9 / FAT-61): builder telemetry mendelegasikan path ke registry
+// (ADMIN_ENDPOINTS) — satu sumber kebenaran path, sesuai kontrak
+// docs/DIRECTORY_STRUCTURE.md §4 aturan 6. Builder di sini hanya menambah
+// query string di atas path registry; template path tidak lagi diduplikasi.
+// Arah impor: utils/historicalExport → services/api/endpoints (barrel) →
+// services/api/endpoints/telemetry → definition. Tidak ada siklus: registry
+// endpoint tidak mengimpor apa pun dari utils/ maupun dari demo/http.
+import { ADMIN_ENDPOINTS } from '../../services/api/endpoints';
 
 function buildQueryString(params: Record<string, string | number | boolean | undefined | null>): string {
   const sp = new URLSearchParams();
@@ -107,7 +115,7 @@ export function buildTelemetryHistoryEndpoint(query: TelemetryHistoryQuery): str
     limit: query.limit,
     envelope: query.envelope ?? true,
   });
-  return `/api/v1/telemetry/${encodeURIComponent(query.device_id)}${qs}`;
+  return `${ADMIN_ENDPOINTS.TELEMETRY_HISTORY.buildPath(query.device_id)}${qs}`;
 }
 
 export function buildTelemetryRollupEndpoint(query: TelemetryRollupQuery): string {
@@ -121,7 +129,7 @@ export function buildTelemetryRollupEndpoint(query: TelemetryRollupQuery): strin
     cursor: query.cursor,
     envelope: query.envelope ?? true,
   });
-  return `/api/v1/telemetry/rollup${qs}`;
+  return `${ADMIN_ENDPOINTS.TELEMETRY_ROLLUP.buildPath()}${qs}`;
 }
 
 export function buildTelemetryExportEndpoint(query: TelemetryExportQuery): string {
@@ -131,7 +139,7 @@ export function buildTelemetryExportEndpoint(query: TelemetryExportQuery): strin
     format: query.format,
     limit: query.limit,
   });
-  return `/api/v1/telemetry/${encodeURIComponent(query.device_id)}/export${qs}`;
+  return `${ADMIN_ENDPOINTS.TELEMETRY_EXPORT.buildPath(query.device_id)}${qs}`;
 }
 
 export function buildTelemetryHourlyExportEndpoint(query: TelemetryExportQuery): string {
@@ -141,5 +149,5 @@ export function buildTelemetryHourlyExportEndpoint(query: TelemetryExportQuery):
     format: query.format,
     limit: query.limit,
   });
-  return `/api/v1/telemetry/${encodeURIComponent(query.device_id)}/hourly/export${qs}`;
+  return `${ADMIN_ENDPOINTS.TELEMETRY_HOURLY_EXPORT.buildPath(query.device_id)}${qs}`;
 }

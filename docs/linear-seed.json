@@ -506,7 +506,7 @@
     "fase-3"
    ],
    "milestone": null,
-   "status": "In Progress"
+   "status": "Done"
   },
   {
    "key": "T11.1",
@@ -580,6 +580,246 @@
    ],
    "milestone": null,
    "status": "Done"
+  },
+  {
+   "key": "E12",
+   "title": "Lanjutan Perbaikan Telemetry & OEE (audit 2026-11-16)",
+   "description": "Epic lanjutan dari audit Telemetry History, OEE Per Jam & Timeline Shift (bucket 15m): 19 usulan tersisa (F-5–F-13, X-1–X-6, U-2–U-5) untuk gap G5–G24, SEMUA dalam scope admin-panel (panel saja). Diluar scope: infra konfigurasi Nginx (V8.4) dan backend (A10.2, V8.2, V8.3, G25 SETUP/IDLE, G8 sisi server). 3 gelombang: Wave 1 T12.1–T12.6, Wave 2 T12.7–T12.13, Wave 3 T12.14–T12.19. Acuan: docs/E12_PROPOSAL.md + docs/TELEMETRY_AUDIT.md + AUDIT.md §13–§14.",
+   "parentKey": null,
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.1",
+   "title": "Filter shift (tanggal + shift) di Telemetry History dan halaman OEE",
+   "description": "X-1 (gap G19, G1 — dampak Tinggi). Filter shift (tanggal + shift) di Telemetry History dan halaman OEE; kirim date/shift/from/to yang disejajarkan dengan jam shift. Backend: param sudah didefinisikan §Q.1/§Q.3; untuk hourly/aggregate, klien menghitung from/to dari shift terpilih. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-1).",
+   "parentKey": "E12",
+   "priority": 2,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.2",
+   "title": "Tab Aggregate menampilkan deret per-bucket",
+   "description": "F-5 (gap G6, G12). Kembalikan seluruh rows dari getTelemetryAggregate (bukan rows[0]), render tabel/grafik per bucket + flag provisional per baris. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-5); http/monitoring.ts:233-245.",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.3",
+   "title": "Kolom tabel per jam dilengkapi + samakan presisi",
+   "description": "F-6 (gap G9). Tampilkan good_count, hourly_operating_sec, hourly_run_sec, sampleCount di OeeHourlyTable; presisi 2 desimal; samakan perlakuan kapasitas unknown dengan rollup. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-6).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.4",
+   "title": "Perbaiki pemetaan planned downtime (sisi panel)",
+   "description": "F-7 (gap G7, G8 — hanya sisi panel; bagian server DILUAR scope). Mapper membaca time_sec.planned bila backend mengirimnya (bukan hardcode 0); planned_production_time_min dari field-nya sendiri. Keputusan definisi server disepakati dulu dengan tim backend. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-7); mappers/monitoring.ts:220-226.",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.5",
+   "title": "Empty / loading / error state di semua tabel dan kartu",
+   "description": "U-2 (gap G17). Hook mengembalikan isLoading/isError; tabel menampilkan Tidak ada data pada rentang ini vs Gagal memuat vs skeleton; kartu ringkasan tidak hilang begitu saja. Sesuai Guide §5. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (U-2).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.6",
+   "title": "Indikator rekonsiliasi + investigasi selisih parts",
+   "description": "U-3 (gap G2). Catatan kaki di halaman OEE: Σ hourly_run_sec vs run_time_min vs Σ durasi timeline per state; peringatan bila selisih > ambang. Termasuk investigasi sisa E11: Σ parts hourly vs summary (334 vs 350). Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (U-3), AUDIT.md §14.",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.7",
+   "title": "Samakan kolom ekspor dengan layar (+ ekspor rollup)",
+   "description": "F-8 (gap G5, G22). Tambah operatingTimeSec/runTimeSec/downtimeSec ke CSV raw (atau label dataset lengkap); tetapkan daftar kolom CSV hourly yang sama dengan layar; ekspor rollup sebagai CSV dari baris yang tampil (tanpa endpoint baru). Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-8).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.8",
+   "title": "Delegasikan builder endpoint ke registry",
+   "description": "F-9 (gap G14). historicalExport/endpoints.ts memakai ADMIN_ENDPOINTS.*.buildPath() sebagai sumber path; hapus getTelemetryHistory non-page atau beri query yang benar. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-9).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.9",
+   "title": "Kontrol periode (date-range picker) di halaman OEE",
+   "description": "X-2 (gap G1, G19). Tambahkan pemilih rentang seperti di Telemetry History (pakai historyFilters yang sudah ada). Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-2).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.10",
+   "title": "Toggle scope rollup: mesin ini / semua mesin",
+   "description": "X-3 (gap G4). Tambahkan pilihan scope pada tabel rollup halaman OEE (teruskan machineId atau undefined sesuai pilihan) + label scope yang selalu terlihat. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-3).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.11",
+   "title": "Zona waktu tunggal Asia/Jakarta + label sumbu waktu timeline",
+   "description": "X-4 (gap G11). Paksa Asia/Jakarta untuk kunci hari/bulan dan semua label waktu; tambahkan sumbu/label jam pada timeline; samakan format demo ke ISO 8601. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-4).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.12",
+   "title": "Flag provisional konsisten di semua tampilan",
+   "description": "X-5 (gap G12). Tampilkan di Aggregate (sudah ada di tipe) dan di Timeline (penanda bila segmen berada di jam yang masih provisional — dari data hourly yang sudah dimuat). Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-5).",
+   "parentKey": "E12",
+   "priority": 3,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.13",
+   "title": "Downtime overlay: menampilkan N dari M + paginasi",
+   "description": "X-6 (gap G18). Pakai paginasi cursor untuk riwayat downtime (pola yang sudah ada) dan tampilkan hitungan N dari M; backend: meta.count bila tersedia. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (X-6).",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.14",
+   "title": "Hapus hourly_downtime_sec (field hantu) dari tipe, seed, CSV",
+   "description": "F-10 (gap G16). Hapus field dari HourlyOeePoint, seed demo, dan serialisasi ekspor hourly. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-10).",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.15",
+   "title": "Perbaiki mapping cycle_time_ms berdasarkan satuan field",
+   "description": "F-11 (gap G20). Pilih pengali berdasarkan field yang dipakai (cycleTimeMs → ×1, lastCycleTimeSec → ×1000), bukan pick pertama ×1000. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-11); mappers/monitoring.ts:137.",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.16",
+   "title": "Perbaiki komentar refetchAll + isRefreshing mencakup semua query",
+   "description": "F-12 (gap G10). Betulkan komentar (6 query di-refetch); isRefreshing gabungkan juga downtimeOverlayQuery dan rejectParetoQuery. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-12); useOeeAnalytics.ts:129-147.",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.17",
+   "title": "Reset pilihan segmen saat ganti bucket timeline",
+   "description": "F-13 (gap G13). setSelectedSegmentIdx(null) di handler ganti bucket (OeeAnalyticsPage.tsx:87-90), sama seperti ganti mesin. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (F-13).",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.18",
+   "title": "Samakan default dengan dokumen, atau catat deviasinya",
+   "description": "U-4 (gap G15). Ubah default ke nilai dokumen (groupBy day, bucket aggregate 5m, bucket timeline 5m, limit hourly 72, limit rollup 500, timeout ekspor 120.000 ms) — atau bila deviasi disengaja, tulis di AUDIT.md. Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (U-4).",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
+  },
+  {
+   "key": "T12.19",
+   "title": "Satu tampilan kanonis OEE per jam + tautan silang",
+   "description": "U-5 (gap G23). Jadikan salah satu tabel sebagai tampilan utama dan beri tautan Lihat di Telemetry History / Analytics pada yang lain, dengan catatan sumber data sama (CAgg oee_hourly_summary). Acuan: docs/E12_PROPOSAL.md, docs/TELEMETRY_AUDIT.md (U-5).",
+   "parentKey": "E12",
+   "priority": 4,
+   "labels": [
+    "fase-3"
+   ],
+   "milestone": null,
+   "status": "Done"
   }
  ],
  "labelsToCreate": [
@@ -644,7 +884,7 @@
    "name": "docs"
   }
  ],
- "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.] [v5 2026-11-16 malam: E11 + T11.1–T11.5 ditambah dari audit telemetry (docs/TELEMETRY_AUDIT.md, 25 gap); FAT-43–FAT-48. Hitung ulang: 29 Done / 3 In Progress / 12 Todo, 44 issue.] [v6 2026-11-16 malam: T11.1–T11.5 -> Done (AUDIT.md §14; 5 commit lokal E11: from/to hourly+aggregate, summary/timeline ikut periode, rollup ikut mesin, seed demo terrekoniliasi, label scope; tsc 0, test 117/117, build OK, preview 200, checker 1 FAIL pre-existing demo/telemetry.ts 726 baris). Hitung ulang: 34 Done / 3 In Progress / 7 Todo.] [v7 2026-11-16 malam: T11.6 ditambah setelah verifikasi independen menemukan checker 1 FAIL yang diperkenalkan E11 (telemetry.ts 519 -> 725 baris); FAT-49. Hitung ulang: 29 Done / 3 In Progress / 13 Todo, 45 issue.] [v8 2026-11-16 malam: T11.6 -> Done (split demo/telemetry.ts per domain, checker kembali 0 FAIL); E11 tuntas. Hitung ulang: 35 Done / 3 In Progress / 7 Todo, 45 issue.]",
+ "notes": "Status awal dicatat per 2026-11-16 dari AUDIT.md. Priority: 1=Urgent, 2=High, 3=Medium, 4=Low. Buat Project dulu, lalu label, lalu Epic (parent null), lalu child dengan parentKey. Jangan tandai Done tanpa bukti commit SHA + hasil tsc/test/build di komentar. [2026-11-16 malam: field issues direkonstruksi dari docs/LINEAR.md §1.3 setelah tertimpa angka jumlah saat update v2; isi = judul/parent/status/prioritas/label dari tabel, deskripsi diringkas dari judul + dokumen.] [v4 2026-11-16 malam: R9.5 -> Done (AUDIT.md §11; 11 file, 9.576 -> 2.269 baris, 97 file baru, tsc 0, test 76/76, build OK, preview 200, checker 0 FAIL 0 pengecualian). Hitung ulang: 29 Done / 2 In Progress / 7 Todo.] [v5 2026-11-16 malam: E11 + T11.1–T11.5 ditambah dari audit telemetry (docs/TELEMETRY_AUDIT.md, 25 gap); FAT-43–FAT-48. Hitung ulang: 29 Done / 3 In Progress / 12 Todo, 44 issue.] [v6 2026-11-16 malam: T11.1–T11.5 -> Done (AUDIT.md §14; 5 commit lokal E11: from/to hourly+aggregate, summary/timeline ikut periode, rollup ikut mesin, seed demo terrekoniliasi, label scope; tsc 0, test 117/117, build OK, preview 200, checker 1 FAIL pre-existing demo/telemetry.ts 726 baris). Hitung ulang: 34 Done / 3 In Progress / 7 Todo.] [v7 2026-11-16 malam: T11.6 ditambah setelah verifikasi independen menemukan checker 1 FAIL yang diperkenalkan E11 (telemetry.ts 519 -> 725 baris); FAT-49. Hitung ulang: 29 Done / 3 In Progress / 13 Todo, 45 issue.] [v8 2026-11-16 malam: T11.6 -> Done (split demo/telemetry.ts per domain, checker kembali 0 FAIL); E11 tuntas. Hitung ulang: 35 Done / 3 In Progress / 7 Todo, 45 issue.] [v9 2026-11-17: E12 + T12.1–T12.19 ditambah dari docs/E12_PROPOSAL.md (admin-panel saja; infra Nginx + backend dikecualikan); E11 -> Done (FAT-43 ditutup). FAT-50–FAT-69. Hitung ulang: 36 Done / 3 In Progress / 26 Todo, 65 issue.] [v10 2026-11-17: E12 + T12.1–T12.19 -> Done (AUDIT.md §15; 19 commit lokal E12: filter shift, aggregate per-bucket, kolom per jam + presisi 2 desimal, planned downtime sisi panel, empty/loading/error state, indikator rekonsiliasi + investigasi parts, ekspor = layar + rollup, builder -> registry, kontrol periode OEE, toggle scope rollup, tz Asia/Jakarta, provisional konsisten, downtime N dari M + paginasi, hapus hourly_downtime_sec, mapping cycle_time_ms, refetchAll/isRefreshing, reset segmen, 6 default diselaraskan, tampilan kanonis + tautan silang; tsc 0, test 324/324, build OK, preview 200, checker 0 FAIL 0 pengecualian; selisih parts 334 vs 350 TIDAK diperbaiki — menunggu keputusan Fathur, Opsi A di AUDIT.md §15). Hitung ulang: 56 Done / 2 In Progress / 7 Todo, 65 issue.]",
  "project": {
   "description": "Admin Panel IIoT OEE — 131 operasi Admin REST + 1 WebSocket (Guide Lamp. A). Repo: github.com/fadk-dev/iiot-oee-admin-panel. Acuan: ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md. Mode Demo (default) vs Real via VITE_API_MODE; belum ada backend, mode Real belum terverifikasi. Laporan audit: AUDIT.md di repo. Metodologi tracking: docs/LINEAR.md.",
   "milestones": [
@@ -661,7 +901,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 8,
+ "version": 10,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -713,14 +953,34 @@
    "T11.3": "FAT-48",
    "T11.4": "FAT-46",
    "T11.5": "FAT-45",
-   "T11.6": "FAT-49"
+   "T11.6": "FAT-49",
+   "E12": "FAT-50",
+   "T12.1": "FAT-54",
+   "T12.2": "FAT-51",
+   "T12.3": "FAT-53",
+   "T12.4": "FAT-55",
+   "T12.5": "FAT-52",
+   "T12.6": "FAT-56",
+   "T12.7": "FAT-60",
+   "T12.8": "FAT-61",
+   "T12.9": "FAT-62",
+   "T12.10": "FAT-57",
+   "T12.11": "FAT-59",
+   "T12.12": "FAT-58",
+   "T12.13": "FAT-63",
+   "T12.14": "FAT-66",
+   "T12.15": "FAT-67",
+   "T12.16": "FAT-68",
+   "T12.17": "FAT-69",
+   "T12.18": "FAT-65",
+   "T12.19": "FAT-64"
   },
   "verified": {
-   "total": 28,
-   "done": 22,
-   "todo": 6,
-   "parents": 8,
-   "children": 20
+   "total": 65,
+   "done": 56,
+   "todo": 7,
+   "parents": 12,
+   "children": 53
   },
   "milestonesNote": "M1-M8 NOT created in Linear: no milestone tool in the Linear MCP connector; create manually in Linear UI if wanted.",
   "note": "E9/E10 + anak dibuat 2026-11-16 ~14:20 WIB (FAT-33 s.d. FAT-42). Milestone tidak diterapkan (tidak ada tool milestone di konektor Linear)."

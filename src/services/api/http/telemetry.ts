@@ -19,12 +19,16 @@ export const httpTelemetry = {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     // E11 T11.2 (F-2): kirim from/to agar ringkasan shift terikat periode
-    // yang sama dengan tabel per jam (API doc §Q.1). Tanpa options, query
+    // yang sama dengan tabel per jam (API doc §I). Tanpa options, query
     // sama seperti sebelumnya (hanya machine_id).
+    // E12 T12.1 (X-1 / FAT-54): kirim juga date/shift bila filter shift
+    // aktif — parameter yang didefinisikan API doc §I (`?date=&shift=`).
     const query: Record<string, string> = {
       ...(machineId ? { machine_id: machineId } : {}),
       ...(options?.from ? { from: options.from } : {}),
       ...(options?.to ? { to: options.to } : {}),
+      ...(options?.date ? { date: options.date } : {}),
+      ...(options?.shift ? { shift: options.shift } : {}),
     };
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.OEE_SHIFT_SUMMARY.buildPath(),
@@ -46,7 +50,8 @@ export const httpTelemetry = {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     // E11 T11.2 (F-2): kirim from/to agar timeline terikat periode yang
-    // sama dengan tabel per jam (API doc §Q.3).
+    // sama dengan tabel per jam (API doc §I).
+    // E12 T12.1 (X-1 / FAT-54): kirim juga date/shift bila filter shift aktif.
     return reqList(
       {
         path: ADMIN_ENDPOINTS.OEE_SHIFT_TIMELINE.buildPath(),
@@ -55,6 +60,8 @@ export const httpTelemetry = {
           ...(machineId ? { machine_id: machineId } : {}),
           ...(options?.from ? { from: options.from } : {}),
           ...(options?.to ? { to: options.to } : {}),
+          ...(options?.date ? { date: options.date } : {}),
+          ...(options?.shift ? { shift: options.shift } : {}),
         },
         signal,
         endpointKey: 'OEE_SHIFT_TIMELINE',

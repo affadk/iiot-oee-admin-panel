@@ -2,7 +2,7 @@ import { DowntimeCategory } from './monitoring';
 
 export type ExportFormat = 'csv' | 'ndjson' | 'json';
 
-export type TimeWindowPreset = '24h' | '7d' | '30d' | '90d' | 'custom';
+export type TimeWindowPreset = 'today' | '24h' | '7d' | '30d' | '90d' | 'custom';
 
 export interface ExportMetadata {
   source: string;
@@ -55,6 +55,12 @@ export interface HistoryFilters {
   isBuffered?: boolean;
   groupBy?: 'machine' | 'day' | 'month';
   bucket?: '1m' | '5m' | '15m' | '1h' | '1d';
+  // E12 T12.1 (X-1 / FAT-54): filter shift — tanggal kalender shift
+  // (YYYY-MM-DD, tanggal mulai shift) + ID shift (Shift.shiftId). Bila
+  // keduanya terisi, from/to adalah jendela shift itu (resolveShiftWindow);
+  // tanpa keduanya, from/to berlaku seperti sebelumnya (default 7 hari).
+  shiftDate?: string;
+  shiftId?: string;
   from: string; // ISO8601 dengan offset
   to: string;
   limit: number;

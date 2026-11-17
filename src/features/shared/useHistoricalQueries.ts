@@ -80,7 +80,10 @@ export function useTelemetryRollupQuery(
   cursor?: string,
   enabled = true
 ) {
-  const groupBy: TelemetryRollupGroupBy = filters.groupBy ?? 'machine';
+  // E12 T12.18 (U-4 / FAT-65): fallback groupBy dokumen `day` (API doc
+  // §K.3c) bila pemanggil tidak mengisi groupBy — sama dengan default
+  // halaman di `features/analytics/telemetryDefaults.ts`.
+  const groupBy: TelemetryRollupGroupBy = filters.groupBy ?? 'day';
   return useQuery({
     queryKey: ['oee-rollup', filters, cursor],
     staleTime: HISTORY_DATA_STALE_TIME_MS,
@@ -240,7 +243,9 @@ export function useCombinedHistoryQuery(
         ),
         apiClient.getTelemetryRollup(
           {
-            group_by: filters.groupBy ?? 'machine',
+            // E12 T12.18 (U-4 / FAT-65): fallback groupBy dokumen `day`
+            // (API doc §K.3c); lihat `useTelemetryRollupQuery` di atas.
+            group_by: filters.groupBy ?? 'day',
             machine_id: filters.machineId,
             device_id: filters.deviceId,
             from: filters.from,

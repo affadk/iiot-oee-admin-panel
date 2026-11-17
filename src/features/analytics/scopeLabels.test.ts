@@ -4,11 +4,14 @@ import {
   extractWallClockHhmm,
   formatIsoDateShort,
   formatPeriodLabel,
+  formatRollupScopeTitle,
+  formatShiftFilterLabel,
   formatShiftScopeLabel,
   formatSummaryScopeLabel,
   joinScopeLabel,
 } from './scopeLabels';
 import { ShiftSummary } from '../../types/analytics';
+import { Shift } from '../../types/production';
 
 const demoSummary: ShiftSummary = {
   shift_name: 'Shift 1 (07:00-15:00)',
@@ -57,6 +60,20 @@ test('formatPeriodLabel menampilkan rentang tanggal untuk periode kustom', () =>
   assert.equal(
     formatPeriodLabel('2026-11-02T00:00:00+07:00', '2026-11-05T00:00:00+07:00'),
     '2 Nov 2026 – 5 Nov 2026'
+  );
+});
+
+// E12 T12.9 (X-2 / FAT-62): label "Hari ini" untuk jendela hari ini.
+test('formatPeriodLabel menampilkan "Hari ini" untuk jendela hari ini', () => {
+  const now = new Date('2026-11-17T10:24:00+07:00');
+  assert.equal(
+    formatPeriodLabel('2026-11-17T00:00:00+07:00', '2026-11-17T10:24:00+07:00', now),
+    'Hari ini'
+  );
+  // Jendela kemarin (00:00–10:24) bukan "hari ini" — jatuh ke rentang tanggal.
+  assert.equal(
+    formatPeriodLabel('2026-11-16T00:00:00+07:00', '2026-11-16T10:24:00+07:00', now),
+    '16 Nov 2026 – 16 Nov 2026'
   );
 });
 
@@ -126,4 +143,60 @@ test('formatSummaryScopeLabel jatuh ke label periode filter bila shift tidak ber
 test('joinScopeLabel melewati bagian kosong', () => {
   assert.equal(joinScopeLabel('7 hari terakhir', '', 'Mesin CNC-MILLING-01'), '7 hari terakhir · Mesin CNC-MILLING-01');
   assert.equal(joinScopeLabel(undefined, null, ''), '');
+});
+
+// ---------------------------------------------------------------------------
+// E12 T12.1 (FAT-54 / X-1): label filter shift mencerminkan tanggal + shift
+// terpilih — bukan label periode 7 hari.
+// ---------------------------------------------------------------------------
+
+const SHIFT_1: Shift = {
+  shiftId: 'SHIFT-1',
+  shiftName: 'Shift 1 (Pagi)',
+  shiftCode: 'S1',
+  startTime: '07:00',
+  endTime: '15:00',
+  isActive: true,
+  createdAt: '2026-01-02T07:00:00.000Z',
+};
+
+test('formatShiftFilterLabel: "Shift 1 (Pagi) · 16 Nov 2026 · 07:00–15:00"', () => {
+  assert.equal(
+    formatShiftFilterLabel(SHIFT_1, '2026-11-16'),
+    'Shift 1 (Pagi) · 16 Nov 2026 · 07:00–15:00'
+  );
+});
+
+test('formatShiftFilterLabel: shift lintas tengah malam diberi penanda (+1 hari)', () => {
+  const night: Shift = { ...SHIFT_1, shiftName: 'Shift Malam', startTime: '23:00', endTime: '07:00' };
+  assert.equal(
+    formatShiftFilterLabel(night, '2026-11-16'),
+    'Shift Malam · 16 Nov 2026 · 23:00–07:00 (+1 hari)'
+  );
+});
+
+test('formatShiftFilterLabel: string kosong bila shift/tanggal tidak ada atau tidak valid', () => {
+  assert.equal(formatShiftFilterLabel(null, '2026-11-16'), '');
+  assert.equal(formatShiftFilterLabel(undefined, '2026-11-16'), '');
+  assert.equal(formatShiftFilterLabel(SHIFT_1, undefined), '');
+  assert.equal(formatShiftFilterLabel(SHIFT_1, null), '');
+  assert.equal(formatShiftFilterLabel(SHIFT_1, '16-11-2026'), '');
+  assert.equal(formatShiftFilterLabel(SHIFT_1, '2026-02-30'), '');
+  assert.equal(formatShiftFilterLabel({ ...SHIFT_1, shiftName: '  ' }, '2026-11-16'), '');
+});
+
+// ---------------------------------------------------------------------------
+// E12 T12.10 (X-3 / FAT-57): judul rollup selalu menunjukkan scope —
+// "Rollup — <mesin>" untuk scope mesin ini, "Rollup — Semua Mesin" untuk
+// scope plant-wide (satu helper, dipakai OeeRollupTable).
+// ---------------------------------------------------------------------------
+
+test('formatRollupScopeTitle: scope mesin ini memakai nama mesin terpilih', () => {
+  assert.equal(formatRollupScopeTitle('MACHINE', 'CNC Milling 01'), 'Rollup — CNC Milling 01');
+  assert.equal(formatRollupScopeTitle('MACHINE', 'CNC-MILLING-01'), 'Rollup — CNC-MILLING-01');
+});
+
+test('formatRollupScopeTitle: scope plant-wide memakai "Semua Mesin", bukan nama mesin', () => {
+  assert.equal(formatRollupScopeTitle('ALL', 'CNC Milling 01'), 'Rollup — Semua Mesin');
+  assert.equal(formatRollupScopeTitle('ALL', 'CNC-GRIND-05'), 'Rollup — Semua Mesin');
 });

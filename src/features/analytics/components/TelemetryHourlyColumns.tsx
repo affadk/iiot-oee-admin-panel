@@ -3,6 +3,7 @@ import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { HourlyOeePoint } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { parseServerMetric } from '../../../utils/oeeCalculations';
+import { formatJakartaTime } from '../../../utils/historicalExport';
 
 export function useTelemetryHourlyColumns() {
   return useMemo<ColumnDef<HourlyOeePoint, unknown>[]>(
@@ -12,7 +13,10 @@ export function useTelemetryHourlyColumns() {
         header: 'Bucket Jam',
         cell: ({ row }) => (
           <div className="flex items-center gap-2 font-tabular text-xs font-semibold text-slate-900 dark:text-slate-100">
-            <span>{row.original.hour}</span>
+            {/* E12 T12.11 (X-4 / FAT-59): jam bucket dalam WIB — Real
+                mengirim bucket ISO, demo 'HH:MM'; keduanya diformat ke
+                jam Asia/Jakarta yang sama. */}
+            <span>{formatJakartaTime(row.original.hour)}</span>
             {row.original.provisional && (
               <span className="text-[11px] font-sans font-medium text-amber-600 dark:text-amber-400">
                 (Provisional)

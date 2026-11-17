@@ -588,3 +588,179 @@ identik (pemindahan murni; hanya 3 penulisan ulang pemanggilan antar-method
 `vite preview` **HTTP 200**; `npm run check:structure` **0 FAIL, 0
 pengecualian tercatat** (251 file, 26 WARN lunak). Dengan ini E11 tuntas
 penuh: T11.1–T11.6 Done, checker kembali 0 FAIL.
+
+## 15. Lanjutan perbaikan Telemetry & OEE — Epic E12 (2026-11-17)
+
+Atas persetujuan Fathur, 19 usulan lanjutan dari §13 (`docs/E12_PROPOSAL.md`,
+gap G5–G24) diimplementasikan sebagai Epic E12 (FAT-50) + T12.1–T12.19, satu
+fix per langkah dengan verifikasi `tsc` + test per fix dan satu commit lokal
+per fix. Cakupan HANYA admin-panel; infra (konfigurasi Nginx / deployment
+V8.4) dan backend (A10.2, V8.2, V8.3, state FSM SETUP/IDLE G25, definisi
+availability server G8) dikecualikan. Tidak ada perubahan perilaku di luar
+deskripsi tiap fix.
+
+### Wave 1
+
+- **T12.1 (FAT-54) / X-1 — filter shift (tanggal + shift).** Commit
+  `7cd850d`. Shift dari `INITIAL_SHIFTS` (S1 07:00–15:00, S2 15:00–23:00,
+  S3 00:00–07:00); komponen baru `ShiftFilterBar`; `date`/`shift` dikirim
+  ke summary/timeline sesuai API doc §I; termasuk perbaikan forward
+  `getOeeHourly` demo. 27 test baru (144 total).
+- **T12.2 (FAT-51) / F-5 — tab Aggregate deret per-bucket.** Commit
+  `21a857b`. Tab Aggregate kini menampilkan deret per-bucket (bukan satu
+  angka agregat); komponen baru `TelemetryAggregateChart` +
+  `TelemetryAggregateColumns`. 11 test baru (155 total).
+- **T12.3 (FAT-53) / F-6 — kolom tabel per jam + presisi.** Commit
+  `f63e312`. Kolom tabel per jam dilengkapi dan presisi disamakan ke 2
+  desimal. 11 test baru (166 total).
+- **T12.4 (FAT-55) / F-7 — planned downtime, sisi panel saja.** Commit
+  `ae21d74`. Mapper HTTP kini membaca `time_sec.planned` bila dikirim
+  server; definisi availability untuk jam planned penuh TIDAK diubah —
+  itu keputusan backend (G8, dikecualikan). 6 test baru (172 total).
+- **T12.5 (FAT-52) / U-2 — empty/loading/error state.** Commit
+  `9b0836c`. Semua tabel dan kartu kini punya state kosong / memuat /
+  galat yang eksplisit (komponen baru `TableStateRow`, hook
+  `oeeWidgetState`). 26 test baru (198 total).
+- **T12.6 (FAT-56) / U-3 — indikator rekonsiliasi + investigasi selisih
+  parts.** Commit `644498f`. Indikator rekonsiliasi baru
+  (`reconciliation.ts` + `ReconciliationFootnote`); investigasi selisih
+  Σ parts hourly vs summary selesai — lihat "Keputusan: selisih parts"
+  di bawah. 14 test baru (212 total).
+
+### Wave 2
+
+- **T12.7 (FAT-60) / F-8 — ekspor = layar + ekspor rollup.** Commit
+  `1517c42`. Kolom ekspor disamakan dengan kolom yang tampil di layar;
+  ditambah ekspor rollup. 6 test baru (218 total).
+- **T12.8 (FAT-61) / F-9 — builder endpoint → registry.** Commit
+  `9413cd0`. Builder endpoint didelegasikan ke registry
+  (`utils/historicalExport/endpoints.ts`); `getTelemetryHistory` versi
+  non-page dihapus. 2 test baru (220 total).
+- **T12.9 (FAT-62) / X-2 — kontrol periode halaman OEE.** Commit
+  `e517aed`. Date-range picker baru (`PeriodRangePicker`) di halaman OEE;
+  queryKey kini memuat periode. 13 test baru (233 total).
+- **T12.10 (FAT-57) / X-3 — toggle scope rollup.** Commit `213aec5`.
+  Toggle "mesin ini / semua mesin" pada rollup halaman OEE. 15 test baru
+  (248 total).
+- **T12.11 (FAT-59) / X-4 — zona waktu Asia/Jakarta + sumbu waktu
+  timeline.** Commit `9a4df2c`. Helper baru `utils/historicalExport/
+  timezone.ts`; semua label/kunci waktu di scope fix memakai
+  Asia/Jakarta; demo timeline disamakan ke ISO 8601. 22 test baru
+  (270 total).
+- **T12.12 (FAT-58) / X-5 — flag provisional konsisten.** Commit
+  `5d725fd`. Marker provisional timeline diturunkan dari jam-jam hourly
+  yang provisional (`timelineProvisional.ts`); flag tampil konsisten di
+  tabel hourly, rollup, dan timeline. 12 test baru (282 total).
+- **T12.13 (FAT-63) / X-6 — downtime overlay "N dari M" + paginasi.**
+  Commit `ae52283`. Overlay downtime menampilkan "N dari M" dan memakai
+  paginasi cursor (`useInfiniteQuery`). 16 test baru (298 total).
+
+### Wave 3
+
+- **T12.14 (FAT-66) / F-10 — hapus `hourly_downtime_sec`.** Commit
+  `26f511f`. Field hantu dihapus dari tipe, seed, dan CSV; downtime per
+  jam kini diturunkan sebagai `operating − run` (= 1.920 dtk unplanned
+  per jam); downtime penuh 5.520 dtk tetap terbukti lewat
+  `downtime_events`. 3 test baru (301 total).
+- **T12.15 (FAT-67) / F-11 — mapping `cycle_time_ms` per satuan.** Commit
+  `d115abf`. Mapper membaca satuan field sebelum mengonversi
+  `cycle_time_ms`. 7 test baru (308 total).
+- **T12.16 (FAT-68) / F-12 — komentar `refetchAll` + `isRefreshing`.**
+  Commit `d837971`. Komentar `refetchAll` diperbaiki;
+  `isRefreshing` kini mencakup keenam query. 3 test baru (311 total).
+- **T12.17 (FAT-69) / F-13 — reset segmen saat ganti bucket.** Commit
+  `15afd30`. Pilihan segmen timeline direset saat bucket berubah,
+  sehingga tidak ada lagi segmen basi dari bucket lama. 2 test baru
+  (313 total).
+- **T12.18 (FAT-65) / U-4 — samakan default dengan dokumen.** Commit
+  `11968d3`. Keenam default G15 diubah ke nilai dokumen (bukan
+  dipertahankan diam-diam): groupBy rollup `machine` → **`day`** (API doc
+  §K.3c); bucket aggregate `1h` → **`5m`** (Guide §4.1); bucket timeline
+  `15m` → **`5m`** (API doc §Q.3); limit hourly `100` → **`72`** (Guide +
+  API doc §E); limit rollup `50` → **`500`** (API doc §K.3c); timeout
+  ekspor klien `90.000` → **`120.000 ms`** (Guide §4.2; transport HTTP
+  sudah 120.000 ms via `VITE_EXPORT_TIMEOUT_MS`, jadi abort 90 dtk
+  sebelumnya memotong ekspor yang transport-nya masih mengizinkan).
+  Satu sumber kebenaran baru `features/analytics/telemetryDefaults.ts`
+  dipakai kedua halaman agar tidak drift lagi; demo aggregate/rollup
+  disamakan (paritas demo/real), termasuk plafon demo rollup
+  `maxLimit: 100` → `500` supaya default 500 tidak terpotong diam-diam.
+  5 test baru (318 total).
+- **T12.19 (FAT-64) / U-5 — tampilan kanonis OEE per jam + tautan
+  silang.** Commit `db7c953`. Tampilan kanonis = `OeeHourlyTable` di
+  halaman Analytics OEE (badge "Tampilan kanonis", catatan sumber, tautan
+  "Lihat di Telemetry History →" ke `/telemetry?tab=hourly`); tab Per Jam
+  di Telemetry History menjadi tampilan ringkas dengan catatan + tautan
+  balik ke Analytics (`oeeAnalyticsHref` dari mesin yang terikat perangkat
+  terpilih). Tab awal kini bisa diminta lewat URL `?tab=hourly`. Tanpa
+  perubahan perhitungan/filter/data. 6 test baru (324 total).
+
+### Keputusan yang diambil
+
+- **Keputusan: selisih parts (T12.6) — TIDAK diperbaiki, menunggu
+  keputusan Fathur.** Investigasi menemukan akar masalahnya: summary
+  mengambil parts dari counter kumulatif live-state
+  (`INITIAL_LIVE_STATES` STM32-OEE-01: total 350 / good 342 / reject 8),
+  BUKAN total shift — jadi Σ hourly (334 / 328 / 6) dan summary (350 /
+  342 / 8) adalah besaran yang berbeda dari sumber yang berbeda, bukan
+  salah ketik. Opsi A yang direkomendasikan (demo saja): summary memakai
+  parts dari Σ hourly + turunkan ulang P/Q/OEE dari basis shift yang
+  sama — OEE 84,6→86,6, A 92,4 tetap, P 94,1→95,4, Q 97,4→98,2, parts
+  350/342/8→334/328/6; seed hourly tidak disentuh. Opsi ini TIDAK
+  diterapkan — mengubah angka headline diam-diam dilarang, dan ada
+  pertanyaan terbuka: summary `target_per_hour` 64 vs hourly 50 (memakai
+  64 memberi P = 74,6%, tidak masuk akal — samakan ke 50 atau
+  dokumentasikan 64); live state tetap 350/342/8 (benar sebagai
+  kumulatif); rollup ×4 (1400) dan aggregate 333 tetap tidak konsisten
+  secara terpisah. Keputusan ada di tangan Fathur.
+- **Keputusan: T12.4 — sisi panel saja.** Mapper membaca
+  `time_sec.planned` bila ada; definisi availability jam planned penuh
+  tetap urusan backend (G8).
+- **Keputusan: T12.18 — satu deviasi dipertahankan.** Ukuran paginasi UI
+  rollup tetap **50** (`DEFAULT_HISTORY_PAGE_LIMIT`); yang diubah ke 500
+  hanyalah fallback transport bila pemanggil tidak mengirim `limit`.
+  Halaman tetap mengirim `limit=50` eksplisit. Alasan: 50 adalah ukuran
+  halaman UI yang dipakai bersama halaman raw history, downtime, dan
+  operational events — menaikkannya ke 500 akan ikut mengubah semua
+  halaman itu, di luar daftar G15. Bila Fathur ingin tab rollup memuat
+  500 baris per halaman, itu keputusan terpisah (override `limit` khusus
+  rollup di query).
+
+### Yang TIDAK selesai / batasan yang dicatat
+
+- Selisih parts 334 vs 350 (di atas) — menunggu keputusan Fathur (Opsi A
+  vs biarkan).
+- Rollup day/month demo masih konstanta yang sama untuk semua mesin
+  (bawaan dari §14) — belum disentuh E12.
+- Ekspor demo hourly masih mengabaikan `from`/`to` untuk isi (catatan
+  T12.7); kolomnya sudah sama dengan layar, isinya belum difilter
+  rentang.
+- Sapuan zona waktu (T12.11) terbatas pada scope fix:
+  `toLocaleString()` tanpa tz masih ada di halaman di luar scope
+  (assets, monitoring, MQTT, production, system) — sengaja tidak
+  disentuh.
+- Kartu `ShiftSummary` tidak bisa membawa flag provisional (T12.12) —
+  server tidak mengirim flag itu; hanya tampilan hourly/rollup/timeline
+  yang konsisten.
+- Mekanisme stale-index yang sama seperti T12.17 juga ada pada ganti
+  periode/shift (observasi T12.17) — kandidat follow-up, di luar scope
+  F-13.
+- **Batas keras file (headroom menipis):** `useOeeAnalytics.ts` tepat
+  **250/250 baris** (batas keras hook) dan `TelemetryTabPanels.tsx`
+  **296/300 baris** setelah T12.18/T12.19 — perubahan berikutnya pada
+  kedua file itu hampir pasti harus memecahnya per domain mengikuti pola
+  R9.2.
+
+**Verifikasi akhir (setelah T12.19):** `npx tsc --noEmit` **0 error**;
+`npm test` **324/324** (117 awal E11 + 207 baru E12); `npm run build`
+sukses (hanya peringatan chunk-size lama); `vite preview` **HTTP 200**;
+`npm run check:structure` **0 FAIL, 0 pengecualian tercatat** (292 file,
+28 WARN lunak). Status Linear T12.1–T12.19 → Done di `docs/LINEAR.md`
+§1.3 + §8 dan `docs/linear-seed.json` v10 — perubahan status di Linear
+sendiri dilakukan setelah verifikasi independen; 19 commit lokal E12
+belum di-push ke GitHub. Epic E12 (FAT-50) tuntas dan ditutup 2026-11-17.
+Yang tetap belum terverifikasi: visual di browser sungguhan (termasuk
+badge/catatan + kedua tautan silang T12.19) + mode Real end-to-end
+(lihat §6); perilaku default 72/500 di sisi server backend hidup juga
+belum terverifikasi — yang dipastikan hanya klien tidak lagi
+mengirim/mengasumsikan nilai lama.

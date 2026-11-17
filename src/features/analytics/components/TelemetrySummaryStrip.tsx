@@ -12,6 +12,15 @@ export interface TelemetrySummaryStripProps {
   isExporting: boolean;
   cooldownSeconds: number;
   onExportHourlyCsv: () => void;
+  /** E12 T12.5 (U-2): status query agregat — kartu ringkasan tidak lagi
+      kosong tanpa pesan saat aggData undefined (gap G17, Guide §5). */
+  aggIsLoading?: boolean;
+  aggIsError?: boolean;
+  /** True bila query agregat sudah pernah selesai (sukses/gagal) — bedakan
+      "belum dimuat" (query nonaktif karena tab lain) dari "tidak ada data". */
+  aggIsFetched?: boolean;
+  /** Dipanggil tombol "Coba lagi" pada state error. */
+  onRetryAggregate?: () => void;
 }
 
 export const TelemetrySummaryStrip: React.FC<TelemetrySummaryStripProps> = ({
@@ -22,6 +31,10 @@ export const TelemetrySummaryStrip: React.FC<TelemetrySummaryStripProps> = ({
   isExporting,
   cooldownSeconds,
   onExportHourlyCsv,
+  aggIsLoading = false,
+  aggIsError = false,
+  aggIsFetched = false,
+  onRetryAggregate,
 }) => (
   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
@@ -31,10 +44,10 @@ export const TelemetrySummaryStrip: React.FC<TelemetrySummaryStripProps> = ({
           <span>Ringkasan Agregat (Interval {aggBucket})</span>
         </h2>
         <span className="text-xs font-tabular text-slate-500">
-          {aggData?.sample_count ?? 0} sampel
+          {aggIsLoading ? '…' : (aggData?.sample_count ?? 0)} sampel
         </span>
       </div>
-      {aggData && (
+      {aggData ? (
         <div className="grid grid-cols-4 gap-2 text-center font-tabular">
           <div className="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
             <span className="text-[10px] text-slate-400 block">AVG OEE</span>
@@ -61,7 +74,35 @@ export const TelemetrySummaryStrip: React.FC<TelemetrySummaryStripProps> = ({
             </span>
           </div>
         </div>
-      )}
+      ) : aggIsLoading ? (
+        <div aria-busy="true" aria-label="Memuat ringkasan agregat" className="grid grid-cols-4 gap-2 text-center font-tabular">
+          {['AVG OEE', 'AVAIL', 'PERF', 'PARTS'].map((label) => (
+            <div key={label} className="p-2 rounded bg-slate-50 dark:bg-slate-800/40 space-y-2">
+              <span className="text-[10px] text-slate-400 block">{label}</span>
+              <div className="h-4 w-10 mx-auto rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+            </div>
+          ))}
+          <span className="sr-only">Memuat ringkasan agregat…</span>
+        </div>
+      ) : aggIsError ? (
+        <div role="alert" className="space-y-1">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-300">
+            Gagal memuat ringkasan agregat
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Terjadi kesalahan saat memuat ringkasan agregat. Coba lagi atau periksa koneksi.
+          </p>
+          {onRetryAggregate && (
+            <Button size="sm" variant="secondary" onClick={onRetryAggregate}>
+              Coba lagi
+            </Button>
+          )}
+        </div>
+      ) : aggIsFetched ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Tidak ada data agregat pada rentang ini.
+        </p>
+      ) : null}
     </div>
 
     <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-2.5">

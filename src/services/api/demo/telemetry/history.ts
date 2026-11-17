@@ -15,17 +15,13 @@ import { checkAbort, assertCapability, generateTelemetrySeries } from '../helper
 import { ADMIN_ENDPOINTS } from '../../endpoints';
 import { TelemetryHistoryRecord } from '../../../../types/analytics';
 import { CursorPageResponse, ExportResult, TelemetryExportQuery, TelemetryHistoryQuery } from '../../../../types/historical';
-import { RETENTION_POLICY_DAYS, assertRetentionWindow, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, formatTelemetryExportRows, paginateWithCursor, parseExportMetadataHeaders, serializeExportRecords } from '../../../../utils/historicalExport';
+import { RETENTION_POLICY_DAYS, assertRetentionWindow, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, formatTelemetryExportRows, formatTelemetryHourlyExportRows, paginateWithCursor, parseExportMetadataHeaders, serializeExportRecords, TELEMETRY_HOURLY_CSV_COLUMNS, TELEMETRY_RAW_CSV_COLUMNS } from '../../../../utils/historicalExport';
 import { demoTelemetryOee } from './oee';
 
 export const demoTelemetryHistory = {
-  async getTelemetryHistory(deviceId: string, signal?: AbortSignal): Promise<TelemetryHistoryRecord[]> {
-    checkAbort(signal);
-    const devId = deviceId || 'STM32-OEE-01';
-    store.recordEndpoint('TELEMETRY_HISTORY', ADMIN_ENDPOINTS.TELEMETRY_HISTORY.buildPath(devId));
-    return generateTelemetrySeries(devId, 20);
-  },
-
+  // E12 T12.8 (F-9 / FAT-61): getTelemetryHistory (non-page, tanpa query)
+  // DIHAPUS — hanya dipakai contract test, bukan UI; riwayat telemetry
+  // dibaca lewat getTelemetryHistoryPage (from/to/limit/cursor).
   async getTelemetryHistoryPage(
     query: TelemetryHistoryQuery,
     signal?: AbortSignal
@@ -76,7 +72,15 @@ export const demoTelemetryHistory = {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     const rows = formatTelemetryExportRows(filtered);
-    const { content, mimeType, extension } = serializeExportRecords(rows, query.format);
+    // E12 T12.7 (F-8 / FAT-60): `limit` eksplisit dari klien membatasi
+    // jumlah baris yang diekspor (sebelumnya diabaikan — semua baris dalam
+    // rentang diekspor). Tanpa limit, perilaku lama dipertahankan.
+    const limitedRows = query.limit !== undefined ? rows.slice(0, query.limit) : rows;
+    // Kolom CSV = kolom layar (TELEMETRY_RAW_CSV_COLUMNS) — bukan seluruh
+    // key objek; format json/ndjson mengabaikan daftar kolom ini.
+    const { content, mimeType, extension } = serializeExportRecords(limitedRows, query.format, [
+      ...TELEMETRY_RAW_CSV_COLUMNS,
+    ]);
     const generatedAt = new Date().toISOString();
     const metadata = parseExportMetadataHeaders({
       'X-Export-Source': 'timescaledb:oee_telemetry_logs',
@@ -90,7 +94,7 @@ export const demoTelemetryHistory = {
       mimeType,
       format: query.format,
       content,
-      rowCount: rows.length,
+      rowCount: limitedRows.length,
       metadata,
       endpoint,
     };
@@ -108,8 +112,14 @@ export const demoTelemetryHistory = {
 
     assertRetentionWindow(query.from, query.to, new Date(), RETENTION_POLICY_DAYS);
     const hourly = await demoTelemetryOee.getHourlyTrend(query.device_id, signal);
-    const rows = hourly.map((h) => ({ ...h }));
-    const { content, mimeType, extension } = serializeExportRecords(rows, query.format);
+    // E12 T12.7 (F-8 / FAT-60): kolom CSV hourly = kolom layar + kolom
+    // tambahan berawalan `extra_` (bukan seluruh key objek mentah), dan
+    // `limit` eksplisit dari klien membatasi jumlah baris yang diekspor.
+    const rows = formatTelemetryHourlyExportRows(hourly);
+    const limitedRows = query.limit !== undefined ? rows.slice(0, query.limit) : rows;
+    const { content, mimeType, extension } = serializeExportRecords(limitedRows, query.format, [
+      ...TELEMETRY_HOURLY_CSV_COLUMNS,
+    ]);
     const generatedAt = new Date().toISOString();
     const metadata = parseExportMetadataHeaders({
       'X-Export-Source': 'timescaledb:telemetry_hourly_cagg',
@@ -123,7 +133,7 @@ export const demoTelemetryHistory = {
       mimeType,
       format: query.format,
       content,
-      rowCount: rows.length,
+      rowCount: limitedRows.length,
       metadata,
       endpoint,
     };

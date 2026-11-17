@@ -335,8 +335,11 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   await apiClient.acknowledgeOperationalEvent('op-ev-101', 'Verified in contract test');
   await apiClient.getAuditLogs();
 
-  // Telemetry, OEE, Quality, Reconciliation (13)
-  await apiClient.getTelemetryHistory('STM32-OEE-01');
+  // Telemetry, OEE, Quality, Reconciliation (12)
+  // E12 T12.8 (F-9 / FAT-61): getTelemetryHistory (non-page) dihapus —
+  // hanya dipakai contract test ini, bukan UI. Cakupan endpoint
+  // TELEMETRY_HISTORY kini dibawa getTelemetryHistoryPage (jalur UI).
+  await apiClient.getTelemetryHistoryPage({ device_id: 'STM32-OEE-01', limit: 10 });
   await apiClient.getHourlyTrend('STM32-OEE-01');
   await apiClient.getTelemetryAggregate('STM32-OEE-01');
   await apiClient.getTelemetryRollup({

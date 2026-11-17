@@ -8,7 +8,7 @@ import { ApiError } from '../../types/auth';
 import { useAuth, useCapability } from '../../context/AuthContext';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { formatIsoWithOffset } from '../../utils/historicalExport';
+import { formatIsoWithOffset, formatJakartaDateTime } from '../../utils/historicalExport';
 import { HISTORY_DATA_STALE_TIME_MS } from '../shared/useHistoricalQueries';
 
 export const DataReconciliationPage: React.FC = () => {
@@ -238,7 +238,7 @@ export const DataReconciliationPage: React.FC = () => {
 
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-tabular">
               <Clock className="w-3.5 h-3.5" />
-              <span>Last Run: {new Date(job.last_run).toLocaleString()}</span>
+              <span>Last Run: {formatJakartaDateTime(job.last_run)}</span>
             </div>
           </div>
         ))}

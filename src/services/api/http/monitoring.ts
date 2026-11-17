@@ -5,12 +5,12 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, reqJson, reqList, reqExport, checkAbortHttp } from './transport';
-import { mapLiveState, mapDowntime, mapOperationalEvent, mapAuditLog, mapTelemetryHistory, mapHourly, mapRollup } from './mappers';
+import { mapLiveState, mapDowntime, mapOperationalEvent, mapAuditLog, mapTelemetryHistory, mapHourly, mapRollup, mapAggregate } from './mappers';
 import { num, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, buildTelemetryRollupEndpoint } from '../../../utils/historicalExport';
 import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
-import { HourlyOeePoint, TelemetryHistoryRecord, TelemetryRangeOptions, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
+import { HourlyOeePoint, TelemetryAggregateResult, TelemetryHistoryRecord, TelemetryRangeOptions, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
 import { AuditLogItem } from '../../../types/system';
 import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery, TelemetryExportQuery, TelemetryHistoryQuery } from '../../../types/historical';
 
@@ -185,16 +185,9 @@ export const httpMonitoring = {
   },
 
   // -- Telemetry ----------------------------------------------------------------
-  async getTelemetryHistory(deviceId: string, signal?: AbortSignal): Promise<TelemetryHistoryRecord[]> {
-    checkAbortHttp(signal);
-    assertAuthenticatedHttp();
-    return reqList(
-      { path: ADMIN_ENDPOINTS.TELEMETRY_HISTORY.buildPath(deviceId), signal, endpointKey: 'TELEMETRY_HISTORY', capability: 'telemetry.read', resourceId: deviceId },
-      mapTelemetryHistory,
-      100,
-    ).then((p) => p.data);
-  },
-
+  // E12 T12.8 (F-9 / FAT-61): getTelemetryHistory (non-page, tanpa query)
+  // DIHAPUS — hanya dipakai contract test, bukan UI; riwayat telemetry
+  // dibaca lewat getTelemetryHistoryPage (from/to/limit/cursor).
   async getHourlyTrend(
     deviceId: string,
     signal?: AbortSignal,
@@ -216,25 +209,20 @@ export const httpMonitoring = {
         resourceId: deviceId,
       },
       mapHourly,
-      options?.limit ?? 100,
+      // E12 T12.18 (U-4 / FAT-65): limit default dokumen 72 bucket
+      // (Guide tabel endpoint + API doc §E "default 72 bucket terakhir").
+      options?.limit ?? 72,
     ).then((p) => p.data);
   },
 
   async getTelemetryAggregate(
     deviceId: string,
-    bucket: '1m' | '5m' | '15m' | '1h' | '1d' = '1h',
+    // E12 T12.18 (U-4 / FAT-65): bucket default dokumen `5m`
+    // (Guide tabel endpoint §4.1).
+    bucket: '1m' | '5m' | '15m' | '1h' | '1d' = '5m',
     signal?: AbortSignal,
     options?: TelemetryRangeOptions
-  ): Promise<{
-    device_id: string;
-    bucket: string;
-    avg_oee: number;
-    avg_availability: number;
-    avg_performance: number;
-    avg_quality: number;
-    total_parts: number;
-    sample_count: number;
-  }> {
+  ): Promise<TelemetryAggregateResult> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     const rows = await reqList(
@@ -251,19 +239,29 @@ export const httpMonitoring = {
         capability: 'telemetry.read',
         resourceId: deviceId,
       },
-      (raw) => raw as Record<string, unknown>,
-      100,
+      mapAggregate,
+      options?.limit ?? 500,
     ).then((p) => p.data);
-    const first = rows[0] ?? {};
+    // E12 T12.2 (F-5 / FAT-51): kembalikan SELURUH rows (bukan rows[0]).
+    // Ringkasan dihitung dari deret: rata-rata komponen OEE per bucket,
+    // total parts + sampel = jumlah seluruh bucket. Performance null
+    // (kapasitas unknown) dikeluarkan dari rata-rata; bila semua null → 0.
+    const mean1 = (vals: number[]): number =>
+      vals.length === 0 ? 0 : Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+    const performanceVals = rows
+      .map((r) => r.performancePct)
+      .filter((v): v is string | number => v !== null)
+      .map((v) => num(v, 0));
     return {
       device_id: deviceId,
       bucket,
-      avg_oee: num(pick(first.avg_oee, first.avgOee, first.oeePct, first.oee), 0),
-      avg_availability: num(pick(first.avg_availability, first.avgAvailability, first.availabilityPct, first.availability), 0),
-      avg_performance: num(pick(first.avg_performance, first.avgPerformance, first.performancePct, first.performance), 0),
-      avg_quality: num(pick(first.avg_quality, first.avgQuality, first.qualityPct, first.quality), 0),
-      total_parts: num(pick(first.total_parts, first.totalParts, first.total_count, first.totalCount), 0),
-      sample_count: num(pick(first.sample_count, first.sampleCount), 0),
+      avg_oee: mean1(rows.map((r) => num(r.oeePct, 0))),
+      avg_availability: mean1(rows.map((r) => num(r.availabilityPct, 0))),
+      avg_performance: mean1(performanceVals),
+      avg_quality: mean1(rows.map((r) => num(r.qualityPct, 0))),
+      total_parts: rows.reduce((a, r) => a + r.totalCount, 0),
+      sample_count: rows.reduce((a, r) => a + r.sampleCount, 0),
+      rows,
     };
   },
 
@@ -274,7 +272,10 @@ export const httpMonitoring = {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     const endpoint = buildTelemetryRollupEndpoint(query);
-    return reqList({ path: endpoint, signal, endpointKey: 'TELEMETRY_ROLLUP' }, mapRollup, query.limit ?? 50);
+    // E12 T12.18 (U-4 / FAT-65): limit default dokumen 500 (API doc §K.3c,
+    // `limit` 1..2000 default 500) — dipakai bila pemanggil tidak mengirim
+    // limit; halaman tetap mengirim ukuran paginasinya sendiri (50).
+    return reqList({ path: endpoint, signal, endpointKey: 'TELEMETRY_ROLLUP' }, mapRollup, query.limit ?? 500);
   },
 
   async exportTelemetryData(query: TelemetryExportQuery, signal?: AbortSignal): Promise<ExportResult> {
@@ -314,10 +315,14 @@ export const httpMonitoring = {
   },
 
   async getOeeHourly(
-    params: { machine_id?: string; device_id?: string; from?: string; to?: string; limit?: number } = {},
+    params: { machine_id?: string; device_id?: string; from?: string; to?: string; limit?: number; date?: string; shift?: string } = {},
     signal?: AbortSignal
   ): Promise<HourlyOeePoint[]> {
     checkAbortHttp(signal);
+    // E12 T12.1 (X-1 / FAT-54): `date`/`shift` diterima demi paritas
+    // antarmuka dengan demo, tapi TIDAK dikirim — API doc §I tidak
+    // mendefinisikan keduanya untuk /oee/hourly; jendela shift dibawa
+    // oleh from/to. Demo memakainya hanya sebagai petunjuk proyeksi seed.
     return reqList(
       {
         path: ADMIN_ENDPOINTS.OEE_HOURLY.buildPath(),
@@ -332,7 +337,9 @@ export const httpMonitoring = {
         endpointKey: 'OEE_HOURLY',
       },
       mapHourly,
-      params.limit ?? 100,
+      // E12 T12.18 (U-4 / FAT-65): limit default dokumen 72 — sama dengan
+      // getHourlyTrend di atas (Guide tabel endpoint + API doc §E).
+      params.limit ?? 72,
     ).then((p) => p.data);
   }
 };

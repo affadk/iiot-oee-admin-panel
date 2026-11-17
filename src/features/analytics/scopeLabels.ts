@@ -1,4 +1,7 @@
 import { ShiftSummary } from '../../types/analytics';
+import { Shift } from '../../types/production';
+import { addDaysToDateString, isCrossMidnightShift, isTodayWindow } from '../../utils/historicalExport';
+import type { RollupScope } from './hooks/oeeQueryKeys';
 
 /**
  * E11 T11.5 (U-1 / FAT-45): label scope eksplisit di setiap widget.
@@ -44,15 +47,19 @@ export function formatIsoDateShort(iso: string | undefined | null): string | nul
 
 /**
  * Label periode dari from/to yang aktif. Rentang yang sama dengan preset
- * bawaan panel ditampilkan sebagai preset ("7 hari terakhir", dst.);
- * rentang lain ditampilkan sebagai rentang tanggal ("9 Nov 2026 – 16 Nov 2026").
- * String kosong bila from/to tidak ada atau tidak valid.
+ * bawaan panel ditampilkan sebagai preset ("Hari ini", "7 hari terakhir",
+ * dst.); rentang lain ditampilkan sebagai rentang tanggal
+ * ("9 Nov 2026 – 16 Nov 2026"). String kosong bila from/to tidak ada
+ * atau tidak valid.
  */
-export function formatPeriodLabel(from?: string, to?: string): string {
+export function formatPeriodLabel(from?: string, to?: string, now: Date = new Date()): string {
   if (!from || !to) return '';
   const fromMs = Date.parse(from);
   const toMs = Date.parse(to);
   if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return '';
+  // E12 T12.9 (X-2 / FAT-62): jendela "hari ini" dicek dulu — durasinya
+  // bisa mendekati 24 jam menjelang tengah malam.
+  if (isTodayWindow(from, to, now)) return 'Hari ini';
   const diffMs = toMs - fromMs;
   const hourMs = 60 * 60 * 1000;
   const dayMs = 24 * hourMs;
@@ -115,10 +122,48 @@ export function formatSummaryScopeLabel(
   return machine ? `${base} · Mesin ${machine}` : base;
 }
 
+/**
+ * E12 T12.1 (X-1 / FAT-54): label filter shift dari pilihan tanggal + shift
+ * yang aktif, mis. "Shift 1 (Pagi) · 16 Nov 2026 · 07:00–15:00". Shift
+ * lintas tengah malam diberi penanda "(+1 hari)" pada jam akhirnya.
+ * String kosong bila shift/tanggal tidak ada atau tidak valid — pemanggil
+ * memakai formatPeriodLabel(from, to) sebagai gantinya.
+ */
+export function formatShiftFilterLabel(
+  shift: Shift | null | undefined,
+  date: string | undefined | null
+): string {
+  if (!shift || !date) return '';
+  // Tanggal kalender harus benar-benar ada (formatIsoDateShort saja tidak
+  // memvalidasi, mis. 2026-02-30 lolos regex).
+  if (addDaysToDateString(date, 0) === null) return '';
+  const dateLabel = formatIsoDateShort(`${date}T00:00:00`);
+  if (!dateLabel) return '';
+  const name = (shift.shiftName || '').trim();
+  if (!name) return '';
+  const start = (shift.startTime || '').trim();
+  const end = (shift.endTime || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
+    return `${name} · ${dateLabel}`;
+  }
+  const range = isCrossMidnightShift(shift) ? `${start}–${end} (+1 hari)` : `${start}–${end}`;
+  return `${name} · ${dateLabel} · ${range}`;
+}
+
 /** Gabungkan bagian-bagian label scope, lewati bagian yang kosong. */
 export function joinScopeLabel(...parts: (string | undefined | null)[]): string {
   return parts
     .map((p) => (p ?? '').trim())
     .filter((p) => p !== '')
     .join(' · ');
+}
+
+/**
+ * E12 T12.10 (X-3 / FAT-57): judul tabel rollup menurut scope yang aktif —
+ * "Rollup — <nama mesin>" untuk scope mesin ini, "Rollup — Semua Mesin"
+ * untuk scope plant-wide. Satu-satunya sumber judul rollup; jangan
+ * membangun judul rollup di tempat lain.
+ */
+export function formatRollupScopeTitle(scope: RollupScope, machineLabel: string): string {
+  return scope === 'ALL' ? 'Rollup — Semua Mesin' : `Rollup — ${machineLabel}`;
 }

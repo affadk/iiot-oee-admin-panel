@@ -98,6 +98,11 @@ export function parseHistoryFiltersFromSearchParams(
     searchParams.get('machine_id') ?? searchParams.get('machineId') ?? defaults.machineId;
   const deviceId =
     searchParams.get('device_id') ?? searchParams.get('deviceId') ?? defaults.deviceId;
+  // E12 T12.1 (X-1 / FAT-54): filter shift dari URL (shift_date/shift_id).
+  const shiftDate =
+    searchParams.get('shift_date') ?? searchParams.get('shiftDate') ?? defaults.shiftDate;
+  const shiftId =
+    searchParams.get('shift_id') ?? searchParams.get('shiftId') ?? defaults.shiftId;
   const woId = searchParams.get('wo_id') ?? searchParams.get('woId') ?? defaults.woId;
   const eventType =
     searchParams.get('event_type') ?? searchParams.get('eventType') ?? defaults.eventType;
@@ -127,6 +132,8 @@ export function parseHistoryFiltersFromSearchParams(
     isBuffered,
     groupBy,
     bucket,
+    shiftDate: shiftDate || undefined,
+    shiftId: shiftId || undefined,
     from: fromParam || defaults.from || defaultRange.from,
     to: toParam || defaults.to || defaultRange.to,
     limit: Number.isFinite(parsedLimit) ? parsedLimit : DEFAULT_HISTORY_PAGE_LIMIT,
@@ -162,6 +169,10 @@ export function serializeHistoryFiltersToSearchParams(
     'group_by',
     'groupBy',
     'bucket',
+    'shift_date',
+    'shiftDate',
+    'shift_id',
+    'shiftId',
     'from',
     'to',
     'limit',
@@ -181,6 +192,8 @@ export function serializeHistoryFiltersToSearchParams(
   if (filters.isBuffered !== undefined) next.set('is_buffered', String(filters.isBuffered));
   if (filters.groupBy) next.set('group_by', filters.groupBy);
   if (filters.bucket) next.set('bucket', filters.bucket);
+  if (filters.shiftDate) next.set('shift_date', filters.shiftDate);
+  if (filters.shiftId) next.set('shift_id', filters.shiftId);
   if (filters.from) next.set('from', filters.from);
   if (filters.to) next.set('to', filters.to);
   if (filters.limit) next.set('limit', String(filters.limit));
@@ -192,6 +205,12 @@ export function serializeHistoryFiltersToSearchParams(
 /**
  * Pure reducer that applies partial filter updates and automatically resets cursor
  * whenever any non-cursor filter parameter changes.
+ *
+ * E12 T12.1 (X-1 / FAT-54): from/to adalah turunan pilihan shift bila
+ * shiftDate/shiftId terisi — mengganti rentang secara manual (preset ekspor,
+ * rentang kustom) tanpa menyebut shift berarti pilihan shift tidak lagi
+ * berlaku, jadi keduanya dibersihkan. Patch yang menyebut shift (pemilih
+ * shift) tidak dibersihkan.
  */
 export function applyHistoryFilterPatch(
   current: HistoryFilters,
@@ -199,11 +218,16 @@ export function applyHistoryFilterPatch(
 ): HistoryFilters {
   const patchKeys = Object.keys(patch) as (keyof HistoryFilters)[];
   const onlyCursorChanged = patchKeys.length === 1 && patchKeys[0] === 'cursor';
+  const rangeChanged = patchKeys.includes('from') || patchKeys.includes('to');
+  const shiftMentioned = patchKeys.includes('shiftDate') || patchKeys.includes('shiftId');
   return {
     ...current,
     ...patch,
     envelope: true,
     cursor: onlyCursorChanged ? patch.cursor : undefined,
+    ...(rangeChanged && !shiftMentioned
+      ? { shiftDate: undefined, shiftId: undefined }
+      : {}),
   };
 }
 

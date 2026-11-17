@@ -332,6 +332,13 @@ export const HistoryFiltersSchema = z
     isBuffered: z.boolean().optional(),
     groupBy: z.enum(['machine', 'day', 'month']).optional(),
     bucket: z.enum(['1m', '5m', '15m', '1h', '1d']).optional(),
+    // E12 T12.1 (X-1 / FAT-54): filter shift — keduanya harus terisi
+    // bersamaan (lihat refine di bawah).
+    shiftDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal shift harus format YYYY-MM-DD.')
+      .optional(),
+    shiftId: z.string().trim().min(1).max(64).optional(),
     from: IsoOffsetDateTimeSchema,
     to: IsoOffsetDateTimeSchema,
     limit: z.number().int().min(1).max(2000),
@@ -341,6 +348,10 @@ export const HistoryFiltersSchema = z
   .refine((val) => Date.parse(val.from) <= Date.parse(val.to), {
     path: ['from'],
     message: 'Waktu awal (from) harus lebih kecil atau sama dengan waktu akhir (to).',
+  })
+  .refine((val) => (val.shiftDate === undefined) === (val.shiftId === undefined), {
+    path: ['shiftDate'],
+    message: 'Filter shift butuh tanggal dan shift sekaligus (shift_date + shift_id).',
   });
 
 export const TelemetryRollupItemSchema = z.object({

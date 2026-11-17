@@ -4,6 +4,7 @@ import { TelemetryHistoryRecord } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { Badge } from '../../../components/ui/Badge';
 import { formatDuration } from '../../../utils/oeeCalculations';
+import { formatJakartaDateTime } from '../../../utils/historicalExport';
 
 export function useTelemetryRawColumns() {
   return useMemo<ColumnDef<TelemetryHistoryRecord, unknown>[]>(
@@ -13,7 +14,7 @@ export function useTelemetryRawColumns() {
         header: 'Timestamp',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-700 dark:text-slate-300">
-            {new Date(row.original.timestamp).toLocaleString()}
+            {formatJakartaDateTime(row.original.timestamp)}
           </span>
         ),
       },

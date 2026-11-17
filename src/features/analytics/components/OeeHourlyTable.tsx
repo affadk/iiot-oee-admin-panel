@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom';
 import { HourlyOeePoint } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { Badge } from '../../../components/ui/Badge';
+import { formatDuration } from '../../../utils/oeeCalculations';
+import { formatJakartaTime } from '../../../utils/historicalExport';
+import { formatRollupPerformance } from '../../shared/historyFilters';
 import { joinScopeLabel } from '../scopeLabels';
+import { TableStateRow } from './TableStateRow';
 
 interface OeeHourlyTableProps {
   hourly: HourlyOeePoint[];
@@ -12,6 +16,12 @@ interface OeeHourlyTableProps {
   periodLabel?: string;
   /** Label mesin terpilih — diteruskan dari halaman. */
   machineLabel?: string;
+  /** E12 T12.5 (U-2): sedang memuat dan belum ada data — tampilkan skeleton. */
+  isLoading?: boolean;
+  /** E12 T12.5 (U-2): query gagal dan tidak ada data — tampilkan pesan error. */
+  isError?: boolean;
+  /** Dipanggil tombol "Coba lagi" pada state error. */
+  onRetry?: () => void;
 }
 
 export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
@@ -19,6 +29,9 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
   resolvedDeviceId,
   periodLabel,
   machineLabel,
+  isLoading = false,
+  isError = false,
+  onRetry,
 }) => {
   // E11 T11.5 (U-1): label scope eksplisit — periode (from/to filter) + mesin.
   const scopeLabel = joinScopeLabel(periodLabel, machineLabel ? `Mesin ${machineLabel}` : '');
@@ -27,20 +40,24 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Rincian Pencapaian OEE Per Jam
+            Rincian Pencapaian OEE Per Jam{' '}
+            <Badge variant="info">Tampilan kanonis</Badge>
           </h2>
           {scopeLabel && (
             <p className="text-[11px] text-slate-500">{scopeLabel}</p>
           )}
           <p className="text-[11px] text-slate-500">
             Setiap baris merepresentasikan delta produksi di dalam jam tersebut (bucket provisional dapat diperbarui oleh rekonsiliasi).
+            Performa dihitung dengan kapasitas berbobot waktu; jam dengan kapasitas 0 atau tidak diketahui menampilkan tanda kapasitas 0/unknown.
+            {/* E12 T12.19 (U-5 / FAT-64): tampilan kanonis OEE per jam (gap G23) — tab Per Jam di Riwayat Telemetri menampilkan data yang sama dari sumber yang sama. */}
+            Tampilan kanonis OEE per jam — tab Per Jam di Riwayat Telemetri menampilkan data yang sama dari sumber yang sama (CAgg <code>oee_hourly_summary</code>).
           </p>
         </div>
         <Link
-          to={`/telemetry?device_id=${encodeURIComponent(resolvedDeviceId)}`}
+          to={`/telemetry?device_id=${encodeURIComponent(resolvedDeviceId)}&tab=hourly`}
           className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap shrink-0"
         >
-          Buka Riwayat Telemetri →
+          Lihat di Telemetry History →
         </Link>
       </div>
       <div className="overflow-x-auto">
@@ -50,16 +67,35 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
               <th className="py-2.5 px-4">Jam</th>
               <th className="py-2.5 px-4">FSM State &amp; Plan</th>
               <th className="py-2.5 px-4 text-right">OEE</th>
-              <th className="py-2.5 px-4 text-right">A / P / Q</th>
+              <th className="py-2.5 px-4 text-right">A / P (Weighted) / Q</th>
               <th className="py-2.5 px-4 text-right">Parts / Target</th>
+              <th className="py-2.5 px-4 text-right">Good</th>
               <th className="py-2.5 px-4 text-right">Reject</th>
+              <th className="py-2.5 px-4 text-right">Op / Run · Sampel</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-            {hourly.map((pt) => (
+            {hourly.length === 0 ? (
+              <TableStateRow
+                isLoading={isLoading}
+                isError={isError}
+                colSpan={8}
+                emptyDescription="Tidak ada bucket produksi per jam untuk mesin dan periode yang dipilih."
+                onRetry={onRetry}
+              />
+            ) : (
+              hourly.map((pt) => {
+              // E12 T12.3 (F-6): samakan perlakuan kapasitas unknown dengan
+              // rollup — kapasitas 0/tidak diketahui (targetPerHour null/0)
+              // menampilkan "— (Kapasitas 0/Unknown)", bukan Performance 0.
+              // `performance` di tipe ini number (mapper mengubah null server
+              // menjadi 0), jadi sinyal kapasitas adalah targetPerHour.
+              const capacityUnknown = pt.targetPerHour === null || pt.targetPerHour === 0;
+              return (
               <tr key={pt.hour} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                 <td className="py-2.5 px-4 font-tabular font-semibold text-slate-900 dark:text-slate-100">
-                  <span>{pt.hour}</span>
+                  {/* E12 T12.11 (X-4 / FAT-59): jam bucket dalam WIB. */}
+                  <span>{formatJakartaTime(pt.hour)}</span>
                   {pt.provisional && (
                     <span className="ml-1.5 text-[11px] font-sans font-medium text-amber-600 dark:text-amber-400">
                       (Provisional)
@@ -73,20 +109,29 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
                   </div>
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular font-bold text-slate-900 dark:text-slate-100">
-                  {pt.oee.toFixed(1)}%
+                  {pt.oee.toFixed(2)}%
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular text-slate-600 dark:text-slate-300">
-                  {pt.availability.toFixed(0)}% / {pt.performance.toFixed(0)}% / {pt.quality.toFixed(0)}%
+                  {pt.availability.toFixed(2)}% / {formatRollupPerformance(capacityUnknown ? null : pt.performance)} / {pt.quality.toFixed(2)}%
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular">
                   <strong>{pt.parts_produced}</strong>
                   <span className="text-slate-400"> / {pt.targetPerHour ?? '—'}</span>
                 </td>
+                <td className="py-2.5 px-4 text-right font-tabular text-emerald-600 dark:text-emerald-400">
+                  {pt.good_count ?? '—'}
+                </td>
                 <td className="py-2.5 px-4 text-right font-tabular text-red-500 font-medium">
                   {pt.defect_count}
                 </td>
+                <td className="py-2.5 px-4 text-right font-tabular text-slate-500">
+                  {pt.hourly_operating_sec === undefined ? '—' : formatDuration(pt.hourly_operating_sec)} /{' '}
+                  {pt.hourly_run_sec === undefined ? '—' : formatDuration(pt.hourly_run_sec)} · {pt.sampleCount ?? '—'}
+                </td>
               </tr>
-            ))}
+              );
+              })
+            )}
           </tbody>
         </table>
       </div>

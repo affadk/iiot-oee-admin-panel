@@ -18,7 +18,7 @@ export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
               <div className="font-semibold text-slate-900 dark:text-slate-100">
                 {item.machine_name ?? item.groupKey}
                 {item.provisional && (
-                  <span className="ml-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  <span className="ml-1.5 text-[11px] font-sans font-medium text-amber-600 dark:text-amber-400">
                     (Provisional)
                   </span>
                 )}

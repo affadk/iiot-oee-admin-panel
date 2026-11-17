@@ -4,7 +4,7 @@ import { Download, FileJson, FileText, AlertTriangle, CheckCircle2, Calendar, Lo
 import { ExportFormat, ExportResult, TimeWindowPreset } from '../../types/historical';
 import { UserRole } from '../../types/auth';
 import { Button } from '../ui/Button';
-import { formatIsoWithOffset, RETENTION_POLICY_DAYS } from '../../utils/historicalExport';
+import { formatIsoWithOffset, formatJakartaDateTime, RETENTION_POLICY_DAYS } from '../../utils/historicalExport';
 import { useCapability } from '../../context/AuthContext';
 
 interface HistoricalExportToolbarProps {
@@ -180,7 +180,7 @@ export const HistoricalExportToolbar: React.FC<HistoricalExportToolbarProps> = (
           ) : (
             <div className="text-xs text-slate-500 dark:text-slate-400 font-tabular flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>
-                Rentang aktif: {new Date(fromIso).toLocaleString()} — {new Date(toIso).toLocaleString()}
+                Rentang aktif: {formatJakartaDateTime(fromIso)} — {formatJakartaDateTime(toIso)}
               </span>
               {scopeLabel && (
                 <>
@@ -269,7 +269,7 @@ export const HistoricalExportToolbar: React.FC<HistoricalExportToolbarProps> = (
                 <span aria-hidden="true">·</span>
                 <span>Perangkat: {lastExport.metadata.deviceId}</span>
                 <span aria-hidden="true">·</span>
-                <span>Dibuat: {new Date(lastExport.metadata.generatedAt).toLocaleString()}</span>
+                <span>Dibuat: {formatJakartaDateTime(lastExport.metadata.generatedAt)}</span>
               </div>
             </div>
           </div>

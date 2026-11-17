@@ -10,7 +10,7 @@
  * eksak per bucket (T11.4). JANGAN ubah angka/logika di sini.
  */
 
-import { ShiftTimelineSegment } from '../../../../types/analytics';
+import { ShiftTimelineSegment, TelemetryAggregatePoint } from '../../../../types/analytics';
 
 /**
  * Ambil tanggal kalender + offset zona waktu dari string ISO 8601 apa adanya
@@ -121,4 +121,76 @@ export function rebucketTimelineSegments(
     }
   }
   return out;
+}
+
+/** Durasi tiap bucket agregat (ms) — API doc §K.4. */
+export const AGG_BUCKET_MS: Record<'1m' | '5m' | '15m' | '1h' | '1d', number> = {
+  '1m': 60_000,
+  '5m': 300_000,
+  '15m': 900_000,
+  '1h': 3_600_000,
+  '1d': 86_400_000,
+};
+
+/** Satu desimal — nilai seed per bucket. */
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+/**
+ * E12 T12.2 (F-5): variasi deterministik per indeks bucket, [-1.0, +1.0]
+ * langkah 0.1 — deret terlihat hidup tapi stabil antar pemanggilan.
+ */
+function demoAggregateVariation(i: number): number {
+  return ((((i * 2654435761) % 21) + 21) % 21 - 10) / 10;
+}
+
+/** Bagi total (parts/sampel) ke N bucket: basis sama + sisa ke bucket awal. */
+function distributeTotal(total: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(total / n);
+  const rem = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+/**
+ * E12 T12.2 (F-5): bangun deret per-bucket untuk jendela [fromMs, toMs).
+ * Σ sampleCount/totalCount cocok dengan total keseluruhan; nilai OEE
+ * bervariasi tipis di sekitar rata-rata seed; bucket terakhir provisional.
+ */
+export function buildDemoAggregateRows(
+  deviceId: string,
+  bucket: '1m' | '5m' | '15m' | '1h' | '1d',
+  fromMs: number,
+  toMs: number,
+  totalParts: number,
+  totalSamples: number,
+): TelemetryAggregatePoint[] {
+  const bucketMs = AGG_BUCKET_MS[bucket];
+  const count = Math.max(0, Math.ceil((toMs - fromMs) / bucketMs));
+  if (count === 0) return [];
+  const isUnknownCapacity = deviceId === 'STM32-OEE-05';
+  const bucketSec = bucketMs / 1000;
+  const partsDist = distributeTotal(totalParts, count);
+  const samplesDist = distributeTotal(totalSamples, count);
+  return Array.from({ length: count }, (_, i) => {
+    const v = demoAggregateVariation(i);
+    const availability = isUnknownCapacity ? 100 : round1(Math.min(100, Math.max(0, 91.4 + v * 0.8)));
+    const totalCount = partsDist[i];
+    const rejectCount = totalCount > 0 && i % 6 === 0 ? 1 : 0;
+    return {
+      bucket: new Date(fromMs + i * bucketMs).toISOString(),
+      totalCount,
+      goodCount: Math.max(0, totalCount - rejectCount),
+      rejectCount,
+      operatingSec: bucketSec,
+      runSec: Math.round((bucketSec * availability) / 100),
+      availabilityPct: availability,
+      performancePct: isUnknownCapacity ? null : round1(Math.min(100, Math.max(0, 93.1 + v * 0.9))),
+      qualityPct: isUnknownCapacity ? 100 : round1(Math.min(100, Math.max(0, 98.0 + v * 0.4))),
+      oeePct: isUnknownCapacity ? 0 : round1(Math.min(100, Math.max(0, 83.5 + v))),
+      sampleCount: samplesDist[i],
+      provisional: i === count - 1,
+    };
+  });
 }
