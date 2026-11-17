@@ -438,6 +438,15 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   await apiClient.rotateMqttClientPassword('test_mqtt_user', 'NewMqttPass123!');
   await apiClient.addMqttClientRole('test_mqtt_user', 'telemetry_sender');
   await apiClient.removeMqttClientRole('test_mqtt_user', 'telemetry_sender');
+  // E14 K-11 (b): cabang deviceId+access memakai endpoint PROVISION.
+  const provisionedClient = await apiClient.createMqttClient({
+    username: 'test_mqtt_edge',
+    deviceId: 'DEV-TEST-01',
+    access: 'publish',
+  });
+  assert.equal(provisionedClient.client.username, 'test_mqtt_edge');
+  assert.ok(provisionedClient.generatedPassword, 'createMqttClient deviceId tanpa password mengembalikan one-time generatedPassword');
+  await apiClient.deleteMqttClient('test_mqtt_edge');
   await apiClient.getMqttRoles();
   await apiClient.createMqttRole({
     rolename: 'test_mqtt_role',

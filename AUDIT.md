@@ -834,3 +834,178 @@ sungguhan di mode Real, bukan Demo.
 tunnel) dan mode akses Private/Public — sudah tercakup
 `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` (B1–B25, A10.2); telemetry/OEE/
 analytics — sudah diaudit E11/E12 (§14–§15).
+
+## 17. Tindak lanjut panel keputusan Fase 0 — Epic E14 (2026-11-17)
+
+Fathur mencatat 12 dari 15 keputusan Fase 0 (K-01–K-15) di decision log
+Lampiran C `docs/BACKEND_UPGRADE_PLAN.md` (17 November 2026); K-05, K-06,
+K-07 ditunda. Epic ini menerapkan perubahan panel yang mengikuti keputusan
+yang sudah diputuskan — di luar keputusan yang masih di-skip. Dua keputusan
+menyimpang dari rekomendasi rencana: K-03 memilih (a) wajib slash (bukan
+(c) terima keduanya) dan K-11 memilih (b) `POST /clients/provision`
+(bukan (a) `POST /clients`); keduanya diterapkan apa adanya.
+
+**P14.1 — K-03 trailing slash config (FAT-123).** Registry
+`src/services/api/endpoints/mqtt.ts` `MQTT_CONFIG_GET`: template +
+buildPath menjadi `/api/v1/mqtt/configuration/` (sebelumnya tanpa slash).
+`http/mqttConfig.ts` dan demo memakai `buildPath()` sehingga ikut otomatis;
+transport tidak menormalisasi slash (terverifikasi).
+
+**P14.2 — K-10 PUT IAM (FAT-124).** `src/services/api/http/iam.ts`
+`updateIamRole` + `updateIamPolicy`: method PATCH → PUT (registry sudah
+PUT: `IAM_ROLES_UPDATE`, `IAM_POLICIES_UPDATE`); parameter `patch`
+di-rename ke `changes`. Pemanggil positional (`setIamRoleActive`) tidak
+berubah.
+
+**P14.3 — K-10 PATCH dynsec (FAT-125).**
+`src/services/api/http/mqttDynsec.ts` `rotateMqttClientPassword`: POST →
+PATCH; `toggleMqttClient`: POST → PATCH + body `{disabled: !enabled}` →
+`{enabled}`. Registry sudah PATCH (`MQTT_DYNSEC_CLIENTS_PASSWORD`,
+`MQTT_DYNSEC_CLIENTS_ENABLE`).
+
+**P14.4 — K-11 provisioning lewat `POST /clients/provision` (FAT-126).**
+Registry baru `MQTT_DYNSEC_CLIENTS_PROVISION` (POST,
+`/api/v1/mqtt/dynamic-security/clients/provision`) di
+`src/services/api/endpoints/mqtt.ts`; `/mqtt/dynamic-security/clients/provision`
+dihapus dari `FORBIDDEN_ENDPOINT_PATTERNS` + komentar header
+`src/services/api/endpoints.ts` (jalur `/mqtt/dynamic-security/provision`
+tanpa `/clients` TETAP diblokir). `http/mqttDynsec.ts` `createMqttClient`:
+cabang deviceId+access (tanpa roles) memakai endpoint PROVISION, cabang
+roles tetap CREATE; `demo/mqttDynsec.ts` `recordEndpoint` mengikuti cabang
+yang sama. Registry kini **132 operasi REST admin** (+1 WebSocket = 133);
+`modeAndTransport.test.ts` diperbarui 131 → 132; komentar header
+`endpoints.ts` diperbarui.
+
+**Terverifikasi tidak butuh perubahan panel.** K-14 (a): `acknowledgeOperationalEvent`
+(`http/monitoring.ts`) sudah mengirim body `{note?}` saja, tanpa
+`operatorId`. K-09 (b): `createIamPermission` tidak punya pemanggil UI
+(hanya test) — panel tidak pernah memanggil `POST /permissions`; endpoint
+dihapus dari dokumen backend, bukan dari panel.
+
+**Test baru.** `modeAndTransport.test.ts`: test registry K-03/K-11 +
+test stub HTTP port 3003 yang menegaskan method + path + body keempat
+perubahan (PUT roles/policies, PATCH rotate/toggle dengan body
+`{enabled: false}`, POST provision dengan body deviceId+access,
+GET config berslash; plus asersi negatif: tidak ada lagi POST
+rotate/toggle atau PATCH IAM). `contractAlignment.test.ts`: alur
+`createMqttClient` deviceId ditambahkan agar cakupan 100% katalog
+(`MQTT_DYNSEC_CLIENTS_PROVISION` ikut terpanggil).
+
+**Catatan.**
+- Stub test kedua dalam satu file HARUS memakai port berbeda (3003; stub
+  pertama memakai 3001): pool keep-alive undici memakai ulang soket mati
+  ke 3001 sehingga login gagal NETWORK. Pola yang sama dipakai
+  `accessMode.test.ts` (port 3002).
+- B35 (`mapMqttClient` membaca `disabled`, bukan `enabled`) TIDAK
+  diperbaiki di sini — di luar keputusan Fase 0; bentuk respons backend
+  belum diputuskan. Stub test mendokumentasikannya dengan mengirim
+  `{disabled: true}` untuk toggle.
+- B1/B3 (bentuk body policy + grammar ABAC) tetap menunggu keputusan
+  backend — tidak ada K-item yang menutupnya; menjadi bagian Fase 3.
+- K-05/K-06/K-07 yang ditunda memblokir Fase 2 (dynsec) dan Fase 5
+  (kontrak config broker); Fase 1 bisa berjalan untuk bagian yang
+  keputusannya sudah ada, kecuali skema dynsec dan config.
+- Mode Real tetap belum terverifikasi end-to-end (belum ada backend);
+  keempat perubahan di atas diverifikasi melawan stub HTTP lokal, bukan
+  server sungguhan.
+
+**Verifikasi (independen):** `tsc` 0 error; tests **332/332** (330 + 2
+baru); `vite build` OK (peringatan chunk-size yang sudah ada);
+preview HTTP 200; checker **0 FAIL** (293 file, 32 WARN lunak — naik dari
+29: `modeAndTransport.test.ts` 568, `contractAlignment.test.ts` 509,
+`http/mqttDynsec.ts` 401; semua di bawah hard cap).
+
+**Linear:** Epic E14 (FAT-122) + 5 child P14.1–P14.5 (FAT-123–FAT-127),
+semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v13
+(123 issue: 64 Done / 1 In Progress / 58 Todo).
+
+## 18. K-05/K-06/K-07: ikuti desain API_DOCUMENTATION — Epic E15 (2026-11-17)
+
+**Keputusan (Fathur, 2026-11-17 15:30 WIB):** "terkait poin K-05, K-06,
+K-07 ikuti API_DOCUMENTATION design saja dulu sembari mencatat poinnya
+untuk guide peningkatan backend" — panel mengikuti desain dokumen; poin
+yang tidak bisa diputuskan dari dokumen dicatat di
+`docs/BACKEND_UPGRADE_PLAN.md` (decision log Lampiran C + item Fase 2/5)
+sebagai tugas dokumentasi backend.
+
+**Dasar dokumen (dibaca langsung sebelum implementasi):**
+
+- API doc §M: endpoint dynsec hanya mencantumkan method/path/status —
+  TIDAK memberi skema body/respons sub-operasi. Bentuk objek tunggal ada
+  di Guide Lampiran A: `POST /clients/:name/roles {rolename, priority?}`,
+  `POST /roles/:name/acls {acltype, topic, ...}`,
+  `POST /groups/:name/clients {username, priority?}`,
+  `POST /groups/:name/roles {rolename, priority?}`. ("Lampiran O" di
+  `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` = sub-bagian O di dalam Lampiran A.)
+- API §M: password "tidak pernah dicatat atau dikembalikan ulang setelah
+  pembuatan (`generatePassword()` hanya sekali)"; contoh cURL selalu
+  menyertakan password eksplisit; Guide §7.2: password klien MQTT min 8
+  (env), maks 128.
+- API §3.3b: hanya tabel endpoint config — TIDAK ada skema JSON config.
+  API §3.3a: overview `{dynamicSecurity: object | null, configuration:
+  object | null}` (null bila plugin tidak aktif).
+
+**Perubahan (E15, FAT-128–133):**
+
+- P15.1 K-05 (FAT-129): `http/mqttDynsec.ts` — 4 body ke objek tunggal:
+  `addMqttClientRole {roles:[{rolename, priority}]}` →
+  `{rolename, priority}`; `addMqttRoleAcl {acls:[acl]}` → `acl` (objek
+  tunggal; field `allow` tetap dikirim — UI mengumpulkannya, dokumen
+  tidak menyebut `allow`/`priority`); `addMqttGroupClient
+  {clients:[{username}]}` → `{username}`; `addMqttGroupRole
+  {roles:[{rolename}]}` → `{rolename}`. Registry tidak berubah
+  (method/path sudah benar).
+- P15.2 K-06 B33 (FAT-130): `CreateMqttClientModal.tsx` — password wajib:
+  subtitle/label/placeholder janji auto-generate dihapus; validasi min 8
+  maks 128 dengan pesan error (guard di `submit()` karena footer
+  memanggil `submit()` langsung, bypass validasi HTML5 form; `required
+  minLength maxLength` juga dipasang di Input).
+- P15.3 K-06 B35 (FAT-131): `mappers/system.ts` `mapMqttClient` — logika
+  `enabled` diperbaiki: `enabled` bila ada dipakai langsung; bila hanya
+  `disabled` yang ada, turunkan darinya; bila tidak ada keduanya, default
+  aktif. Bentuk lama membalik `{enabled:false}` (klien nonaktif tampil
+  aktif).
+- P15.4 K-07 B44 (FAT-132): `types/mqtt.ts` —
+  `BrokerOverviewInfo['configuration']['status']` tambah `'UNAVAILABLE'`;
+  `mapBrokerOverview` — `configuration: null` → status `'UNAVAILABLE'`
+  (bukan `IN_SYNC`). Halaman `BrokerOverviewPage.tsx` tidak diubah —
+  sudah me-render status mentah (badge warning untuk non-IN_SYNC).
+
+**Tanpa perubahan panel (dicatat sebagai tugas backend):**
+
+- B34: dokumen tidak menamai field password sekali tampil — panel tetap
+  menebak `raw.generatedPassword ?? raw.password`; backend wajib
+  mendokumentasikan nama field (item 2.5).
+- B43: API §3.3b tidak memberi skema config — panel mempertahankan
+  skema asumsinya; backend wajib mempublikasikan skema JSON + contoh
+  (item 5.1).
+- B32: dokumen tidak menyebut `allow`/`priority` pada ACL — backend
+  wajib mendokumentasikan (item 2.2).
+- B33 (demo): demo tetap auto-generate password (`dynsec_<acak>`) untuk
+  pemanggilan `apiClient` langsung (test seam;
+  `contractAlignment.test.ts` mengandalkannya) — BUKAN perilaku Real mode.
+
+**Catatan.**
+
+- Kontradiksi K-11 (bukan bagian E15, dicatat di sini): Guide §9.1
+  menyatakan "Tidak ada `POST /clients/provision`; dokumen API lama
+  menyebutnya, tetapi rute itu tidak terdaftar", sementara API §M memberi
+  contoh cURL `POST /clients/provision` — Fathur sudah memilih (b) di
+  K-11; Guide harus dikoreksi (sudah tercatat di decision log K-11).
+- Stub test ketiga dalam satu file HARUS memakai port berbeda (3004; E14
+  memakai 3003) — pelajaran yang sama seperti §17.
+- K-05/K-06/K-07 kini tidak lagi menunda Fase 2/Fase 5 dari sisi
+  keputusan; yang tertunda adalah penulisan dokumen/skema backend (item
+  2.5/2.6/5.1).
+- Mode Real tetap belum terverifikasi end-to-end (belum ada backend);
+  perubahan di atas diverifikasi melawan stub HTTP lokal + unit test
+  mapper, bukan server sungguhan.
+
+**Verifikasi (independen):** `tsc` 0 error; tests **335/335** (332 + 3
+baru: 2 unit mapper `system.test.ts`, 1 stub `modeAndTransport.test.ts`
+port 3004); `vite build` OK (peringatan chunk-size yang sudah ada);
+preview HTTP 200; checker **0 FAIL** (294 file, 32 WARN lunak).
+
+**Linear:** Epic E15 (FAT-128) + 5 child P15.1–P15.5 (FAT-129–FAT-133),
+semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v14
+(129 issue: 70 Done / 1 In Progress / 58 Todo).

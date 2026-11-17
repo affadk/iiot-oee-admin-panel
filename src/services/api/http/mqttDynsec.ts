@@ -86,13 +86,20 @@ export const httpMqttDynsec = {
             deviceId: data.deviceId,
             access: data.access ? accessMap[data.access] : 'telemetry',
           };
+    // K-11 (b): provisioning perangkat (cabang deviceId+access) memakai
+    // POST /api/v1/mqtt/dynamic-security/clients/provision; cabang roles
+    // tetap POST /api/v1/mqtt/dynamic-security/clients.
+    const isProvision = !(data.roles && data.roles.length > 0) && !!data.deviceId;
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
-      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath(),
+      path: (isProvision
+        ? ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_PROVISION
+        : ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE
+      ).buildPath(),
       body,
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
-      endpointKey: 'MQTT_DYNSEC_CLIENTS_CREATE',
+      endpointKey: isProvision ? 'MQTT_DYNSEC_CLIENTS_PROVISION' : 'MQTT_DYNSEC_CLIENTS_CREATE',
       capability: 'mqtt.dynsec.manage',
       resourceId: data.username,
     });
@@ -119,7 +126,7 @@ export const httpMqttDynsec = {
     assertAuthenticatedHttp();
     assertLanForMutation();
     const raw = await reqJson<{ success?: boolean } | undefined>({
-      method: 'POST',
+      method: 'PATCH',
       path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_PASSWORD.buildPath(username),
       body: { password },
       timeoutMs: MUTATION_TIMEOUT_MS,
@@ -136,9 +143,9 @@ export const httpMqttDynsec = {
     assertLanForMutation();
     return reqJson(
       {
-        method: 'POST',
+        method: 'PATCH',
         path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_ENABLE.buildPath(username),
-        body: { disabled: !enabled },
+        body: { enabled },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MQTT_DYNSEC_CLIENTS_ENABLE',
@@ -156,7 +163,7 @@ export const httpMqttDynsec = {
       {
         method: 'POST',
         path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENT_ROLES_ADD.buildPath(username),
-        body: { roles: [{ rolename, priority }] },
+        body: { rolename, priority },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MQTT_DYNSEC_CLIENT_ROLES_ADD',
@@ -245,7 +252,7 @@ export const httpMqttDynsec = {
       {
         method: 'POST',
         path: ADMIN_ENDPOINTS.MQTT_DYNSEC_ROLE_ACLS_ADD.buildPath(rolename),
-        body: { acls: [acl] },
+        body: acl,
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MQTT_DYNSEC_ROLE_ACLS_ADD',
@@ -334,7 +341,7 @@ export const httpMqttDynsec = {
       {
         method: 'POST',
         path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_CLIENTS_ADD.buildPath(groupname),
-        body: { clients: [{ username }] },
+        body: { username },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MQTT_DYNSEC_GROUP_CLIENTS_ADD',
@@ -366,7 +373,7 @@ export const httpMqttDynsec = {
       {
         method: 'POST',
         path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_ROLES_ADD.buildPath(groupname),
-        body: { roles: [{ rolename }] },
+        body: { rolename },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MQTT_DYNSEC_GROUP_ROLES_ADD',

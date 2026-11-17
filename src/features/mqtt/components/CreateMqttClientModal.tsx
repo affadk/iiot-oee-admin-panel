@@ -24,22 +24,32 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
   const [cDeviceId, setCDeviceId] = useState('STM32-OEE-06');
   const [cAccess, setCAccess] = useState<'publish' | 'subscribe' | 'readwrite'>('publish');
   const [cRoles, setCRoles] = useState<string[]>(['edge_publisher']);
+  const [cPasswordError, setCPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const submit = async () => {
+    // K-06 (B33): API §M + Guide §7.2 — password wajib (min 8, maks 128);
+    // backend tidak menjanjikan auto-generate. Footer memanggil submit()
+    // langsung (bypass validasi HTML5 form), jadi guard di sini.
+    const pw = cPassword.trim();
+    if (pw.length < 8 || pw.length > 128) {
+      setCPasswordError('Kata sandi wajib diisi, minimal 8 karakter (maksimal 128).');
+      return;
+    }
+    setCPasswordError('');
     setIsSubmitting(true);
     try {
       const payload: CreateMqttClientPayload =
         createMode === 'device'
           ? {
               username: cUsername.trim(),
-              password: cPassword.trim() || undefined,
+              password: pw,
               deviceId: cDeviceId.trim(),
               access: cAccess,
             }
           : {
               username: cUsername.trim(),
-              password: cPassword.trim() || undefined,
+              password: pw,
               roles: cRoles,
             };
       const ok = await onSubmit(payload);
@@ -59,7 +69,7 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
       isOpen={open}
       onClose={onClose}
       title="Buat Akun Akses Perangkat MQTT Baru"
-      subtitle="Kosongkan kata sandi jika ingin sistem membuatkan kata sandi acak otomatis (hanya tampil satu kali)."
+      subtitle="Kata sandi wajib diisi (minimal 8 karakter) — password dikembalikan sekali dan hanya tampil satu kali."
       footer={
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onClose}>Batal</Button>
@@ -82,12 +92,16 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
           required
         />
         <Input
-          label="Kata Sandi Kustom (Opsional — kosongkan untuk buat otomatis)"
+          label="Kata Sandi (wajib, minimal 8 karakter)"
           type="password"
           value={cPassword}
           onChange={(e) => setCPassword(e.target.value)}
-          placeholder="Kosongkan agar sistem membuat kata sandi otomatis"
+          placeholder="Minimal 8 karakter"
+          required
+          minLength={8}
+          maxLength={128}
         />
+        {cPasswordError ? <p className="text-xs text-red-600 dark:text-red-400">{cPasswordError}</p> : null}
         <div className="flex gap-2 text-xs">
           <button
             type="button"

@@ -20,7 +20,15 @@ export function mapMqttClient(raw: unknown): MqttClient {
     clientid: str(pick(r.clientid, r.clientId), undefined) || undefined,
     textname: str(pick(r.textname), undefined) || undefined,
     textdescription: str(pick(r.textdescription), undefined) || undefined,
-    enabled: bool(pick(r.enabled, r.disabled) === undefined ? true : !bool(r.disabled, false), true),
+    // B35 (diperbaiki E15, K-06): `enabled` bila ada dipakai langsung;
+    // bila hanya `disabled` yang ada, turunkan darinya; bila tidak ada
+    // keduanya, default aktif. Bentuk lama membalik {enabled:false}.
+    enabled:
+      pick(r.enabled) !== undefined
+        ? bool(r.enabled, true)
+        : pick(r.disabled) !== undefined
+          ? !bool(r.disabled, false)
+          : true,
     roles: roles.map((x) => (typeof x === 'string' ? x : str((x as Record<string, unknown>).rolename))),
     groups: groups.map((x) => (typeof x === 'string' ? x : str((x as Record<string, unknown>).groupname))),
     created_at: str(pick(r.created_at), undefined) || undefined,
@@ -169,7 +177,10 @@ export function mapIamAuditDecision(raw: unknown): IamAuditDecision {
 export function mapBrokerOverview(raw: unknown): BrokerOverviewInfo {
   const r = (raw ?? {}) as Record<string, unknown>;
   const ds = (r.dynamicSecurity ?? r.dynamic_security ?? {}) as Record<string, unknown>;
-  const cfg = (r.configuration ?? {}) as Record<string, unknown>;
+  // B44 (E15, K-07): API §3.3a — `configuration: null` berarti plugin
+  // tidak aktif; tampilkan UNAVAILABLE, bukan IN_SYNC.
+  const cfgRaw = r.configuration as Record<string, unknown> | null | undefined;
+  const cfg = (cfgRaw ?? {}) as Record<string, unknown>;
   return {
     dynamicSecurity: {
       enabled: bool(pick(ds.enabled), false),
@@ -179,7 +190,7 @@ export function mapBrokerOverview(raw: unknown): BrokerOverviewInfo {
       groupsCount: num(pick(ds.groupsCount, ds.groups_count), 0),
     },
     configuration: {
-      status: (pick(cfg.status, 'IN_SYNC') as BrokerOverviewInfo['configuration']['status']),
+      status: (cfgRaw == null ? 'UNAVAILABLE' : pick(cfg.status, 'IN_SYNC')) as BrokerOverviewInfo['configuration']['status'],
       activeVersionId: (pick(cfg.activeVersionId, cfg.active_version) as string | null) ?? null,
       lastAppliedAt: (pick(cfg.lastAppliedAt, cfg.last_applied_at) as string | null) ?? null,
       mutationLocked: bool(pick(cfg.mutationLocked, cfg.mutation_locked), false),

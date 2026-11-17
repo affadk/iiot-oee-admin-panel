@@ -231,9 +231,9 @@ dokumen API/Guide yang bertentangan sudah dikoreksi.
 | K-02 | D-2 — Bentuk `GET /auth/me` (AUDIT.md §3) | (a) API §L `{operator, authz:{...}}`; (b) Guide §4.9 bentuk flat | Tetapkan satu; panel menangani keduanya hari ini, jadi yang dipilih hanya perlu dinyatakan | Mapper panel menebak-nebak; `primaryRole` bisa jatuh ke default `'OPERATOR'` bila backend hanya mengirim `operator.primaryRole` tanpa `operator.role` |
 | K-03 | D-3 — Trailing slash `GET /mqtt/configuration` (SYS-B38) | (a) Wajib slash (API §3.3b); (b) tanpa slash (Guide Lampiran P); (c) terima keduanya | (c) terima keduanya | Halaman konfigurasi broker gagal 404 dan tidak pernah mendapat draft |
 | K-04 | D-4 — Detail error 422 staging (SYS-B40) | (a) `issues[]` (envelope API §2); (b) `details` (API §3.3b/§2 tabel) | (a) — konsisten dengan envelope standar; bentuk tiap item `{field, message}` | Pengguna hanya melihat pesan generik tanpa tahu field mana yang salah |
-| K-05 | D-5 — Bentuk body sub-operasi dynsec (SYS-B31, B32, B36, B37) | (a) Objek tunggal dokumen (`{rolename, priority?}`, `{acltype, topic, ...}`, `{username, priority?}`); (b) array jamak panel (`{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}`) | Putuskan berdasarkan bentuk native Mosquitto dynsec vs penyederhanaan dokumen — belum diputuskan | 4 dari 23 operasi dynsec gagal validasi 400; panel atau dokumen harus berubah, tapi tidak diketahui yang mana |
-| K-06 | D-6 — Skema respons dynsec (SYS-B34, B35) | Tetapkan: field status klien (`enabled` vs `disabled`), nama field password sekali tampil, bentuk `roles`/`groups` (string vs objek) | Dokumentasikan dengan contoh JSON per objek (klien/peran/grup/status) | Password sekali tampil hilang permanen bila nama field salah tebak; klien nonaktif tampil aktif (logika `enabled` terbalik) |
-| K-07 | D-7 — Skema config terstruktur (SYS-B43) | Tetapkan: field, tipe, satuan, default, field yang diredaksi, enum status versi/operasi | Publikasikan skema JSON + contoh `GET /` dan `GET /configurations/:versionId` | GET terisi default palsu; stage ditolak 422 atau menghilangkan field |
+| K-05 | D-5 — Bentuk body sub-operasi dynsec (SYS-B31, B32, B36, B37) | (a) Objek tunggal dokumen (`{rolename, priority?}`, `{acltype, topic, ...}`, `{username, priority?}`); (b) array jamak panel (`{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}`) | **Diputuskan 17 Nov 2026: (a) objek tunggal dokumen** — ikuti desain API_DOCUMENTATION/Guide Lampiran A; panel diubah (E15) | Panel sudah mengirim objek tunggal; bila backend memakai bentuk native dynsec, dokumen dikoreksi ke bentuk array |
+| K-06 | D-6 — Skema respons dynsec (SYS-B34, B35) | Tetapkan: field status klien (`enabled` vs `disabled`), nama field password sekali tampil, bentuk `roles`/`groups` (string vs objek) | **Diputuskan 17 Nov 2026: ikuti desain API_DOCUMENTATION** — password wajib dari pemanggil (API §M: contoh cURL selalu menyertakan password eksplisit; Guide §7.2 min 8); mapper `enabled` diperbaiki agar benar untuk kedua bentuk; nama field password sekali tampil + contoh JSON tetap tugas dokumentasi backend (item 2.5/2.6) | Panel sudah mengikuti dokumen; risiko tersisa hanya di sisi dokumentasi backend |
+| K-07 | D-7 — Skema config terstruktur (SYS-B43) | Tetapkan: field, tipe, satuan, default, field yang diredaksi, enum status versi/operasi | **Diputuskan 17 Nov 2026: ikuti desain API_DOCUMENTATION** — API §3.3b tidak memberi skema, panel mempertahankan skema asumsinya; backend wajib mempublikasikan skema JSON (item 5.1); overview `configuration: null` = plugin tidak aktif → panel menampilkan UNAVAILABLE (E15) | Panel sudah mengikuti dokumen sejauh yang tertulis; risiko tersisa bila skema backend berbeda dari asumsi panel |
 | K-08 | Kebijakan query param tak dikenal | (a) Diabaikan; (b) ditolak 400 (Zod strict) | (a) diabaikan — paling kecil risikonya terhadap filter panel yang sudah berjalan; bila memilih (b), semua filter panel harus divalidasi dulu | Menentukan dampak SYS-B22, B23, B24, B45: filter yang tidak didukung diam-diam diabaikan vs gagal 400 |
 | K-09 | Status `POST /permissions` (SYS-B10) | (a) Didukung (skema body ditetapkan); (b) katalog seed-only, endpoint dihapus dari dokumen | Putuskan dan dokumentasikan; bila (a), tetapkan casing body (`resource_type` vs `resourceType`) | Admin tidak bisa mendaftarkan permission untuk guard baru; atau panel memanggil endpoint yang tidak ada |
 | K-10 | Sumber kebenaran method PATCH vs PUT | (a) Hanya PUT (dokumen) untuk `/roles/:id` dan `/policies/:id`; hanya PATCH (dokumen) untuk rotasi password dan enable/disable dynsec; (b) terima keduanya | (a) — dokumen konsisten di sini; panel yang harus berubah | Mutasi IAM dan dynsec gagal 404/405 di Real mode |
@@ -242,6 +242,8 @@ dokumen API/Guide yang bertentangan sudah dikoreksi.
 | K-13 | Cakupan feed `/system/audit` dan enum `event_type` | (a) `/system/audit` alias harfiah seluruh feed operational events; (b) subset hanya event mutasi; plus: tetapkan enum `event_type` dan nyatakan status `severity` (tidak muncul di dokumen sama sekali) | Putuskan; dokumentasikan enum dan filter yang didukung | Filter `event_type` di `/system/audit` tidak jelas diterima/diabaikan/ditolak; nilai di luar enum bisa 400 atau hasil kosong |
 | K-14 | Ack operational event: `operatorId` wajib atau tidak (SYS-B21) | (a) Turunkan operator dari JWT, body `{note?}` saja; (b) salah satu ID wajib (Guide §6.7) | (a) — endpoint terotentikasi, server sudah tahu pemanggil | Setiap ack dari panel gagal 400 di Real mode bila backend mengikuti Guide |
 | K-15 | Definisi availability untuk jam planned penuh (G8, sisi server) | (a) Jam yang sepenuhnya planned downtime dikeluarkan dari penyebut availability (ditandai "planned", bukan 0%); (b) dilaporkan 0% | (a) — sesuai praktik OEE; panel hanya menampilkan apa yang dikirim server | Jam istirahat tampil sebagai jam "gagal total" (OEE 0%, availability 0%) |
+
+**Status keputusan — 17 November 2026:** 15 dari 15 baris diputuskan oleh Fathur dan tercatat di decision log (Lampiran C); K-05, K-06, dan K-07 diputuskan menyusul dengan arahan "ikuti desain API_DOCUMENTATION" — panel sudah disesuaikan (E15, FAT-128–133). Dua keputusan menyimpang dari rekomendasi rencana: K-03 memilih (a) wajib slash (bukan (c) terima keduanya) dan K-11 memilih (b) `POST /clients/provision` (bukan (a) `POST /clients`); keduanya menimbulkan tindak lanjut sisi panel (E14). Sisa pekerjaan K-05/K-06/K-07 ada di sisi backend: dokumentasikan nama field password sekali tampil (item 2.5), skema respons dynsec lengkap dengan contoh JSON (item 2.6), dan skema JSON config terstruktur (item 5.1). Fase 2 dan Fase 5 tidak lagi tertunda oleh keputusan — tertunda oleh penulisan dokumen/skema backend.
 
 **Urutan di dalam Fase 0:** K-05, K-06, K-08, dan K-10 dulu (menentukan
 bentuk dynsec dan kebijakan filter — memblokir Fase 1–6); lalu K-01, K-02,
@@ -283,18 +285,18 @@ dynsec dari panel berhasil di Real mode dengan nilai yang benar.
 
 | # | Item pekerjaan | Referensi | Kriteria selesai |
 | --- | --- | --- | --- |
-| 2.1 | Tetapkan satu bentuk body sub-operasi dynsec dan dokumentasikan (lihat K-05). Bila backend memakai bentuk dokumen, panel harus mengirim `{rolename, priority}`, `{acltype, topic, ...}`, `{username, priority?}`. | SYS-B31 (FAT-102), B32 (FAT-103), B36 (FAT-107), B37 (FAT-108); K-05 | `POST /clients/:name/roles {rolename:"edge_publisher", priority:1}` → 201 dan `GET /clients/:name` memuat peran tersebut; hal yang sama untuk ACL ke peran, klien ke grup, peran ke grup |
+| 2.1 | Tetapkan satu bentuk body sub-operasi dynsec dan dokumentasikan (lihat K-05 — diputuskan 17 Nov 2026: (a) objek tunggal dokumen; panel sudah diubah — E15). | SYS-B31 (FAT-102), B32 (FAT-103), B36 (FAT-107), B37 (FAT-108); K-05 | `POST /clients/:name/roles {rolename:"edge_publisher", priority:1}` → 201 dan `GET /clients/:name` memuat peran tersebut; hal yang sama untuk ACL ke peran, klien ke grup, peran ke grup |
 | 2.2 | Dokumentasikan bentuk ACL yang diterima secara eksplisit: apakah `allow` dan `priority` didukung; objek tunggal atau `{acls:[...]}`. | SYS-B32 (FAT-103) | `POST /roles/:name/acls` dengan bentuk yang didokumentasikan → 201; `GET /roles/:name` menampilkan ACL baru dengan `acltype/topic/allow/priority` yang sama seperti dikirim |
 | 2.3 | Terima nilai `access` verbatim `publish` / `subscribe` / `readwrite` pada provisioning, dan bentuk peran `device-<username>` + grant `oee/device/<deviceId>/#`. Panel harus menghapus `accessMap` (`telemetry` / `telemetry+state`) dan mengirim `access` apa adanya. | SYS-B30 (FAT-101) | `POST /clients {username, deviceId:"STM32-03", access:"readwrite"}` → 201 + password sekali tampil; peran `device-<username>` terbentuk dengan grant publish+subscribe di `oee/device/STM32-03/#`; ulangi untuk `publish` saja dan `subscribe` saja dan pastikan grant-nya berbeda |
-| 2.4 | Putuskan dan dokumentasikan aturan password pada `POST /clients`: (i) `password` opsional → backend generate + kembalikan sekali (panel harus mengirim field-nya dihilangkan, bukan `""`), atau (ii) `password` wajib min 8 → panel harus mewajibkan input. Nyatakan juga apakah `textname` / `textdescription` / `groups` / `clientid` diterima. | SYS-B33 (FAT-104) | `POST /clients` tanpa `password` (atau password kosong, sesuai kontrak yang ditetapkan) → 201 + password sekali tampil yang langsung bisa dipakai login MQTT; `POST /clients` dengan `password:"pendek"` → 400 `VALIDATION_ERROR` / `WEAK_PASSWORD` |
+| 2.4 | Aturan password pada `POST /clients` — DIPUTUSKAN 17 Nov 2026 (K-06): (ii) `password` wajib min 8 → panel sudah mewajibkan input (E15 P15.2). Sisa backend: nyatakan apakah `textname` / `textdescription` / `groups` / `clientid` diterima. | SYS-B33 (FAT-104) | `POST /clients` dengan `password:"pendek"` → 400 `VALIDATION_ERROR` / `WEAK_PASSWORD`; tanpa `password` → 400; dengan password ≥8 → 201 + password sekali tampil yang langsung bisa dipakai login MQTT |
 | 2.5 | Tetapkan dan dokumentasikan bentuk respons `POST /clients` (password sekali tampil), mis. `201 {client: {...}, generatedPassword: "..."}` atau yang setara, dan pastikan nama field konsisten. | SYS-B34 (FAT-105); K-06 | Buat klien via `POST /clients` di Real mode → respons memuat password pada field yang didokumentasikan; panel menampilkannya di modal sekali tampil tepat satu kali; `GET /clients/:name` sesudahnya tidak lagi memuat password |
-| 2.6 | Dokumentasikan bentuk objek klien (nama field status + bentuk `roles`/`groups`: string atau objek `{rolename/priority}` / `{groupname}`). | SYS-B35 (FAT-106); K-06 | Buat klien, nonaktifkan via `PATCH …/enable {enabled:false}`, lalu `GET /clients/:name` → panel menampilkan nonaktif; aktifkan kembali → tampil aktif |
+| 2.6 | Dokumentasikan bentuk objek klien (nama field status + bentuk `roles`/`groups`: string atau objek `{rolename/priority}` / `{groupname}`). Panel: mapper `enabled` sudah diperbaiki agar benar untuk kedua bentuk (E15 P15.3). | SYS-B35 (FAT-106); K-06 | Buat klien, nonaktifkan via `PATCH …/enable {enabled:false}`, lalu `GET /clients/:name` → panel menampilkan nonaktif; aktifkan kembali → tampil aktif |
 | 2.7 | Terapkan keputusan K-10 untuk dynsec: rotasi password dan enable/disable memakai PATCH sesuai dokumen (`PATCH /clients/{name}/password`, `PATCH /clients/{name}/enable {enabled}`). Bila backend ternyata hanya menerima POST, dokumen yang harus dikoreksi. | SYS-B28 (FAT-99), B29 (FAT-100); K-10 | `PATCH …/password` dengan `{password: "baruP@ssw0rd!"}` → 200; `POST` ke path yang sama → 404/405; `PATCH …/enable {enabled:false}` → klien terputus/dinonaktifkan; `GET /clients/:name` sesudahnya menunjukkan nonaktif |
 
-**Catatan:** 7 dari 23 operasi dynsec terdampak tema ini. Bila K-05
-memutuskan bentuk panel (array jamak) yang benar, maka yang berubah adalah
-dokumen — bukan backend — dan item 2.1/2.2 menjadi pekerjaan dokumentasi
-saja. Keputusan itu milik backend (lihat Fase 0).
+**Catatan:** 7 dari 23 operasi dynsec terdampak tema ini. K-05 diputuskan
+17 Nov 2026: (a) objek tunggal dokumen — panel sudah diubah (E15); item
+2.1/2.2 kini menjadi pekerjaan dokumentasi backend saja (tetapkan +
+dokumentasikan satu bentuk).
 
 ---
 
@@ -373,7 +375,7 @@ dan tanpa operasi async yang dilaporkan selesai sebelum waktunya.
 
 | # | Item pekerjaan | Referensi | Kriteria selesai |
 | --- | --- | --- | --- |
-| 5.1 | Publikasikan skema JSON konfigurasi terstruktur (field, tipe, satuan, default, field yang diredaksi), enum `status` versi dan `type`/`status` operasi, dan contoh `GET /` + `GET /configurations/:versionId`. (Keputusan K-07.) | SYS-B43 (FAT-114); K-07 | `GET /api/v1/mqtt/configuration/` dan `GET /configurations` di Real mode mengembalikan field yang sama dengan skema yang didokumentasikan; edit `max_connections` di UI → stage → `GET /configurations/:versionId` menunjukkan nilai baru; tidak ada field yang hilang dalam round-trip |
+| 5.1 | Publikasikan skema JSON konfigurasi terstruktur (field, tipe, satuan, default, field yang diredaksi), enum `status` versi dan `type`/`status` operasi, dan contoh `GET /` + `GET /configurations/:versionId`. (Keputusan K-07 — diputuskan 17 Nov 2026: ikuti API doc; panel mempertahankan skema asumsinya sampai skema dipublikasikan. Panel: overview `configuration: null` sudah ditampilkan UNAVAILABLE — E15 P15.4.) | SYS-B43 (FAT-114); K-07 | `GET /api/v1/mqtt/configuration/` dan `GET /configurations` di Real mode mengembalikan field yang sama dengan skema yang didokumentasikan; edit `max_connections` di UI → stage → `GET /configurations/:versionId` menunjukkan nilai baru; tidak ada field yang hilang dalam round-trip |
 | 5.2 | Dokumentasikan dan terima field yang panel kirim pada stage, atau nyatakan bahwa `summary` adalah alias `reason`/`comment` dan `baseVersionId` boleh kosong (default = versi aktif). | SYS-B39 (FAT-110) | `POST /configurations {config, summary:"…"}` → 201 dengan `version_id`, `parent_version_id` = versi aktif, dan `summary`/`reason` yang sama seperti dikirim, terlihat di `GET /configurations` |
 | 5.3 | Terapkan keputusan K-04 untuk error 422 staging (lihat Fase 1, item 1.6). | SYS-B40 (FAT-111); K-04 | Lihat kriteria item 1.6 |
 | 5.4 | Dokumentasikan kapan `acknowledgeUnvalidated` wajib, status apa saja yang mungkin (`PENDING`/`RUNNING`/`SUCCEEDED`/`FAILED`), dan apakah `GET /operations/:id` boleh di-poll berulang. | SYS-B41 (FAT-112) | Apply versi staged → 202 + `operation_id`; polling `GET /operations/:id` hingga terminal; UI menampilkan status terminal yang benar; apply versi unvalidated tanpa `acknowledgeUnvalidated` → error yang jelas, dengan `acknowledgeUnvalidated:true` → lanjut |
@@ -732,34 +734,33 @@ E10 — A10.2 (FAT-40).
 
 ## Lampiran C — Template decision log + checklist verifikasi akhir
 
-*Bagian ini kosong dan diisi oleh tim backend selama pekerjaan berjalan.
-Jangan menghapus baris — isi kolomnya.*
+*Diisi 17 November 2026: 15 dari 15 keputusan diputuskan oleh Fathur (K-05, K-06, K-07 diputuskan menyusul — ikuti desain API_DOCUMENTATION). Jangan menghapus baris — isi kolomnya bila ada keputusan baru.*
 
 ### C.1 Decision log
 
 | # | Tanggal | Keputusan | Opsi yang dipilih | Alasan / dasar | Diputuskan oleh | Dokumen yang dikoreksi |
 | --- | --- | --- | --- | --- | --- | --- |
-| K-01 | | Body `POST /auth/password/change` | | | | |
-| K-02 | | Bentuk `GET /auth/me` | | | | |
-| K-03 | | Trailing slash `GET /mqtt/configuration` | | | | |
-| K-04 | | Detail error 422 (`issues` vs `details`) | | | | |
-| K-05 | | Bentuk body sub-operasi dynsec | | | | |
-| K-06 | | Skema respons dynsec | | | | |
-| K-07 | | Skema config terstruktur | | | | |
-| K-08 | | Kebijakan query param tak dikenal | | | | |
-| K-09 | | Status `POST /permissions` | | | | |
-| K-10 | | Sumber kebenaran method PATCH vs PUT | | | | |
-| K-11 | | Rute provisioning (`/clients` vs `/clients/provision`) | | | | |
-| K-12 | | Aturan naiknya `authz_version` | | | | |
-| K-13 | | Cakupan feed `/system/audit` + enum `event_type` | | | | |
-| K-14 | | Ack `operatorId` wajib atau tidak | | | | |
-| K-15 | | Definisi availability jam planned penuh | | | | |
+| K-01 | 2026-11-17 | Body `POST /auth/password/change` | (a) `{current_password, new_password}` (API §L) | Panel sudah memakai bentuk ini; satu nama field | Fathur | Guide Lampiran J dikoreksi ke `{current_password, new_password}` |
+| K-02 | 2026-11-17 | Bentuk `GET /auth/me` | (a) `{operator, authz: {...}}` (API §L) | Membawa `authz` (capability, enforcedDomains) yang dibutuhkan panel | Fathur | Guide §4.9 dikoreksi ke bentuk API |
+| K-03 | 2026-11-17 | Trailing slash `GET /mqtt/configuration` | (a) Wajib slash (API §3.3b) | Keputusan Fathur; menyimpang dari rekomendasi rencana (c) | Fathur | Guide Lampiran P dikoreksi (wajib slash); panel: `GET /mqtt/configuration` harus memakai trailing slash (tindak lanjut sisi panel) |
+| K-04 | 2026-11-17 | Detail error 422 (`issues` vs `details`) | (a) `issues[]` (envelope API §2) | Konsisten dengan envelope standar; panel sudah mem-parse `issues[]` | Fathur | API §3.3b dan tabel §2 dikoreksi (`details` ke `issues[]`) |
+| K-05 | 2026-11-17 | Bentuk body sub-operasi dynsec | (a) Objek tunggal dokumen | Ikuti desain API_DOCUMENTATION/Guide Lampiran A (bukan array jamak panel); panel diubah (E15 P15.1, FAT-129) | Fathur | Panel mengirim `{rolename, priority}`, `{acltype, topic, ...}`, `{username, priority?}`; bila backend ternyata memakai bentuk native dynsec (array), dokumen harus dikoreksi ke bentuk array; Fase 2 tidak lagi tertunda oleh K-05 |
+| K-06 | 2026-11-17 | Skema respons dynsec | Ikuti desain API_DOCUMENTATION | Password wajib dari pemanggil (API §M: contoh cURL selalu menyertakan password eksplisit; Guide §7.2 min 8) — panel mewajibkan di UI (E15 P15.2, FAT-130); mapper `enabled` diperbaiki agar benar untuk kedua bentuk (E15 P15.3, FAT-131); nama field password sekali tampil + skema lengkap tetap harus didokumentasikan backend (item 2.5/2.6) | Fathur | Panel sudah mengikuti desain dokumen; yang tersisa adalah tugas dokumentasi backend (nama field `generatedPassword`, contoh JSON objek klien/peran/grup); Fase 2 tidak lagi tertunda oleh K-06 |
+| K-07 | 2026-11-17 | Skema config terstruktur | Ikuti desain API_DOCUMENTATION | API §3.3b tidak memberi skema — panel mempertahankan skema asumsinya; backend wajib mempublikasikan skema JSON + contoh (item 5.1); overview `configuration: null` = plugin tidak aktif → panel menampilkan UNAVAILABLE (E15 P15.4, FAT-132) | Fathur | Panel sudah mengikuti desain dokumen sejauh yang tertulis; yang tersisa adalah publikasi skema backend; Fase 5 tidak lagi tertunda oleh K-07 |
+| K-08 | 2026-11-17 | Kebijakan query param tak dikenal | (a) Diabaikan | Risiko paling kecil terhadap filter panel yang sudah berjalan | Fathur | Kebijakan ditulis di API doc |
+| K-09 | 2026-11-17 | Status `POST /permissions` | (b) Katalog seed-only, endpoint dihapus dari dokumen | Panel tidak punya UI untuk membuat permission; katalog terkontrol lebih aman | Fathur | API doc: `POST /permissions` dihapus (katalog seed-only) |
+| K-10 | 2026-11-17 | Sumber kebenaran method PATCH vs PUT | (a) PUT untuk `/roles/:id` dan `/policies/:id`; PATCH untuk rotasi password dan enable/disable dynsec | Dokumen konsisten di sini; panel yang harus berubah | Fathur | Panel: `http/iam.ts` PATCH ke PUT; `http/mqttDynsec.ts` POST ke PATCH (tindak lanjut sisi panel) |
+| K-11 | 2026-11-17 | Rute provisioning (`/clients` vs `/clients/provision`) | (b) `POST /clients/provision` | Keputusan Fathur; menyimpang dari rekomendasi rencana (a) | Fathur | Guide dikoreksi (rute `/clients/provision` diakui); panel: provisioning harus memanggil `POST /clients/provision` (tindak lanjut sisi panel) |
+| K-12 | 2026-11-17 | Aturan naiknya `authz_version` | (a) API §3.4: setiap mutasi menaikkan | Definisi tidak ambigu; lebih aman daripada klasifikasi per jenis mutasi | Fathur | Guide §8 dikoreksi ke API §3.4 |
+| K-13 | 2026-11-17 | Cakupan feed `/system/audit` + enum `event_type` | (a) `/system/audit` alias harfiah seluruh feed operational events | Satu feed, satu sumber kebenaran; halaman audit panel langsung cocok | Fathur | API doc: enum `event_type` + status `severity` ditulis; cakupan `/system/audit` dinyatakan alias harfiah |
+| K-14 | 2026-11-17 | Ack `operatorId` wajib atau tidak | (a) Turunkan operator dari JWT, body `{note?}` saja | Endpoint terotentikasi, server sudah tahu pemanggil; panel sudah mengirim seperti ini | Fathur | Guide §6.7 dikoreksi (operatorId tidak wajib) |
+| K-15 | 2026-11-17 | Definisi availability jam planned penuh | (a) Jam planned penuh dikeluarkan dari penyebut availability, ditandai "planned" | Sesuai praktik OEE; jam istirahat tidak tampil sebagai jam gagal total | Fathur | API §K.3c dikoreksi (jam planned penuh dikeluarkan dari penyebut) |
 | | | | | | | |
 | | | | | | | |
 
 ### C.2 Checklist verifikasi akhir
 
-- [ ] Fase 0: semua keputusan K-01–K-15 tertulis di decision log; dokumen API/Guide yang bertentangan sudah dikoreksi.
+- [ ] Fase 0: semua keputusan K-01–K-15 tertulis di decision log (SELESAI 17 Nov 2026 — 15/15 diputuskan); dokumen API/Guide yang bertentangan sudah dikoreksi (masih menunggu backend).
 - [ ] Fase 1: contoh respons di dokumen cocok field-per-field dengan respons live; envelope + cursor bekerja di >1 halaman.
 - [ ] Fase 2: 23 operasi dynsec end-to-end lolos; password sekali tampil hanya muncul sekali.
 - [ ] Fase 3: policy/role/assignment/ABAC/`mustChangePassword`/login 429/refresh 401 lolos.

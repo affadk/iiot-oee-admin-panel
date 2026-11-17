@@ -1,6 +1,6 @@
 /**
  * Authoritative Admin Panel Endpoint Catalog
- * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (131 Admin REST candidates + 1 WebSocket = 132)
+ * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (132 Admin REST candidates + 1 WebSocket = 133)
  * and API_DOCUMENTATION.md.
  *
  * Strictly EXCLUDES HMI-only flows:
@@ -10,7 +10,6 @@
  * - POST /api/v1/work-orders/:wo_id/dispatch
  * - POST /api/v1/work-orders/:wo_id/complete
  * And strictly blocks legacy/non-existent paths:
- * - POST /api/v1/mqtt/dynamic-security/clients/provision
  * - POST /api/v1/mqtt/dynamic-security/provision
  * - POST /api/v1/auth/operator-pin
  * - /api/v1/mqtt/configuration/versions
@@ -52,7 +51,6 @@ export type AdminEndpointKey = keyof typeof ADMIN_ENDPOINTS;
 
 export const FORBIDDEN_ENDPOINT_PATTERNS = [
   '/mqtt/configuration/versions',
-  '/mqtt/dynamic-security/clients/provision',
   '/mqtt/dynamic-security/provision',
   '/auth/operator-pin',
   '/command',

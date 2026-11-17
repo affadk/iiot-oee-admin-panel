@@ -49,7 +49,7 @@ export interface BrokerOverviewInfo {
     groupsCount: number;
   };
   configuration: {
-    status: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED';
+    status: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED' | 'UNAVAILABLE';
     activeVersionId: string | null;
     lastAppliedAt: string | null;
     mutationLocked: boolean;

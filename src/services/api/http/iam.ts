@@ -50,7 +50,7 @@ export const httpIam = {
 
   async updateIamRole(
     roleId: string,
-    patch: { description?: string; privilege_level?: number }
+    changes: { description?: string; privilege_level?: number }
   ): Promise<IamRole> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -58,9 +58,9 @@ export const httpIam = {
     // lihat createIamRole.
     return reqJson(
       {
-        method: 'PATCH',
+        method: 'PUT',
         path: ADMIN_ENDPOINTS.IAM_ROLES_UPDATE.buildPath(roleId),
-        body: { ...(patch.description !== undefined ? { description: patch.description } : {}) },
+        body: { ...(changes.description !== undefined ? { description: changes.description } : {}) },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'IAM_ROLES_UPDATE',
@@ -245,15 +245,15 @@ export const httpIam = {
 
   async updateIamPolicy(
     policyId: string,
-    patch: Partial<Pick<IamPolicyRule, 'eft' | 'action' | 'resource_pattern' | 'abac_condition' | 'is_active' | 'reason'>>
+    changes: Partial<Pick<IamPolicyRule, 'eft' | 'action' | 'resource_pattern' | 'abac_condition' | 'is_active' | 'reason'>>
   ): Promise<IamPolicyRule> {
     assertAuthenticatedHttp();
     assertLanForMutation();
     return reqJson(
       {
-        method: 'PATCH',
+        method: 'PUT',
         path: ADMIN_ENDPOINTS.IAM_POLICIES_UPDATE.buildPath(policyId),
-        body: { ...patch },
+        body: { ...changes },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'IAM_POLICIES_UPDATE',

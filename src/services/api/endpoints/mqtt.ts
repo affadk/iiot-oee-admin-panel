@@ -43,6 +43,13 @@ MQTT_DYNSEC_CLIENTS_CREATE: {
     buildPath: () => '/api/v1/mqtt/dynamic-security/clients',
   },
 
+MQTT_DYNSEC_CLIENTS_PROVISION: {
+    key: 'MQTT_DYNSEC_CLIENTS_PROVISION',
+    method: 'POST',
+    template: '/api/v1/mqtt/dynamic-security/clients/provision',
+    buildPath: () => '/api/v1/mqtt/dynamic-security/clients/provision',
+  },
+
 MQTT_DYNSEC_CLIENTS_DELETE: {
     key: 'MQTT_DYNSEC_CLIENTS_DELETE',
     method: 'DELETE',
@@ -182,8 +189,8 @@ MQTT_DYNSEC_GROUP_ROLES_DELETE: {
 MQTT_CONFIG_GET: {
     key: 'MQTT_CONFIG_GET',
     method: 'GET',
-    template: '/api/v1/mqtt/configuration',
-    buildPath: () => '/api/v1/mqtt/configuration',
+    template: '/api/v1/mqtt/configuration/',
+    buildPath: () => '/api/v1/mqtt/configuration/',
   },
 
 MQTT_CONFIG_RAW: {

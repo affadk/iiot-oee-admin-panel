@@ -79,7 +79,15 @@ export const demoMqttDynsec = {
     access?: 'publish' | 'subscribe' | 'readwrite';
   }): Promise<{ client: MqttClient; generatedPassword?: string }> {
     assertCapability('mqtt.dynsec.manage', ['ADMIN'], { resourceId: payload.username });
-    store.recordEndpoint('MQTT_DYNSEC_CLIENTS_CREATE', ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath());
+    // K-11 (b): cabang deviceId+access dicatat sebagai PROVISION, sama
+    // seperti routing HTTP.
+    const isProvision = !(payload.roles && payload.roles.length > 0) && !!payload.deviceId;
+    store.recordEndpoint(
+      isProvision ? 'MQTT_DYNSEC_CLIENTS_PROVISION' : 'MQTT_DYNSEC_CLIENTS_CREATE',
+      isProvision
+        ? ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_PROVISION.buildPath()
+        : ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath(),
+    );
 
     if (store.mqttClients.some((c) => c.username === payload.username.trim())) {
       throw new ApiError({
