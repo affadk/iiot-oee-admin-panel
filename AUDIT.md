@@ -1009,3 +1009,54 @@ preview HTTP 200; checker **0 FAIL** (294 file, 32 WARN lunak).
 **Linear:** Epic E15 (FAT-128) + 5 child P15.1–P15.5 (FAT-129–FAT-133),
 semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v14
 (129 issue: 70 Done / 1 In Progress / 58 Todo).
+
+## 19. Sinkronisasi dokumen panduan upgrade backend — Epic E16 (2026-11-17)
+
+**Permintaan (Fathur, 2026-11-17 16:30 WIB):** "lakukan singronisasi atau
+pembaruan terhadap BACKEND_UPGRADE_PLAN dan dokumen terkait lain yang akan
+digunakan sebagai panduan upgrade backend jika belum" — periksa dan perbarui
+dokumen panduan agar cocok dengan keadaan panel kini.
+
+**Temuan sapuan:** 4 dokumen panduan masih memuat angka/pernyataan basi
+pasca-E14/E15:
+
+- `docs/BACKEND_UPGRADE_PLAN.md`: Status Linear 117 issue (58 Done / 1 In
+  Progress / 58 Todo); registry 131 operasi; tests 330/330; referensi
+  `AUDIT.md` §14–§16; Versi 1.0.
+- `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`: "131 operasi"; tema 2 masih
+  menggambarkan panel mengirim array jamak dynsec; tiap gap
+  B2/B28/B29/B31/B32/B33/B35/B36/B37/B38/B44 masih menulis perilaku panel
+  saat audit tanpa catatan perubahan.
+- `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`: B7 "131 operasi admin".
+- `docs/TELEMETRY_AUDIT.md`: tanpa penanda bahwa proposal panel sudah
+  diimplementasikan (E11/E12).
+
+**Perubahan (E16, FAT-134–138):**
+
+- P16.1 (FAT-135): plan → v1.1: Linear 129 issue (70 Done / 1 In Progress /
+  58 Todo) + E14/E15 Done; registry 132 operasi; tests 335/335; referensi
+  AUDIT.md §14–§18 (header, P-3, footer); item 7.7 "132 operasi admin";
+  catatan perubahan v1.1.
+- P16.2 (FAT-136): gaps doc — bagian baru "Status panel pasca-audit —
+  E14/E15" (tabel 11 gap: perilaku saat audit vs kini vs tugas backend
+  tersisa) + catatan gap yang tidak berubah (B1/B3/B30/B39/B40/B41/B42);
+  Ringkasan "132 operasi"; tema 2 diperbarui (K-05 (a) diputuskan, panel
+  sudah objek tunggal).
+- P16.3 (FAT-137): access-mode B7 → 132 operasi; telemetry audit header +
+  baris status E11/E12 (yang tersisa hanya item sisi server Fase 8).
+- P16.4 (FAT-138): verifikasi + bookkeeping.
+
+**Yang sengaja TIDAK diubah:** AUDIT.md §16/§17 (catatan historis — §18
+sudah mengoreksinya); `docs/linear-seed.json` `notes` (changelog historis);
+prinsip proses Fase 0 di plan ("tergantung padanya ditunda, bukan dikerjakan
+dengan asumsi") — bukan status basi.
+
+**Verifikasi:** grep keempat dokumen panduan: 0 kemunculan "117 issue",
+"131 operasi", "330/330", "§14–§16"; "ditunda" tersisa 1× di plan baris 255
+(prinsip proses, benar dipertahankan). Tidak ada perubahan kode — tidak ada
+test yang dijalankan ulang (terakhir 335/335, tsc 0, build OK, preview HTTP
+200, checker 0 FAIL — E15).
+
+**Linear:** Epic E16 (FAT-134) + 4 child P16.1–P16.4 (FAT-135–FAT-138),
+semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v15
+(134 issue: 75 Done / 1 In Progress / 58 Todo).

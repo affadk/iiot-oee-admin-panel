@@ -37,7 +37,7 @@ Backend harus menentukan kanal dari sisi server, bukan dari klaim client:
 
 | # | Kebutuhan | Detail |
 | --- | --- | --- |
-| B7 | Tolak mutasi dari tunnel saat mode `private` | Semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 131 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. |
+| B7 | Tolak mutasi dari tunnel saat mode `private` | Semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 132 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. |
 | B8 | Baca tetap diizinkan dari tunnel | `GET` (termasuk ekspor & history) tetap boleh dari tunnel di kedua mode — tunnel memang dibuat untuk observasi jarak jauh. |
 | B9 | Login dari tunnel mengikuti mode | `POST /auth/login` dari tunnel: diizinkan di mode `public`; di mode `private` **ditolak 403** (konsisten dengan panel — login demo pun dijaga). Alasan: sesi yang lahir dari tunnel di mode private tidak boleh ada. |
 | B10 | WebSocket telemetri read-only | `GET /ws/telemetry` boleh dari kedua kanal di kedua mode, tetapi **hanya stream baca**. Tidak ada pesan tulis/aktuasi lewat WS (ADR-003). |

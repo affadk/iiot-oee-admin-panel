@@ -6,6 +6,7 @@
 - **Metode:** tiga pemetaan faktual paralel (`/tmp/telemetry-part1.md` — Telemetry History, 32 temuan F1-1–F1-32; `/tmp/telemetry-part2.md` — OEE per jam, 21 temuan F2-1–F2-21; `/tmp/telemetry-part3.md` — Timeline shift, 21 temuan F3-1–F3-21), diverifikasi silang oleh auditor terhadap kode sumber untuk klaim-klaim berdampak tinggi sebelum laporan ini ditulis.
 - **Konteks yang BUKAN temuan:** label "Pareto" tanpa kategori sudah diputuskan sebelumnya menjadi satu keranjang `UNCLASSIFIED` (AUDIT.md §12) — tidak dilaporkan lagi sebagai gap. Yang dibahas di sini adalah ketiga fitur di atas saja, tetap dalam scope rancangan sistem saat ini (mode Demo/Real, tanpa backend baru kecuali ditandai eksplisit).
 - **[Koreksi 2026-11-16 malam, saat T11.4]:** angka G2 "Σ `hourly_run_sec` = 25.198 dtk (≈ 420 m)" salah salin — nilai sebenarnya dari seed adalah **23.198 dtk (≈ 386,6 m)**, hanya 82 dtk di bawah `run_time_min` (388). Angka G2 lain (409/45/15, downtime ≈ 93 mnt) sudah benar. Temuan G2 tetap Tinggi (timeline yang salah), hanya bagian hourly-run-nya yang tadinya dilebih-lebihkan.
+- **[Status panel 2026-11-17, E11/E12]:** proposal sisi panel F-1–F-13, X-1–X-6, U-1–U-5 sudah diimplementasikan (AUDIT.md §14–§15). Yang tersisa dari dokumen ini hanyalah item sisi server — F-2 (from/to), F-7/G8 (planned + availability), G25 (FSM SETUP/IDLE), default server 72/500 — tercakup di Fase 8 `docs/BACKEND_UPGRADE_PLAN.md`.
 
 ---
 

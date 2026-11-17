@@ -36,10 +36,43 @@
 > seluruh `src/`, filter schedule API snake_case vs Guide camelCase (kontradiksi
 > langsung), trailing slash config (API: "Wajib trailing slash").
 
+## Status panel pasca-audit — E14/E15 (17 November 2026)
+
+> Perilaku panel yang tertulis di tiap gap di bawah adalah perilaku **saat
+> audit** (2026-11-17 siang). Setelah audit, panel diubah mengikuti keputusan
+> Fase 0 (E14: K-03/K-10/K-11; E15: K-05/K-06/K-07 — decision log Lampiran C
+> `docs/BACKEND_UPGRADE_PLAN.md`, AUDIT.md §17–§18). Tabel ini mencatat
+> perilaku panel **kini**; tugas backend yang tersisa tidak berubah kecuali
+> dinyatakan lain.
+
+| Gap | Perilaku panel saat audit | Perilaku panel kini | Tugas backend yang tersisa |
+| --- | --- | --- | --- |
+| B2 | `updateIamRole`/`updateIamPolicy` memakai PATCH | PUT (E14 P14.2) — sesuai dokumen | Sisa bentuk body/field (B1): nama field + casing body policy |
+| B28 | Rotasi password memakai POST | PATCH (E14 P14.3) — sesuai dokumen | — (diputuskan K-10) |
+| B29 | Toggle memakai POST + `{disabled}` | PATCH + `{enabled}` (E14 P14.3) — sesuai dokumen | — (diputuskan K-10) |
+| B31 | `{roles:[{rolename, priority}]}` | `{rolename, priority}` (E15 P15.1) — sesuai Guide Lampiran A | Dokumentasikan/konfirmasi bentuk objek tunggal |
+| B32 | `{acls:[acl]}` | Objek ACL tunggal (E15 P15.1) — sesuai Guide Lampiran A | Dokumentasikan apakah `allow`/`priority` didukung |
+| B33 | Password kosong dikirim `""`; UI menjanjikan auto-generate | Password wajib min 8 di UI (E15 P15.2) — sesuai API §M + Guide §7.2 | Nyatakan apakah `textname`/`textdescription`/`groups`/`clientid` diterima |
+| B35 | `mapMqttClient` membalik `{enabled:false}` | Mapper diperbaiki, benar untuk `enabled` maupun `disabled` (E15 P15.3) | Dokumentasikan field status yang dipakai backend |
+| B36 | `{clients:[{username}]}` | `{username}` (E15 P15.1) — sesuai Guide Lampiran A | Dokumentasikan/konfirmasi bentuk objek tunggal |
+| B37 | `{roles:[{rolename}]}` | `{rolename}` (E15 P15.1) — sesuai Guide Lampiran A | Dokumentasikan/konfirmasi bentuk objek tunggal |
+| B38 | `GET /mqtt/configuration` tanpa trailing slash | Dengan trailing slash (E14 P14.1) — sesuai API §3.3b | — (diputuskan K-03) |
+| B44 | `configuration: null` → tampil `IN_SYNC` | Status `UNAVAILABLE` (E15 P15.4) — sesuai API §3.3a | Dokumentasikan field dalam kedua objek overview |
+
+Tidak berubah dari sisi panel (tetap menunggu keputusan/dokumentasi
+backend): B1 (body policy), B3 (grammar ABAC), B30 (`accessMap` — panel
+masih menulis ulang `access` menjadi `telemetry`/`telemetry+state`; backend
+harus menerima nilai verbatim `publish`/`subscribe`/`readwrite`, item 2.3
+rencana), B39 (body stage `{config, summary}`), B40 (panel hanya mem-parsing
+`issues` — diputuskan K-04 (a)), B41 (tanpa `acknowledgeUnvalidated`,
+polling sekali), B42 (`POST /backups` hantu), dan semua gap lain di luar
+tabel.
+
 ## Ringkasan
 
 **50 gap: 12 High, 23 Medium, 15 Low.** Registry endpoint panel lengkap
-(59 kunci di irisan ini; 131 operasi admin secara keseluruhan) — **tidak ada
+(59 kunci di irisan ini; 132 operasi admin secara keseluruhan — bertambah 1
+sejak E14: `POST /clients/provision`) — **tidak ada
 satu pun endpoint yang hilang dari registry**. Hampir semua gap adalah
 ketidaksesuaian **bentuk kontrak** (body/method/field/filter/skema respons),
 bukan endpoint yang belum didaftarkan.
@@ -57,7 +90,11 @@ Enam tema lintas-gap:
    (`{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}` vs `{rolename}` /
    `{acltype, topic}` / `{username}`), stage config (`{config, summary}` vs
    `{config, baseVersionId?, reason?, comment?}`). Salah satu pihak harus
-   berubah; backend harus menetapkan sumber kebenaran.
+   berubah; backend harus menetapkan sumber kebenaran. **[Diperbarui 17 Nov
+   2026 — E15/K-05: diputuskan (a) objek tunggal dokumen; panel sudah
+   mengirim objek tunggal untuk sub-operasi dynsec. Yang tersisa adalah
+   dokumentasi/konfirmasi backend; bagian policy IAM dan stage config belum
+   berubah.]**
 3. **Method salah di transport panel** (PATCH vs PUT di IAM, POST vs PATCH di
    dynsec). Bila backend mengikuti dokumen secara ketat, operasi ini gagal
    404/405 di Real mode. Perbaikan kode kemungkinan besar di panel — tapi

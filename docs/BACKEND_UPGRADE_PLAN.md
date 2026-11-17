@@ -4,11 +4,13 @@
 | --- | --- |
 | **Dokumen** | Rencana Upgrade Backend — IIoT OEE Admin Panel |
 | **Tanggal** | 17 November 2026 |
-| **Versi** | 1.0 |
+| **Versi** | 1.1 |
 | **Status** | Panduan kerja untuk tim backend — belum ada satu pun item yang dikerjakan |
 | **Cakupan** | Backend aplikasi IIoT OEE Admin Panel (bukan infra jaringan, bukan panel) |
 | **Epic Linear** | E13 — Backend gaps System Admin (FAT-71); A10.2 Mode Akses (FAT-40); V8.2/V8.3/V8.4/V8.5 (FAT-28/30/29/27) |
-| **Dokumen acuan** | `API_DOCUMENTATION.md` ("API"), `ADMIN_PANEL_BUILD_GUIDE.md` ("Guide"), `AUDIT.md` §14–§16, `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md` |
+| **Dokumen acuan** | `API_DOCUMENTATION.md` ("API"), `ADMIN_PANEL_BUILD_GUIDE.md` ("Guide"), `AUDIT.md` §14–§18, `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md` |
+
+*v1.1 (17 Nov 2026 sore): sinkronisasi pasca-E14/E15 — decision log Fase 0 15/15, registry 132 operasi, tests 335/335, Linear 129 issue, referensi AUDIT.md §14–§18.*
 
 ---
 
@@ -22,7 +24,7 @@ diverifikasi di sisi backend** agar panel admin yang sudah jadi dapat berjalan
 dalam mode Real — bukan hanya mode Demo.
 
 Panel sudah selesai dan terverifikasi di sisi klien (TypeScript 0 error,
-330/330 test, build OK, preview HTTP 200). Yang belum ada adalah backend itu
+335/335 test, build OK, preview HTTP 200). Yang belum ada adalah backend itu
 sendiri. Audit terhadap panel menemukan 50 gap kontrak System Admin
 (SYS-B1–SYS-B50), 25 kebutuhan mode akses (B1–B25), dan sejumlah item sisi
 server pada telemetry/OEE. Dokumen ini menyusun semuanya menjadi rencana
@@ -67,10 +69,11 @@ karena tanpa ketetapan itu panel tidak bisa dibuat benar di mode Real.
   field/kode error, health sintetis, apply sinkron. **Tidak satu pun
   acceptance criteria di dokumen ini boleh diuji melawan Demo** — semuanya
   harus diuji melawan backend sungguhan di mode Real.
-- **Status Linear (17 November 2026):** 117 issue (58 Done / 1 In Progress /
+- **Status Linear (17 November 2026):** 129 issue (70 Done / 1 In Progress /
   58 Todo). E13 (FAT-71) dan seluruh child SYS-B1–SYS-B50 (FAT-72–FAT-121)
   masih Todo. A10.2 (FAT-40), V8.2 (FAT-28), V8.3 (FAT-30), V8.4 (FAT-29),
-  V8.5 (FAT-27) juga masih Todo.
+  V8.5 (FAT-27) juga masih Todo. E14 (FAT-122) dan E15 (FAT-128) — tindak
+  lanjut panel keputusan Fase 0 — sudah Done.
 - **Yang dikecualikan dari rencana ini:** infra jaringan (konfigurasi Nginx,
   dual-vhost, port, TLS, tunnel — V8.4, butuh target server, bukan bagian
   backend aplikasi) dan pekerjaan sisi panel (dicatat terpisah di dokumen
@@ -87,7 +90,7 @@ karena tanpa ketetapan itu panel tidak bisa dibuat benar di mode Real.
 | Gap backend System Admin (SYS-B1–SYS-B50) | **50 gap: 12 High, 23 Medium, 15 Low** |
 | Kebutuhan backend mode akses (B1–B25) | **25 kebutuhan** + checklist verifikasi V1–V12 |
 | Gap telemetry/OEE dengan item sisi server | **25 gap (G1–G25)**; item server: F-2, F-7/G8, G25, default server 72/500 |
-| Endpoint admin di registry panel | **131 operasi** (59 kunci di irisan System Admin) — **tidak ada endpoint yang hilang** |
+| Endpoint admin di registry panel | **132 operasi** (59 kunci di irisan System Admin) — **tidak ada endpoint yang hilang** |
 | Pertanyaan terbuka yang tidak bisa diputuskan dari dokumen saja | **22** (lihat `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` bagian akhir) |
 
 Poin terpenting dari angka di atas: **tidak ada satu pun endpoint yang belum
@@ -199,7 +202,7 @@ capability kanonis, filter audit IAM.
 | --- | --- | --- |
 | P-1 | Akses ke `API_DOCUMENTATION.md` dan `ADMIN_PANEL_BUILD_GUIDE.md` versi terbaru | Kedua dokumen adalah acuan; bila ada versi yang lebih baru dari yang dipakai audit (API 1780 baris, Guide 1553 baris), audit ulang selisihnya |
 | P-2 | Akses ke repo panel (`iiot-oee-admin-panel`) | Untuk membaca transport/mapper yang dirujuk tiap gap (`src/services/api/http/*`, `src/services/api/endpoints/*`) |
-| P-3 | Akses ke `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md`, `AUDIT.md` §14–§16 | Dokumen sumber rencana ini |
+| P-3 | Akses ke `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md`, `AUDIT.md` §14–§18 | Dokumen sumber rencana ini |
 | P-4 | Environment staging dengan backend yang bisa dijalankan | Acceptance criteria diuji melawan backend sungguhan, bukan Demo; butuh staging yang bisa dimatikan broker-nya, diubah mode-nya, dan diisi data >1 halaman |
 | P-5 | Akses ke broker Mosquitto dengan plugin Dynamic Security | Untuk Fase 2 dan Fase 5; tanpa ini bentuk dynsec dan config tidak bisa diverifikasi |
 | P-6 | Akses Linear (project P-FAT-1) | Untuk memperbarui status issue E13/A10.2/V8.x saat pekerjaan selesai dan terverifikasi |
@@ -445,7 +448,7 @@ memproyeksikannya). Gating di panel hanya UX/pertahanan lapis pertama.
 
 | # | Item pekerjaan | Kriteria selesai |
 | --- | --- | --- |
-| 7.7 | Tolak mutasi dari tunnel saat mode `private`: semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 131 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. | B7; V1: `POST /api/v1/products` via tunnel, mode `private` → 403 `FORBIDDEN`, tidak ada data berubah |
+| 7.7 | Tolak mutasi dari tunnel saat mode `private`: semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 132 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. | B7; V1: `POST /api/v1/products` via tunnel, mode `private` → 403 `FORBIDDEN`, tidak ada data berubah |
 | 7.8 | Baca tetap diizinkan dari tunnel: `GET` (termasuk ekspor & history) tetap boleh dari tunnel di kedua mode — tunnel memang dibuat untuk observasi jarak jauh. | B8; V4: `GET /api/v1/devices` via tunnel, mode `private` → 200 |
 | 7.9 | Login dari tunnel mengikuti mode: `POST /auth/login` dari tunnel diizinkan di mode `public`; di mode `private` **ditolak 403** (konsisten dengan panel — login demo pun dijaga). Alasan: sesi yang lahir dari tunnel di mode private tidak boleh ada. | B9; V5/V6 |
 | 7.10 | WebSocket telemetri read-only: `GET /ws/telemetry` boleh dari kedua kanal di kedua mode, tetapi **hanya stream baca**. Tidak ada pesan tulis/aktuasi lewat WS (ADR-003). | B10; V12 |
@@ -778,6 +781,6 @@ E10 — A10.2 (FAT-40).
 
 *Dokumen ini disusun 17 November 2026 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`
 (50 gap SYS-B1–SYS-B50), `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` (B1–B25,
-V1–V12), `docs/TELEMETRY_AUDIT.md` (G1–G25), `AUDIT.md` §14–§16, dan
+V1–V12), `docs/TELEMETRY_AUDIT.md` (G1–G25), `AUDIT.md` §14–§18, dan
 `docs/LINEAR.md` §1.3/§8. Backend belum ada saat dokumen ini ditulis; mode
 Real belum pernah terverifikasi end-to-end.*
