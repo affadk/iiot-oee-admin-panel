@@ -133,7 +133,7 @@ export const AGG_BUCKET_MS: Record<'1m' | '5m' | '15m' | '1h' | '1d', number> = 
 };
 
 /** Satu desimal — nilai seed per bucket. */
-function round1(v: number): number {
+export function round1(v: number): number {
   return Math.round(v * 10) / 10;
 }
 

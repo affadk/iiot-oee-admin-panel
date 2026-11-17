@@ -16,7 +16,7 @@ import { ADMIN_ENDPOINTS } from '../../endpoints';
 import { ShiftSummary, HourlyOeePoint, ShiftTimelineSegment, TelemetryAggregateResult, TelemetryRangeOptions } from '../../../../types/analytics';
 import { Shift } from '../../../../types/production';
 import { parseShiftClock, resolveShiftWindow, addDaysToDateString } from '../../../../utils/historicalExport';
-import { parseIsoDateAndOffset, rebucketTimelineSegments, CANONICAL_SHIFT_SEGMENTS, hhmmToMinutes, minutesToHhmm, buildDemoAggregateRows } from './helpers';
+import { parseIsoDateAndOffset, rebucketTimelineSegments, CANONICAL_SHIFT_SEGMENTS, hhmmToMinutes, minutesToHhmm, buildDemoAggregateRows, round1 } from './helpers';
 
 /** Jam mulai shift seed demo (Shift 1, 07:00) — acuan proyeksi segmen/bucket. */
 const SEED_SHIFT_START_MIN = hhmmToMinutes('07:00');
@@ -83,6 +83,75 @@ function toIsoTimelineSegment(
   return { ...seg, start: isoAt(startAbsMin), end: isoAt(endAbsMin) };
 }
 
+/**
+ * E12 T12.6a (Opsi A / FAT-70): seed titik per jam demo — 8 bucket
+ * 07:00–14:00 (12:00 sepenuhnya planned, 0 parts). Dipakai getHourlyTrend
+ * dan getShiftSummary supaya keduanya membaca seed yang sama; sebelumnya
+ * array ini hidup di dalam getHourlyTrend saja.
+ */
+export function buildDemoHourlyPoints(deviceId: string): HourlyOeePoint[] {
+  const isUnknownCapacity = deviceId === 'STM32-OEE-05';
+  return [
+    // E11 T11.4 (F-4): jam 07:00 — micro-stop 432 dtk → 350 dtk
+    // (run 3168 → 3250 dtk) supaya Σ hourly_run_sec = 23.280 dtk
+    // (388 mnt = run_time_min). availability = 3250/3600 = 90,3%;
+    // oee = 90,3 × 91,0 × 98,0 / 10000 = 80,5.
+    // E12 T12.14 (F-10 / FAT-66): downtime per jam TIDAK lagi disimpan
+    // di titik ini (`hourly_downtime_sec` dihapus). Downtime turunan
+    // per jam = operating − run (Σ 1.920 dtk = unplanned 32 mnt; jam
+    // 12:00 yang sepenuhnya planned tidak tertangkap turunan ini karena
+    // operating-nya 0 — gap G8). Σ downtime penuh 92 mnt (5.520 dtk)
+    // sumber kebenarannya ada di downtime_events dt-ev-02 (1.920 dtk)
+    // + dt-ev-04 (3.600 dtk) — lihat test rekonsiliasi T11.4.
+    // Jam 12:00 TIDAK diubah (sepenuhnya planned — gap G8, urusan backend).
+    { hour: '07:00', oee: isUnknownCapacity ? 0 : 80.5, availability: isUnknownCapacity ? 100 : 90.3, performance: isUnknownCapacity ? 0 : 91.0, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 42, good_count: isUnknownCapacity ? 0 : 41, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3250, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
+    { hour: '08:00', oee: isUnknownCapacity ? 0 : 84.6, availability: isUnknownCapacity ? 100 : 92.4, performance: isUnknownCapacity ? 0 : 94.1, quality: isUnknownCapacity ? 100 : 97.4, parts_produced: isUnknownCapacity ? 0 : 48, good_count: isUnknownCapacity ? 0 : 47, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3326, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
+    { hour: '09:00', oee: isUnknownCapacity ? 0 : 86.2, availability: isUnknownCapacity ? 100 : 94.0, performance: isUnknownCapacity ? 0 : 93.5, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 50, good_count: isUnknownCapacity ? 0 : 49, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3384, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
+    { hour: '10:00', oee: isUnknownCapacity ? 0 : 82.0, availability: isUnknownCapacity ? 100 : 90.0, performance: isUnknownCapacity ? 0 : 92.0, quality: isUnknownCapacity ? 100 : 99.0, parts_produced: isUnknownCapacity ? 0 : 46, good_count: isUnknownCapacity ? 0 : 46, defect_count: 0, hourly_operating_sec: 3600, hourly_run_sec: 3240, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
+    { hour: '11:00', oee: isUnknownCapacity ? 0 : 85.5, availability: isUnknownCapacity ? 100 : 93.0, performance: isUnknownCapacity ? 0 : 94.0, quality: isUnknownCapacity ? 100 : 97.8, parts_produced: isUnknownCapacity ? 0 : 49, good_count: isUnknownCapacity ? 0 : 48, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3348, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
+    { hour: '12:00', oee: 0.0, availability: 0.0, performance: 0.0, quality: 100.0, parts_produced: 0, good_count: 0, defect_count: 0, hourly_operating_sec: 0, hourly_run_sec: 0, sampleCount: 12, targetPerHour: 0, state: 'PLANNED_DOWNTIME', planned: true, provisional: false },
+    { hour: '13:00', oee: isUnknownCapacity ? 0 : 87.8, availability: isUnknownCapacity ? 100 : 95.0, performance: isUnknownCapacity ? 0 : 94.5, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 52, good_count: isUnknownCapacity ? 0 : 51, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3420, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
+    { hour: '14:00', oee: isUnknownCapacity ? 0 : 84.0, availability: isUnknownCapacity ? 100 : 92.0, performance: isUnknownCapacity ? 0 : 93.0, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 47, good_count: isUnknownCapacity ? 0 : 46, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3312, sampleCount: 44, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
+  ];
+}
+
+export interface DerivedShiftSummary {
+  oee: number;
+  availability: number;
+  performance: number;
+  quality: number;
+  totalParts: number;
+  goodParts: number;
+  defectParts: number;
+  targetPerHour: number;
+}
+
+/**
+ * E12 T12.6a (Opsi A / FAT-70, keputusan Fathur 2026-11-17): turunkan
+ * angka ringkasan shift dari Σ titik per jam — bukan dari counter
+ * kumulatif live-state (350/342/8). Rumus (basis shift yang sama):
+ * A = Σ run / Σ operating; P = Σ parts / (target × Σ operating jam);
+ * Q = Σ good / Σ parts; OEE = A × P × Q / 10000; semua dibulatkan
+ * 1 desimal. Untuk seed demo: A 92,4 · P 95,4 · Q 98,2 · OEE 86,6 ·
+ * parts 334/328/6 · target 50. Mengembalikan null bila tidak bisa
+ * diturunkan (parts 0 / target tidak diketahui — mis. STM32-OEE-05,
+ * kapasitas unknown); pemanggil memakai fallback live-state.
+ */
+export function deriveShiftSummaryFromHourly(points: HourlyOeePoint[]): DerivedShiftSummary | null {
+  const totalParts = points.reduce((acc, p) => acc + (p.parts_produced ?? 0), 0);
+  const goodParts = points.reduce((acc, p) => acc + (p.good_count ?? 0), 0);
+  const defectParts = points.reduce((acc, p) => acc + (p.defect_count ?? 0), 0);
+  const operatingSec = points.reduce((acc, p) => acc + (p.hourly_operating_sec ?? 0), 0);
+  const runSec = points.reduce((acc, p) => acc + (p.hourly_run_sec ?? 0), 0);
+  const targetPerHour = points.find((p) => p.targetPerHour != null && p.targetPerHour > 0)?.targetPerHour ?? null;
+  if (totalParts <= 0 || targetPerHour === null || operatingSec <= 0) return null;
+  const availability = round1((runSec / operatingSec) * 100);
+  const performance = round1((totalParts / (targetPerHour * (operatingSec / 3600))) * 100);
+  const quality = round1((goodParts / totalParts) * 100);
+  const oee = round1((availability * performance * quality) / 10000);
+  return { oee, availability, performance, quality, totalParts, goodParts, defectParts, targetPerHour };
+}
+
 export const demoTelemetryOee = {
   async getShiftSummary(
     machineId?: string,
@@ -102,6 +171,15 @@ export const demoTelemetryOee = {
     store.recordEndpoint('OEE_SHIFT_SUMMARY', `${ADMIN_ENDPOINTS.OEE_SHIFT_SUMMARY.buildPath()}${qStr ? `?${qStr}` : ''}`);
     const targetMachine = store.machines.find((m) => m.machine_id === machineId) || store.machines[0];
     const live = store.liveStates.find((l) => l.machine_id === targetMachine?.machine_id);
+    // E12 T12.6a (Opsi A / FAT-70, keputusan Fathur 2026-11-17): angka
+    // ringkasan diturunkan dari Σ titik per jam mesin itu
+    // (deriveShiftSummaryFromHourly) — bukan dari counter kumulatif
+    // live-state (350/342/8). Live state tetap kumulatif dan dipakai
+    // sebagai fallback bila seed hourly tidak bisa diturunkan (mis.
+    // STM32-OEE-05: parts 0, target tidak diketahui).
+    const derived = deriveShiftSummaryFromHourly(
+      buildDemoHourlyPoints(targetMachine?.bound_device_id || 'STM32-OEE-01')
+    );
     // E11 T11.2 (F-2): hormati rentang from/to — seed demo adalah satu shift
     // (07:00–15:00); jendela shift diproyeksikan ke tanggal kalender `to`
     // (fallback `from`), mengikuti pola anchor T11.1 pada hourly. Angka-angka
@@ -127,20 +205,20 @@ export const demoTelemetryOee = {
       shift_start: shiftStart,
       shift_end: shiftEnd,
       tz: 'Asia/Jakarta',
-      oee: live?.oee ?? 84.6,
-      availability: live?.availability ?? 92.4,
-      performance: live?.performance ?? 94.1,
-      quality: live?.quality ?? 97.4,
+      oee: derived?.oee ?? live?.oee ?? 84.6,
+      availability: derived?.availability ?? live?.availability ?? 92.4,
+      performance: derived?.performance ?? live?.performance ?? 94.1,
+      quality: derived?.quality ?? live?.quality ?? 97.4,
       planned_production_time_min: 480,
       planned_break_min: 60,
       operating_time_min: 420,
       run_time_min: 388,
       unplanned_downtime_min: 32,
       planned_downtime_min: 60,
-      total_parts: live?.total_count ?? 350,
-      good_parts: live?.good_count ?? 342,
-      defect_parts: live?.reject_count ?? 8,
-      target_per_hour: 64,
+      total_parts: derived?.totalParts ?? live?.total_count ?? 350,
+      good_parts: derived?.goodParts ?? live?.good_count ?? 342,
+      defect_parts: derived?.defectParts ?? live?.reject_count ?? 8,
+      target_per_hour: derived?.targetPerHour ?? 64,
     };
   },
 
@@ -265,29 +343,7 @@ export const demoTelemetryOee = {
     if (options?.limit !== undefined) qs.set('limit', String(options.limit));
     const qStr = qs.toString();
     store.recordEndpoint('TELEMETRY_HOURLY', `${ADMIN_ENDPOINTS.TELEMETRY_HOURLY.buildPath(deviceId)}${qStr ? `?${qStr}` : ''}`);
-    const isUnknownCapacity = deviceId === 'STM32-OEE-05';
-    const points: HourlyOeePoint[] = [
-      // E11 T11.4 (F-4): jam 07:00 — micro-stop 432 dtk → 350 dtk
-      // (run 3168 → 3250 dtk) supaya Σ hourly_run_sec = 23.280 dtk
-      // (388 mnt = run_time_min). availability = 3250/3600 = 90,3%;
-      // oee = 90,3 × 91,0 × 98,0 / 10000 = 80,5.
-      // E12 T12.14 (F-10 / FAT-66): downtime per jam TIDAK lagi disimpan
-      // di titik ini (`hourly_downtime_sec` dihapus). Downtime turunan
-      // per jam = operating − run (Σ 1.920 dtk = unplanned 32 mnt; jam
-      // 12:00 yang sepenuhnya planned tidak tertangkap turunan ini karena
-      // operating-nya 0 — gap G8). Σ downtime penuh 92 mnt (5.520 dtk)
-      // sumber kebenarannya ada di downtime_events dt-ev-02 (1.920 dtk)
-      // + dt-ev-04 (3.600 dtk) — lihat test rekonsiliasi T11.4.
-      // Jam 12:00 TIDAK diubah (sepenuhnya planned — gap G8, urusan backend).
-      { hour: '07:00', oee: isUnknownCapacity ? 0 : 80.5, availability: isUnknownCapacity ? 100 : 90.3, performance: isUnknownCapacity ? 0 : 91.0, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 42, good_count: isUnknownCapacity ? 0 : 41, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3250, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-      { hour: '08:00', oee: isUnknownCapacity ? 0 : 84.6, availability: isUnknownCapacity ? 100 : 92.4, performance: isUnknownCapacity ? 0 : 94.1, quality: isUnknownCapacity ? 100 : 97.4, parts_produced: isUnknownCapacity ? 0 : 48, good_count: isUnknownCapacity ? 0 : 47, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3326, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-      { hour: '09:00', oee: isUnknownCapacity ? 0 : 86.2, availability: isUnknownCapacity ? 100 : 94.0, performance: isUnknownCapacity ? 0 : 93.5, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 50, good_count: isUnknownCapacity ? 0 : 49, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3384, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-      { hour: '10:00', oee: isUnknownCapacity ? 0 : 82.0, availability: isUnknownCapacity ? 100 : 90.0, performance: isUnknownCapacity ? 0 : 92.0, quality: isUnknownCapacity ? 100 : 99.0, parts_produced: isUnknownCapacity ? 0 : 46, good_count: isUnknownCapacity ? 0 : 46, defect_count: 0, hourly_operating_sec: 3600, hourly_run_sec: 3240, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-      { hour: '11:00', oee: isUnknownCapacity ? 0 : 85.5, availability: isUnknownCapacity ? 100 : 93.0, performance: isUnknownCapacity ? 0 : 94.0, quality: isUnknownCapacity ? 100 : 97.8, parts_produced: isUnknownCapacity ? 0 : 49, good_count: isUnknownCapacity ? 0 : 48, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3348, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-      { hour: '12:00', oee: 0.0, availability: 0.0, performance: 0.0, quality: 100.0, parts_produced: 0, good_count: 0, defect_count: 0, hourly_operating_sec: 0, hourly_run_sec: 0, sampleCount: 12, targetPerHour: 0, state: 'PLANNED_DOWNTIME', planned: true, provisional: false },
-      { hour: '13:00', oee: isUnknownCapacity ? 0 : 87.8, availability: isUnknownCapacity ? 100 : 95.0, performance: isUnknownCapacity ? 0 : 94.5, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 52, good_count: isUnknownCapacity ? 0 : 51, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3420, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
-      { hour: '14:00', oee: isUnknownCapacity ? 0 : 84.0, availability: isUnknownCapacity ? 100 : 92.0, performance: isUnknownCapacity ? 0 : 93.0, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 47, good_count: isUnknownCapacity ? 0 : 46, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3312, sampleCount: 44, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
-    ];
+    const points = buildDemoHourlyPoints(deviceId);
 
     // E11 T11.1 (F-1): hormati rentang from/to — seed demo adalah satu hari
     // shift (07:00–14:00); proyeksikan tiap bucket ke tanggal kalender `to`

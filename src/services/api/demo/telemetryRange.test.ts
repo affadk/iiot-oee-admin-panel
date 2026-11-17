@@ -188,12 +188,19 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
 // hourly) dan memasukkannya ke query (gap G1).
 // ---------------------------------------------------------------------------
 
-test('Demo summary: tanpa options jendela + angka sama seperti sebelumnya', async () => {
+test('Demo summary: tanpa options jendela + angka dari Σ hourly (Opsi A T12.6a)', async () => {
   const s = await apiClient.getShiftSummary('CNC-MILLING-01');
   assert.equal(s.shift_start, '2026-11-11T07:00:00+07:00');
   assert.equal(s.shift_end, '2026-11-11T15:00:00+07:00');
   assert.equal(s.shift_name, 'Shift 1 (07:00-15:00)');
-  assert.equal(s.oee, 84.6);
+  assert.equal(s.oee, 86.6);
+  assert.equal(s.availability, 92.4);
+  assert.equal(s.performance, 95.4);
+  assert.equal(s.quality, 98.2);
+  assert.equal(s.total_parts, 334);
+  assert.equal(s.good_parts, 328);
+  assert.equal(s.defect_parts, 6);
+  assert.equal(s.target_per_hour, 50);
   assert.equal(s.run_time_min, 388);
   assert.equal(s.operating_time_min, 420);
 });
@@ -205,7 +212,7 @@ test('Demo summary: from/to di tanggal lain memproyeksikan jendela ke tanggal to
   });
   assert.equal(s.shift_start, '2026-11-09T07:00:00+07:00');
   assert.equal(s.shift_end, '2026-11-09T15:00:00+07:00');
-  assert.equal(s.oee, 84.6);
+  assert.equal(s.oee, 86.6);
   assert.equal(s.run_time_min, 388);
 });
 
@@ -593,6 +600,13 @@ test('Demo rekonsiliasi: Σ hourly_run_sec/operating = shift summary; downtime p
   const opSec = hourly.reduce((acc, p) => acc + (p.hourly_operating_sec ?? 0), 0);
   assert.equal(runSec, summary.run_time_min * 60); // 23.280 dtk = 388 mnt
   assert.equal(opSec, summary.operating_time_min * 60); // 25.200 dtk = 420 mnt
+  // E12 T12.6a (Opsi A / FAT-70): Σ parts per jam = ringkasan (334/328/6).
+  const totalParts = hourly.reduce((acc, p) => acc + (p.parts_produced ?? 0), 0);
+  const goodParts = hourly.reduce((acc, p) => acc + (p.good_count ?? 0), 0);
+  const defectParts = hourly.reduce((acc, p) => acc + (p.defect_count ?? 0), 0);
+  assert.equal(totalParts, summary.total_parts); // 334
+  assert.equal(goodParts, summary.good_parts); // 328
+  assert.equal(defectParts, summary.defect_parts); // 6
   // E12 T12.14 (F-10 / FAT-66): `hourly_downtime_sec` DIHAPUS dari tipe +
   // seed — downtime per jam diturunkan dari data yang tersisa:
   // operating − run. Turunan ini hanya menangkap downtime UNPLANNED

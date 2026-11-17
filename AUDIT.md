@@ -697,22 +697,26 @@ deskripsi tiap fix.
 
 ### Keputusan yang diambil
 
-- **Keputusan: selisih parts (T12.6) — TIDAK diperbaiki, menunggu
-  keputusan Fathur.** Investigasi menemukan akar masalahnya: summary
-  mengambil parts dari counter kumulatif live-state
-  (`INITIAL_LIVE_STATES` STM32-OEE-01: total 350 / good 342 / reject 8),
-  BUKAN total shift — jadi Σ hourly (334 / 328 / 6) dan summary (350 /
-  342 / 8) adalah besaran yang berbeda dari sumber yang berbeda, bukan
-  salah ketik. Opsi A yang direkomendasikan (demo saja): summary memakai
-  parts dari Σ hourly + turunkan ulang P/Q/OEE dari basis shift yang
-  sama — OEE 84,6→86,6, A 92,4 tetap, P 94,1→95,4, Q 97,4→98,2, parts
-  350/342/8→334/328/6; seed hourly tidak disentuh. Opsi ini TIDAK
-  diterapkan — mengubah angka headline diam-diam dilarang, dan ada
-  pertanyaan terbuka: summary `target_per_hour` 64 vs hourly 50 (memakai
-  64 memberi P = 74,6%, tidak masuk akal — samakan ke 50 atau
-  dokumentasikan 64); live state tetap 350/342/8 (benar sebagai
-  kumulatif); rollup ×4 (1400) dan aggregate 333 tetap tidak konsisten
-  secara terpisah. Keputusan ada di tangan Fathur.
+- **Keputusan: selisih parts (T12.6) — Opsi A DITERAPKAN (T12.6a, FAT-70,
+  keputusan Fathur 2026-11-17, commit `ec49a2a`).** Investigasi menemukan
+  akar masalahnya: summary mengambil parts dari counter kumulatif
+  live-state (`INITIAL_LIVE_STATES` STM32-OEE-01: total 350 / good 342 /
+  reject 8), BUKAN total shift — jadi Σ hourly (334 / 328 / 6) dan summary
+  (350 / 342 / 8) adalah besaran yang berbeda dari sumber yang berbeda,
+  bukan salah ketik. Opsi A diterapkan (demo saja): summary memakai parts
+  dari Σ hourly + turunkan ulang P/Q/OEE dari basis shift yang sama —
+  OEE 84,6→86,6, A 92,4 tetap, P 94,1→95,4, Q 97,4→98,2, parts
+  350/342/8→334/328/6; seed hourly tidak disentuh; `target_per_hour`
+  summary 64→50 (memakai 64 memberi P = 74,6%, tidak masuk akal); live
+  state tetap 350/342/8 (benar sebagai kumulatif). Implementasi:
+  `deriveShiftSummaryFromHourly` (pure, di `demo/telemetry/oee.ts`) —
+  A = Σ run / Σ operating, P = Σ parts / (target × Σ operating jam),
+  Q = Σ good / Σ parts, OEE = A × P × Q / 10000, dibulatkan 1 desimal;
+  seed titik per jam diekstrak ke `buildDemoHourlyPoints` supaya summary
+  dan hourly membaca seed yang sama; fallback ke live-state bila tidak
+  bisa diturunkan (STM32-OEE-05, kapasitas unknown → null). Rollup ×4
+  (1400) dan aggregate 333 tetap tidak konsisten secara terpisah —
+  di luar scope T12.6a.
 - **Keputusan: T12.4 — sisi panel saja.** Mapper membaca
   `time_sec.planned` bila ada; definisi availability jam planned penuh
   tetap urusan backend (G8).
@@ -728,8 +732,8 @@ deskripsi tiap fix.
 
 ### Yang TIDAK selesai / batasan yang dicatat
 
-- Selisih parts 334 vs 350 (di atas) — menunggu keputusan Fathur (Opsi A
-  vs biarkan).
+- Selisih parts 334 vs 350 — SELESAI via Opsi A (T12.6a di atas); rollup
+  ×4 (1400) dan aggregate 333 tetap tidak konsisten secara terpisah.
 - Rollup day/month demo masih konstanta yang sama untuk semua mesin
   (bawaan dari §14) — belum disentuh E12.
 - Ekspor demo hourly masih mengabaikan `from`/`to` untuk isi (catatan
@@ -758,7 +762,22 @@ sukses (hanya peringatan chunk-size lama); `vite preview` **HTTP 200**;
 28 WARN lunak). Status Linear T12.1–T12.19 → Done di `docs/LINEAR.md`
 §1.3 + §8 dan `docs/linear-seed.json` v10 — perubahan status di Linear
 sendiri dilakukan setelah verifikasi independen; 19 commit lokal E12
-belum di-push ke GitHub. Epic E12 (FAT-50) tuntas dan ditutup 2026-11-17.
+di-push ke GitHub `af5011f` (snapshot-push, 320 path). Epic E12 (FAT-50)
+tuntas dan ditutup 2026-11-17.
+
+**Tindak lanjut T12.6a (Opsi A, 2026-11-17, commit `ec49a2a`):** atas
+keputusan Fathur, Opsi A diterapkan — lihat "Keputusan: selisih parts"
+di atas. Verifikasi: `tsc` 0 error, `npm test` **330/330** (324 + 6 baru:
+4 unit `deriveShiftSummaryFromHourly`/`buildDemoHourlyPoints` + 1
+rekonsiliasi + 1 catatan kaki), build OK, preview HTTP 200, checker
+**0 FAIL + 0 pengecualian** (293 file, 29 WARN). Fixture ringkasan di
+`reconciliation.test.ts`, `ReconciliationFootnote.test.ts`, dan
+`scopeLabels.test.ts` disamakan ke angka baru; mekanisme peringatan
+parts tetap diuji lewat fixture legacy (counter live lama 350/342/8).
+Payload stub HTTP di `telemetryRange.test.ts`/`shiftFilter.test.ts`
+tidak diubah (data server sembarang, bukan seed demo); rollup tetap
+dari live state (1400). Status Linear T12.6a (FAT-70) → Done setelah
+verifikasi independen; Epic E12 kembali Done.
 Yang tetap belum terverifikasi: visual di browser sungguhan (termasuk
 badge/catatan + kedua tautan silang T12.19) + mode Real end-to-end
 (lihat §6); perilaku default 72/500 di sisi server backend hidup juga

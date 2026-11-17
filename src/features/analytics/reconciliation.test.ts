@@ -15,7 +15,7 @@ import { HourlyOeePoint, ShiftSummary, ShiftTimelineSegment } from '../../types/
 // 07:00–14:00 + 5 segmen timeline kanonis T11.4 + ringkasan shift demo.
 // ---------------------------------------------------------------------------
 
-/** Ringkasan shift demo — total_parts/good/defect dari live state (350/342/8). */
+/** Ringkasan shift demo — angka dari Σ jam (Opsi A T12.6a): 334/328/6, OEE 86,6. */
 const DEMO_SUMMARY: ShiftSummary = {
   shift_name: 'Shift 1 (07:00-15:00)',
   machine_id: 'CNC-MILLING-01',
@@ -23,16 +23,28 @@ const DEMO_SUMMARY: ShiftSummary = {
   shift_start: '2026-11-11T07:00:00+07:00',
   shift_end: '2026-11-11T15:00:00+07:00',
   tz: 'Asia/Jakarta',
-  oee: 84.6,
+  oee: 86.6,
   availability: 92.4,
-  performance: 94.1,
-  quality: 97.4,
+  performance: 95.4,
+  quality: 98.2,
   planned_production_time_min: 480,
   planned_break_min: 60,
   operating_time_min: 420,
   run_time_min: 388,
   unplanned_downtime_min: 32,
   planned_downtime_min: 60,
+  total_parts: 334,
+  good_parts: 328,
+  defect_parts: 6,
+  target_per_hour: 50,
+};
+
+/** Ringkasan lama sebelum Opsi A — parts dari counter live-state (350/342/8). */
+const LEGACY_SUMMARY: ShiftSummary = {
+  ...DEMO_SUMMARY,
+  oee: 84.6,
+  performance: 94.1,
+  quality: 97.4,
   total_parts: 350,
   good_parts: 342,
   defect_parts: 8,
@@ -104,12 +116,13 @@ test('ambang yang dipakai indikator: 60 detik absolut, 1% relatif', () => {
   assert.equal(RECONCILIATION_RELATIVE_TOLERANCE, 0.01);
 });
 
-test('seed demo apa adanya: waktu cocok (5 check), parts memberi peringatan (3 check)', () => {
+test('seed demo setelah Opsi A (T12.6a): semua cocok (8 check, 0 peringatan)', () => {
   const rec = computeOeeReconciliation(DEMO_SUMMARY, DEMO_HOURLY, DEMO_TIMELINE);
   assert.equal(rec.hasData, true);
   assert.equal(rec.checks.length, 8);
-  assert.equal(rec.isConsistent, false);
-  assert.equal(rec.warningCount, 3);
+  assert.equal(rec.isConsistent, true);
+  assert.equal(rec.warningCount, 0);
+  assert.ok(rec.checks.every((c) => c.status === 'ok'));
 
   const byId = new Map(rec.checks.map((c) => [c.id, c]));
 
@@ -128,7 +141,24 @@ test('seed demo apa adanya: waktu cocok (5 check), parts memberi peringatan (3 c
   assert.equal(byId.get('timeline-total-vs-window')!.status, 'ok');
   assert.equal(byId.get('timeline-total-vs-window')!.leftValue, 480);
 
-  // Parts — selisih yang diselidiki T12.6 bagian B (AUDIT.md §14):
+  // Parts — cocok setelah Opsi A: Σ jam 334/328/6 = ringkasan 334/328/6.
+  const parts = byId.get('hourly-parts-vs-summary')!;
+  assert.equal(parts.leftValue, 334);
+  assert.equal(parts.rightValue, 334);
+  assert.equal(parts.diff, 0);
+  assert.equal(parts.status, 'ok');
+  assert.equal(byId.get('hourly-good-vs-summary')!.diff, 0);
+  assert.equal(byId.get('hourly-good-vs-summary')!.status, 'ok');
+  assert.equal(byId.get('hourly-defect-vs-summary')!.diff, 0);
+  assert.equal(byId.get('hourly-defect-vs-summary')!.status, 'ok');
+});
+
+test('peringatan parts tetap terdeteksi bila ringkasan memakai counter live lama (334 vs 350)', () => {
+  const rec = computeOeeReconciliation(LEGACY_SUMMARY, DEMO_HOURLY, DEMO_TIMELINE);
+  assert.equal(rec.isConsistent, false);
+  assert.equal(rec.warningCount, 3);
+
+  const byId = new Map(rec.checks.map((c) => [c.id, c]));
   // Σ jam 334/328/6 vs ringkasan (live counter) 350/342/8.
   const parts = byId.get('hourly-parts-vs-summary')!;
   assert.equal(parts.leftValue, 334);

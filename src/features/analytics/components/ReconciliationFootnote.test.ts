@@ -18,16 +18,28 @@ const DEMO_SUMMARY: ShiftSummary = {
   shift_start: '2026-11-11T07:00:00+07:00',
   shift_end: '2026-11-11T15:00:00+07:00',
   tz: 'Asia/Jakarta',
-  oee: 84.6,
+  oee: 86.6,
   availability: 92.4,
-  performance: 94.1,
-  quality: 97.4,
+  performance: 95.4,
+  quality: 98.2,
   planned_production_time_min: 480,
   planned_break_min: 60,
   operating_time_min: 420,
   run_time_min: 388,
   unplanned_downtime_min: 32,
   planned_downtime_min: 60,
+  total_parts: 334,
+  good_parts: 328,
+  defect_parts: 6,
+  target_per_hour: 50,
+};
+
+/** Ringkasan lama sebelum Opsi A — parts dari counter live-state (350/342/8). */
+const LEGACY_SUMMARY: ShiftSummary = {
+  ...DEMO_SUMMARY,
+  oee: 84.6,
+  performance: 94.1,
+  quality: 97.4,
   total_parts: 350,
   good_parts: 342,
   defect_parts: 8,
@@ -107,8 +119,15 @@ test('menampilkan angka rekonsiliasi yang benar + badge Cocok bila semua cocok',
   assert.ok(!html.includes('melebihi ambang'), html);
 });
 
-test('menampilkan peringatan parts pada seed demo apa adanya (334 vs 350)', () => {
+test('seed demo setelah Opsi A (T12.6a) menampilkan Cocok tanpa peringatan', () => {
   const html = render(DEMO_SUMMARY);
+  assert.ok(html.includes('Rekonsiliasi data'), html);
+  assert.ok(html.includes('Cocok'), html);
+  assert.ok(!html.includes('melebihi ambang'), html);
+});
+
+test('menampilkan peringatan parts bila ringkasan memakai counter live lama (334 vs 350)', () => {
+  const html = render(LEGACY_SUMMARY);
   assert.ok(html.includes('3 selisih melebihi ambang'), html);
   assert.ok(html.includes('selisih'), html);
   assert.ok(html.includes('16 pcs'), html);

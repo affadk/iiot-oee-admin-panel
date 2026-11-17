@@ -125,6 +125,7 @@ dianggap selesai penuh.
 | T12.17 | Reset pilihan segmen saat ganti bucket timeline | E12 | Done | Low | `fase-3` |
 | T12.18 | Samakan default dengan dokumen, atau catat deviasinya | E12 | Done | Low | `fase-3` |
 | T12.19 | Satu tampilan kanonis OEE per jam + tautan silang | E12 | Done | Low | `fase-3` |
+| T12.6a | Terapkan Opsi A: summary parts dari Σ hourly | E12 | Done | High | `fase-3` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -318,8 +319,8 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **65 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **56 Done, 2 In Progress, 7 Todo**, 12 Epic tanpa parent, 53 child dengan
+- Issue: **66 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
+  **57 Done, 2 In Progress, 7 Todo**, 12 Epic tanpa parent, 54 child dengan
   `parentId` — persis sesuai §1.3 (28 awal + E9/R9.1–R9.6 + E10/A10.1–A10.2,
   dibuat 2026-11-16 ~14:20 WIB; R9.2/R9.3/R9.4/R9.5/R9.6 Done 2026-11-16 malam,
   tersisa A10.2 + V8.1–V8.5; E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
@@ -327,7 +328,8 @@ tapi status implementasi yang berlaku adalah status di Linear.
   AUDIT.md §14, Epic E11 ditutup 2026-11-17; E12/T12.1–T12.19 dibuat
   2026-11-17 dari `docs/E12_PROPOSAL.md` — admin-panel saja, infra Nginx +
   backend dikecualikan, Done 2026-11-17 — AUDIT.md §15, Epic E12 ditutup
-  2026-11-17).
+  2026-11-17, di-push `af5011f`; T12.6a (Opsi A, FAT-70) dibuat 2026-11-17
+  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15).
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 
@@ -368,6 +370,7 @@ tapi status implementasi yang berlaku adalah status di Linear.
 | T12.14 | FAT-66 | T12.15 | FAT-67 |
 | T12.16 | FAT-68 | T12.17 | FAT-69 |
 | T12.18 | FAT-65 | T12.19 | FAT-64 |
+| T12.6a | FAT-70 | | |
 
 Perhatian: nomor FAT tidak berurutan per fase — Linear memberinya sesuai
 urutan pembuatan paralel, jadi selalu pakai tabel ini (dan `docs/linear-seed.json`
