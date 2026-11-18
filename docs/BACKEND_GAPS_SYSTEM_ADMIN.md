@@ -41,6 +41,74 @@
 > [Keputusan backend — 18 November 2026](#keputusan-backend--18-november-2026).
 > Pertanyaan terbuka yang sudah terjawab ditandai di
 > [Pertanyaan terbuka](#pertanyaan-terbuka-status-per-18-november-2026--tidak-ditebak).
+> **Status seluruh gap:** semua 50 gap kini memiliki disposisi tercatat —
+> lihat [Status seluruh gap — 18 November 2026 (semua tertutup)](#status-seluruh-gap--18-november-2026-semua-tertutup).
+
+## Status seluruh gap — 18 November 2026 (semua tertutup)
+
+> **50/50 gap memiliki disposisi tercatat; 0 gap tanpa keputusan.**
+> "Tertutup" di sini berarti **keputusan tercatat** — BUKAN implementasi
+> selesai. Implementasi backend belum dimulai; **SYS-B1–SYS-B50 tetap
+> Todo di Linear (E13, FAT-71)** sampai backend mengimplementasikannya
+> dan acceptance criteria tiap gap lolos di mode Real. Tindak lanjut
+> panel (P-A–P-J) disetujui di E18 tetapi belum diimplementasikan —
+> menjadi epic berikut. Disposisi: **Backend 18 Nov** = diputuskan
+> backend 18 Nov 2026 (lima modul specs/034–038); **Delegasi E18** =
+> diputuskan via delegasi Fathur ke Muse, 18 Nov 2026 malam; **Panel-side**
+> = tidak butuh keputusan backend, dikerjakan/dikerjakan panel.
+
+| Gap | Disposisi | Keputusan / status |
+| --- | --- | --- |
+| SYS-B1 | Diputuskan (delegasi E18) | Body policy **camelCase kanonis** + `subjectMatch` terstruktur; satu casing, panel menyesuaikan mapper |
+| SYS-B2 | Panel-side — selesai (E14) | Panel mengirim **PUT** sejak E14 P14.2 (17 Nov); catatan "panel mengirim PATCH" di bagian 18 Nov basi |
+| SYS-B3 | Diputuskan (delegasi E18) | Lanjutkan ABAC, **scope minimal**: grammar + contoh `abac_condition` valid + pesan 400 yang menyebut atribut |
+| SYS-B4 | Diputuskan (delegasi E18) | Dukung **alur paksa** `mustChangePassword` (satu alur: login → 401 khusus → ganti → login ulang) |
+| SYS-B5 | Panel-side — selesai (E14) | Panel mengirim **PUT** sejak E14 P14.2 (17 Nov); catatan "panel mengirim PATCH" di bagian 18 Nov basi |
+| SYS-B6 | Diputuskan (delegasi E18) | **Publikasikan skema respons IAM lengkap** (Fase 3); panel berhenti menebak field dengan default diam-diam |
+| SYS-B7 | Diputuskan (delegasi E18) | Hapus role yang masih ter-assign → **`409 ROLE_IN_USE`** (konsisten B49/B50) |
+| SYS-B8 | Diputuskan (backend 18 Nov) | Katalog: `access_control.read` + `access_control.manage` terpisah; panel tambah `read`, berhenti memakai kunci karangan |
+| SYS-B9 | Diputuskan (backend 18 Nov) | `effectiveInMode` = nilai `mode`; detail per-domain di `enforcedDomains` + `/auth/me`; tanpa nilai `partial` |
+| SYS-B10 | Diputuskan (backend 18 Nov) | `POST /permissions` **didukung**, body camelCase; duplikat → `409 PERMISSION_EXISTS`; tanpa rute penjaga → `400 INERT_PERMISSION` (K-09) |
+| SYS-B11 | Panel-side — tindak lanjut (P-D) | Backend dukung filter + limit s.d. 1000; **panel kirim filter server-side** (epic berikut) |
+| SYS-B12 | Diputuskan (backend 18 Nov) | Inspector: `roles` (satu nama) + `operatorId`, `primaryRole`, `isActive`, `isProtected`, `authzVersion`, `effectiveInMode`, `assignments`, `permissions`; subjek hilang → 404 |
+| SYS-B13 | Diputuskan (backend 18 Nov) | `reason` tersimpan di audit IAM, tidak dikembalikan pada baris policy; dokumen menyatakan lokasinya |
+| SYS-B14 | Diputuskan (backend 18 Nov) | Revoke assignment tidak ada → `200 {success:true, removed:0}`; revoke sukses menulis audit dengan aktor + reason |
+| SYS-B15 | Diputuskan (backend 18 Nov) | Refresh membawa `authzVersion` dari identitas yang dibaca ulang; 401 `AUTHZ_STALE`/`SUBJECT_INACTIVE` tetap |
+| SYS-B16 | Diputuskan (delegasi E18) | **Samakan ke server 5/60 + `Retry-After`**; satu sumber kebenaran (server) |
+| SYS-B17 | Panel-side — tindak lanjut (P-E) | Panel kirim filter `operatorId`/`roleId` setelah verifikasi dukungan backend (epic berikut) |
+| SYS-B18 | Panel-side — tindak lanjut (P-F) | Panel sesuaikan aturan anti-eskalasi ke backend (epic berikut) |
+| SYS-B19 | Diputuskan (backend 18 Nov) | `/system/audit` = feed operasional; item membawa `acknowledged` (dari `acknowledgedAt`) + `machineName`; tanpa `actor`/`action`/`resource` karangan |
+| SYS-B20 | Diputuskan (backend 18 Nov) | `GET /health` tetap ringkas; **`GET /health/detail`** baru (ADMIN+LAN) dengan latensi terukur per komponen (panel P-I tertunda) |
+| SYS-B21 | Diputuskan (backend 18 Nov) | Ack `{note?}`; aktor dari JWT; ack kedua idempotent (K-14) |
+| SYS-B22 | Diputuskan (backend 18 Nov) | Filter `acknowledged` didukung server-side; `severity` **tidak didukung**, parameter diabaikan + didokumentasikan |
+| SYS-B23 | Diputuskan (backend 18 Nov) | `machine_id` didukung (list global, per-device, `/system/audit`, export) |
+| SYS-B24 | Diputuskan (backend 18 Nov) | `GET /system/audit` terima + filter `event_type` server-side |
+| SYS-B25 | Diputuskan (backend 18 Nov) | Envelope `{data, meta}`; `count` = **jumlah baris halaman**, bukan total dataset |
+| SYS-B26 | Diputuskan (backend 18 Nov) | **`GET /system/audit/export`** baru (filter + retensi sama seperti list; panel P-J disetujui) |
+| SYS-B27 | Diputuskan (backend 18 Nov) | `/health/detail` membawa `name`, `version`, `environment`, `commit` opsional; tanpa path internal |
+| SYS-B28 | Diputuskan (backend 18 Nov) | **`PATCH /clients/:name/password`** (cocok dengan E14) |
+| SYS-B29 | Diputuskan (backend 18 Nov) | **`PATCH /clients/:name/enable {enabled}`** (cocok dengan E14) |
+| SYS-B30 | Diputuskan (backend 18 Nov) | `access` diterima **verbatim** (`publish`/`subscribe`/`readwrite`); panel hapus `accessMap` (P-B disetujui) |
+| SYS-B31 | Diputuskan (backend 18 Nov) | Body tunggal `{rolename, priority?}` (cocok dengan E15) |
+| SYS-B32 | Diputuskan (backend 18 Nov) | Objek ACL tunggal `{acltype, topic, allow, priority?}` (cocok dengan E15) |
+| SYS-B33 | Diputuskan (backend 18 Nov) | `password` **wajib min 8**; tanpa auto-generate; panel wajib mengisi, tidak mengirim string kosong |
+| SYS-B34 | Diputuskan (backend 18 Nov) | Respons `POST /clients`: objek klien + password sekali tampil; `GET /clients/:name` tidak lagi memuat password |
+| SYS-B35 | Diputuskan (backend 18 Nov) | Respons klien memakai **`disabled`** (kanonis); mapper panel sudah cocok dengan keduanya |
+| SYS-B36 | Diputuskan (backend 18 Nov) | Body tunggal `{username, priority?}` (cocok dengan E15) |
+| SYS-B37 | Diputuskan (backend 18 Nov) | Body tunggal `{rolename, priority?}` (cocok dengan E15) |
+| SYS-B38 | Diputuskan (backend 18 Nov) | Rute config terima **dengan dan tanpa** trailing slash (K-03) |
+| SYS-B39 | Diputuskan (backend 18 Nov) | `summary` diterima sebagai alias `reason` (reason prioritas); `baseVersionId` opsional, fallback versi APPLIED |
+| SYS-B40 | Diputuskan (backend 18 Nov) | 422 membawa **`issues[]` + `details`** (K-04); tiap issue punya `field` + `message` |
+| SYS-B41 | Diputuskan (backend 18 Nov) | Apply/rollback **async**; `acknowledgeUnvalidated` dihormati; panel polling sampai status terminal (P-C disetujui) |
+| SYS-B42 | Diputuskan (backend 18 Nov) | `POST /backups` **tidak ada** (404); backup otomatis dibuat saat apply; `GET /backups` metadata saja |
+| SYS-B43 | Diputuskan (backend 18 Nov) | HTTP memakai **bentuk panel** (adapter); field tanpa sumber nyata = `null` |
+| SYS-B44 | Diputuskan (backend 18 Nov) | Overview diperkaya (counts DynSec, status config, `activeVersionId`, `lastAppliedAt`, `mutationLocked`, `measuredAt`); plugin nonaktif → `available:false`, bukan `IN_SYNC`/`0` |
+| SYS-B45 | Diputuskan (backend 18 Nov) | Filter schedule **snake_case saja**; Guide diperbaiki; panel sudah snake_case |
+| SYS-B46 | Diputuskan (backend 18 Nov) | List/detail schedule memuat `shiftName`, `shiftCode`, `startTime`, `endTime` dari join shift; shift hilang → `null`, bukan 500 |
+| SYS-B47 | Diputuskan (backend 18 Nov) | `POST /operators` terima `isActive` opsional (default `true`); proteksi ADM-001 tetap (disable/ubah-role → 400, hapus → 403) |
+| SYS-B48 | Diputuskan (backend 18 Nov) | List operator + DynSec kembalikan **array penuh**, tanpa truncasi diam-diam; batas praktis didokumentasikan |
+| SYS-B49 | Diputuskan (backend 18 Nov) | Hapus line yang masih dipakai operator → **`409 PRODUCTION_LINE_IN_USE`** + `operatorId`; guard mesin + snapshot WO tetap |
+| SYS-B50 | Diputuskan (backend 18 Nov) | Hapus shift terpakai → **`409 SHIFT_IN_USE`**; ubah jam shift → validasi overlap `409 SHIFT_TIME_OVERLAP` |
 
 ## Status panel pasca-audit — E14/E15 (17 November 2026)
 
@@ -676,17 +744,43 @@ Enam tema lintas-gap:
 
 | Gap | Status | Catatan |
 |---|---|---|
-| SYS-B1 | Belum diputuskan | Skema body policy (`subjectMatch`, `permissionId`) belum ditetapkan. |
-| SYS-B2 | Panel-side | Backend memakai `PUT`; panel mengirim `PATCH`. |
-| SYS-B3 | Sebagian | Butuh contoh `abac_condition` valid dan pesan 400 yang menyebut atribut. |
-| SYS-B4 | Belum diputuskan | Alur `mustChangePassword` dan kontrak `401` belum ditetapkan. |
-| SYS-B5 | Panel-side | Backend memakai `PUT` untuk role; panel mengirim `PATCH`. |
-| SYS-B6 | Sebagian | 037 menutup `/info` dan inspector; skema respons IAM lain belum. |
-| SYS-B7 | Belum diputuskan | Perilaku hapus role yang masih ter-assign belum ditetapkan. |
+| SYS-B1 | **Diputuskan 18 Nov (delegasi)** | Body policy **camelCase kanonis** + `subjectMatch` terstruktur; satu casing, panel menyesuaikan mapper. |
+| SYS-B2 | Panel-side — **sudah dikerjakan panel (E14)** | Backend memakai `PUT`; panel sudah mengirim `PUT` sejak E14 P14.2 (17 Nov). Catatan 18 Nov yang menulis "panel mengirim `PATCH`" basi — ditulis dari snapshot audit. |
+| SYS-B3 | **Diputuskan 18 Nov (delegasi)** | **Lanjutkan ABAC, scope minimal:** grammar minimal + contoh `abac_condition` valid + pesan 400 yang menyebut atribut. |
+| SYS-B4 | **Diputuskan 18 Nov (delegasi)** | **Dukung alur paksa `mustChangePassword`:** flag di `/auth/me` → `401 PASSWORD_CHANGE_REQUIRED` → ganti → login ulang; satu alur, tanpa jalur kedua. |
+| SYS-B5 | Panel-side — **sudah dikerjakan panel (E14)** | Backend memakai `PUT` untuk role; panel sudah mengirim `PUT` sejak E14 P14.2 (17 Nov). Catatan 18 Nov yang menulis "panel mengirim `PATCH`" basi. |
+| SYS-B6 | **Diputuskan 18 Nov (delegasi)** | **Publikasikan skema respons IAM lengkap** (Fase 3); panel berhenti menebak field dengan default diam-diam. |
+| SYS-B7 | **Diputuskan 18 Nov (delegasi)** | Hapus role yang masih ter-assign → **`409 ROLE_IN_USE`** (konsisten B49/B50). |
 | SYS-B11 | Panel-side | Backend sudah mendukung filter dan `limit` sampai 1000; panel belum memakainya. |
-| SYS-B16 | Belum diputuskan | Lockout panel vs rate limit server dan `Retry-After` belum diselaraskan. |
+| SYS-B16 | **Diputuskan 18 Nov (delegasi)** | **Samakan ke server 5/60 + `Retry-After`**; satu sumber kebenaran (server). |
 | SYS-B17 | Panel-side | Panel tidak mengirim filter `operatorId`/`roleId`; backend perlu verifikasi dukungan filter. |
 | SYS-B18 | Panel-side | Aturan anti-eskalasi panel lebih ketat dari backend; panel menyesuaikan. |
+
+### Keputusan lanjutan — 18 November 2026 (delegasi Fathur ke Muse)
+
+> **Sumber:** Fathur mendelegasikan seluruh keputusan penutupan gap ke Muse
+> pada 18 Nov 2026 malam, dengan syarat: merujuk kebutuhan real-case,
+> menutup gap backend–panel, **tanpa duplikasi flow dan tanpa flow
+> deprecated** — satu alur kanonis per item. Keputusan Fase 0 yang diubah
+> mengikuti backend dicatat lengkap di Lampiran C §C.1a
+> (`docs/BACKEND_UPGRADE_PLAN.md`); analisis yang mendasarinya di
+> `docs/BACKEND_DECISIONS_REALITY_CHECK.md` (E17).
+
+| Item | Keputusan (18 Nov 2026 malam) |
+|---|---|
+| K-03 | Terima (c) — server menerima kedua bentuk trailing slash; panel tidak berubah |
+| K-04 | Terima dual — `issues[]` kanonis + `details` kompatibilitas; panel membaca `issues` saja |
+| K-09 | Terima (a) — `POST /permissions` didukung + guard (`400 INERT_PERMISSION`, `409 PERMISSION_EXISTS`) |
+| K-11 | Terima (a) — `POST /clients`; rute `/clients/provision` tidak ada; panel di-revert (P-A) |
+| K-01 / K-02 / K-12 / K-15 | Dikonfirmasi tetap (a) seperti diputuskan 17 Nov; konfirmasi/implementasi backend masih menunggu (K-01/K-02/K-12) / Fase 8 (K-15) |
+| B1 | Body policy camelCase kanonis + `subjectMatch` terstruktur |
+| B3 | Lanjutkan ABAC, scope minimal (grammar + contoh + pesan 400) |
+| B4 | Dukung alur paksa `mustChangePassword` (satu alur) |
+| B6 | Publikasikan skema respons IAM lengkap (Fase 3) |
+| B7 | Hapus role ter-assign → `409 ROLE_IN_USE` |
+| B16 | Samakan ke server 5/60 + `Retry-After` |
+| Enum `event_type` | Enum tertutup; daftar kanonik dari kode backend |
+| Arah panel | P-A revert K-11 **Ya**, P-B hapus `accessMap` **Ya**, P-C polling terminal **Ya**, P-D/P-E filter **Ya**, P-F anti-eskalasi **Ya**, P-I `GET /health/detail` **Ya — tertunda sampai backend menyediakan endpoint**, P-J export audit **Ya** |
 
 ### Pertanyaan terbuka yang terjawab
 
@@ -703,7 +797,7 @@ Enam tema lintas-gap:
 | Apakah `severity` ada? | Tidak; filter severity tidak didukung. |
 | Casing body `POST /permissions` | CamelCase: `action`, `resourceType`. |
 
-**Masih terbuka:** item tanpa tanda **Terjawab** di atas — antara lain D-1 (`/auth/password/change` — `current_password` vs `old_password`), D-2 (bentuk `/auth/me`), aturan kenaikan `authz_version`, perilaku hapus role yang masih ter-assign, tipe `operator.role` untuk label custom, satuan `uptime`, dan overlap jadwal lintas tengah malam.
+**Masih terbuka:** item tanpa tanda **Terjawab** di atas — antara lain tipe `operator.role` untuk label custom, satuan `uptime`, dan overlap jadwal lintas tengah malam. (D-1, D-2, aturan kenaikan `authz_version`, dan perilaku hapus role yang masih ter-assign sudah terjawab 18 Nov 2026 malam — lihat § Keputusan lanjutan.)
 
 ---
 
@@ -737,8 +831,8 @@ Enam tema lintas-gap:
 > [Keputusan backend — 18 November 2026](#keputusan-backend--18-november-2026).
 > Item tanpa tanda tetap terbuka.
 
-1. **D-1 (diketahui, AUDIT.md §3):** `POST /auth/password/change` — API §L `{current_password, new_password}` vs Guide Lampiran J `{old_password, new_password}`. Panel memakai API §L. Bila backend mengimplementasikan Lampiran J, ganti password Real gagal. Perlu satu sumber kanonis.
-2. **D-2 (diketahui, AUDIT.md §3):** `GET /auth/me` — API §L `{operator, authz:{...}}` vs Guide §4.9 bentuk flat. Panel menangani keduanya. Tidak jelas mana yang benar-benar dikembalikan backend.
+1. **D-1 (diketahui, AUDIT.md §3):** `POST /auth/password/change` — API §L `{current_password, new_password}` vs Guide Lampiran J `{old_password, new_password}`. Panel memakai API §L. Bila backend mengimplementasikan Lampiran J, ganti password Real gagal. Perlu satu sumber kanonis. **Terjawab (18 Nov 2026, delegasi):** (a) `{current_password, new_password}` — keputusan 17 Nov dikonfirmasi tetap; Guide Lampiran J dikoreksi.
+2. **D-2 (diketahui, AUDIT.md §3):** `GET /auth/me` — API §L `{operator, authz:{...}}` vs Guide §4.9 bentuk flat. Panel menangani keduanya. Tidak jelas mana yang benar-benar dikembalikan backend. **Terjawab (18 Nov 2026, delegasi):** (a) bentuk nested — keputusan 17 Nov dikonfirmasi tetap; Guide §4.9 dikoreksi.
 3. **Query param tak dikenal: diabaikan atau 400?** Tidak ada dokumen yang menyatakan apakah backend (Zod) memakai mode strict terhadap query param tak dikenal. Ini menentukan dampak SYS-B22, B23, B24, B45 (diabaikan diam-diam vs gagal 400). **Terjawab (18 Nov 2026):** parameter tak dikenal diabaikan dengan 200 dan didokumentasikan.
 4. **D-5 — Bentuk body sub-operasi dynsec:** http panel memakai bentuk jamak `{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}`; Guide Lampiran O memakai bentuk tunggal. Kemungkinan panel mengikuti bentuk native Mosquitto dynsec sementara dokumen menyederhanakan. Berlaku untuk SYS-B31, B32, B36, B37. Keputusan backend menentukan apakah yang harus diubah adalah panel atau dokumen. **Terjawab (18 Nov 2026):** backend memakai bentuk tunggal; panel menyesuaikan.
 5. **D-6 — Skema respons dynsec:** tidak ada contoh JSON untuk objek klien/peran/grup/status di dokumen mana pun — field `enabled` vs `disabled`, nama field password sekali tampil, bentuk `roles`/`groups` (string vs objek) semuanya tebakan panel (SYS-B34, B35). **Terjawab (18 Nov 2026):** skema respons didokumentasikan, termasuk `disabled` dan password sekali tampil.

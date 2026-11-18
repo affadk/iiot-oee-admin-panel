@@ -1060,3 +1060,158 @@ test yang dijalankan ulang (terakhir 335/335, tsc 0, build OK, preview HTTP
 **Linear:** Epic E16 (FAT-134) + 4 child P16.1–P16.4 (FAT-135–FAT-138),
 semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v15
 (134 issue: 75 Done / 1 In Progress / 58 Todo).
+
+## 20. Pull keputusan backend 18 Nov + analisis relevansi Fase 0 — Epic E17 (2026-11-18)
+
+**Permintaan (Fathur, 2026-11-18 19:36 WIB):** "coba pull dan analisa
+apakah file upgrade backend yang sudah diberikan keputusan perubahan tetap
+relevan terhadap real-case industri karena ada beberapa keputusan yang
+diberikan solusi alternatif?"
+
+**Pull:** remote head baru `393fb09` "Docs: catat keputusan backend System
+Admin 18 Nov 2026 (SYS-B8..B50)" oleh Fathur (19:11 WIB) — dicatat di
+`docs/BACKEND_GAPS_SYSTEM_ADMIN.md` § "Keputusan backend — 18 November
+2026": lima modul remediasi (specs/034–038 di repo `iiot-oee`),
+implementasi belum dimulai. Di-cherry-pick ke lokal (`f7a4b5f`,
+authorship dipertahankan); remote `d056e85` (E16) adalah ancestor-nya,
+tidak ada konflik. **Temuan pull:** file yatim di remote
+`src/features/assets/MachineDetailModal.tsx` (222 baris, ada sejak commit
+awal `c59db6c`) — tidak ada di lokal, tidak diimpor apa pun; modal yang
+benar ada di `src/features/assets/components/MachineDetailModal.tsx`.
+Kemungkinan sisa snapshot-push awal (snapshot-push tidak menghapus file
+remote). Penghapusan menunggu persetujuan Fathur.
+
+**Analisis** (`docs/BACKEND_DECISIONS_REALITY_CHECK.md`, E17 FAT-139–143):
+dari 15 keputusan Fase 0 — **7 dikonfirmasi** backend (K-05, K-06, K-07,
+K-08, K-10, K-13, K-14), **1 disempurnakan** (K-04: `issues[]` +
+`details`), **3 dibalik** (K-03 → terima keduanya; K-09 → endpoint
+didukung + guard; K-11 → tidak ada `/clients/provision`, pakai
+`POST /clients`), **3 masih terbuka** (K-01, K-02, K-12), **1 belum
+tercakup** (K-15, Fase 8 telemetry). Grounding industri: Fastify
+`ignoreTrailingSlash`, protokol native Mosquitto dynsec
+(`$CONTROL/dynamic-security/v1`, objek perintah tunggal), RFC 7807/9457
++ pola Zod `issues`, NIST SP 800-63B §5.1.1.2 (min 8), definisi OEE
+textbook / ISO 22400-2, pola provisioning AWS IoT / Azure DPS, Postel's
+law vs Stripe untuk query param tak dikenal (K-08 dicatat sebagai
+trade-off nyata, bukan konsensus — risiko typo filter tepat mengenai
+konflik casing B45).
+
+**Tindak lanjut panel yang ditimbulkan (belum dikerjakan — perlu
+keputusan Fathur):** P-A revert K-11 (registry PROVISION + cabang
+`isProvision` → 404 di Real mode; registry 132 → 131); P-B hapus
+`accessMap` (kirim `access` verbatim); P-C polling apply/rollback sampai
+status terminal (saat ini sekali); P-D/P-E filter server-side B11/B17;
+P-F aturan anti-eskalasi B18; P-K koreksi decision log K-03/K-09/K-11 +
+item rencana; P-L catatan B2/B5 di gaps doc sudah basi (E14 sudah PUT).
+Tidak ada perubahan kode di E17 — analisis dokumen saja.
+
+**Linear:** Epic E17 (FAT-139) + 4 child P17.1–P17.4 (FAT-140–FAT-143),
+semua Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v16
+(139 issue: 80 Done / 1 In Progress / 58 Todo).
+
+## 21. Penutupan keputusan gap — delegasi Fathur (2026-11-18 malam, Epic E18)
+
+**Permintaan (Fathur, 2026-11-18 21:32 WIB):** "saya serahkan keputusan
+kepadamu dengan tetap mereferensikan ke kebutuhan real-case dengan menutup
+gap antara backend dan admin-panel tanpa membuat duplikasi/deprecated flow
+logic" — Fathur mendelegasikan seluruh keputusan dari panduan penutupan
+gap (`~/workspace/panduan-penutupan-keputusan-gap.md`, 22 item) ke Muse.
+**Belum ke implementasi** (sesuai arahan sebelumnya): langkah ini hanya
+memutuskan + mencatat; implementasi panel menjadi epic berikutnya.
+
+**Koreksi pencatatan (ditemukan saat mengerjakan):** Bagian B panduan
+(K-01/K-02/K-12/K-15) sempat ditulis sebagai "masih terbuka" — sebenarnya
+keempatnya sudah diputuskan Fathur 17 Nov 2026 (semua (a), Lampiran C).
+Yang terbuka adalah **konfirmasi backend** (D-1/D-2, aturan
+`authz_version`, K-15 di luar lima modul). Panduan sudah diperbaiki;
+keputusan delegasi untuk keempatnya adalah **konfirmasi tetap (a)**.
+
+**Keputusan (22/22, tanpa skip):**
+
+- **A — konfirmasi pembalikan backend 18 Nov:** K-03 → (c) terima kedua
+  bentuk; K-04 → dual `issues[]`+`details` (panel baca `issues` saja);
+  K-09 → (a) didukung + guard; K-11 → (a) `POST /clients` (rute
+  provision tidak ada).
+- **B — Fase 0 dikonfirmasi tetap:** K-01 (a) `current_password`, K-02
+  (a) nested, K-12 (a) setiap mutasi bump, K-15 (a) excluded + "planned".
+- **C — gap baru diputuskan:** B1 (b) body policy camelCase kanonis +
+  `subjectMatch` terstruktur; B3 (a) ABAC scope minimal; B4 (a) alur paksa
+  `mustChangePassword`; B6 (a) publikasikan skema respons IAM; B7 (a)
+  `409 ROLE_IN_USE`; B16 (a) samakan 5/60 + `Retry-After`; enum
+  `event_type` (a) tertutup (daftar dari backend).
+- **D — arah panel:** P-A revert K-11 **Ya**, P-B hapus `accessMap`
+  **Ya**, P-C polling terminal **Ya**, P-D/P-E filter **Ya**, P-F
+  anti-eskalasi **Ya**, P-I `GET /health/detail` **Ya — tertunda sampai
+  backend menyediakan endpoint**, P-J export audit **Ya**.
+
+**Aturan satu alur kanonis (mengikat implementasi berikutnya):** hapus
+cabang PROVISION + registry-nya seluruhnya (bukan dipertahankan sebagai
+fallback deprecated); hapus `accessMap` + default `'telemetry'`
+seluruhnya; panel membaca `issues` saja (bukan dual); satu casing body
+policy (camelCase, tanpa fallback snake_case); satu aturan lockout
+(server 5/60, panel tidak menegakkan hitungannya sendiri); satu alur
+ganti-password-wajib. Tidak ada flow kedua yang dipertahankan "untuk
+jaga-jaga".
+
+**Rencana implementasi (epic berikutnya, belum dikerjakan):**
+
+1. P-A — revert K-11: hapus `MQTT_DYNSEC_CLIENTS_PROVISION` dari registry
+   + cabang `isProvision` (http + demo) + kembalikan pola provision ke
+   daftar terlarang; sesuaikan tes; registry 132 → 131.
+2. P-B — hapus `accessMap` (`http/mqttDynsec.ts:74,87`); kirim `access`
+   verbatim; tanpa default.
+3. P-C — polling apply/rollback sampai status terminal
+   (`useBrokerConfig.ts:169-170` sekali → loop + timeout) + hormati
+   `acknowledgeUnvalidated`.
+4. P-D/P-E — filter server-side IAM audit (`getIamAuditDecisions`, limit
+   100 tanpa filter → filter + limit s.d. 1000) + filter
+   `operatorId`/`roleId` (setelah verifikasi dukungan backend).
+5. P-F — sesuaikan aturan anti-eskalasi panel ke backend.
+6. P-J — tombol export system audit (`GET /system/audit/export`) +
+   transport + demo.
+7. P-I — **tertunda**: transport `GET /health/detail` boleh disiapkan,
+   rewire halaman menunggu endpoint backend (tanpa fallback ganda).
+8. P-K/P-L — koreksi dokumen mengikuti jawaban A (sudah dikerjakan di
+   E18: decision log §C.1a, item 1.5/2.3/3.9, gaps doc B2/B5).
+
+**Pencatatan:** panduan terisi 22/22; Lampiran C §C.1a (rencana) + item
+1.5/2.3/3.9 + checklist C.2; gaps doc § Keputusan lanjutan + tabel luar
+modul + D-1/D-2 Terjawab + "Masih terbuka" diperbarui; reality-check §8;
+Linear E18 (FAT-144) + 4 child (FAT-145–FAT-148), semua Done;
+`docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v17 (144 issue:
+85 Done / 1 In Progress / 58 Todo).
+
+**Yang masih terbuka setelah putaran ini:** tipe `operator.role` untuk
+label custom, satuan `uptime`, overlap jadwal lintas tengah malam;
+konfirmasi backend atas K-01/K-02/K-12; implementasi Fase 8 (K-15);
+daftar enum `event_type` dari kode backend.
+
+## 22. Gaps doc: semua gap SYS-B1–B50 tertutup — status (2026-11-18 malam, Epic E19)
+
+**Permintaan (Fathur, 2026-11-18 21:43 WIB):** "sekarang perbarui dokumen
+BACKEND_GAPS_SYSTEM_ADMIN.md agar semua gab tertutup, dan push".
+
+**Yang dikerjakan:** `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` mendapat section
+baru "Status seluruh gap — 18 November 2026 (semua tertutup)" — tabel
+50 baris (Gap | Disposisi | Keputusan/status), diverifikasi
+programmatis: **50/50 baris, ID 1–50 lengkap**; disposisi 39 backend
+18 Nov + 6 delegasi E18 (B1, B3, B4, B6, B7, B16) + 2 panel-side
+selesai E14 (B2, B5) + 3 panel-side tindak lanjut epic berikut (B11
+P-D, B17 P-E, B18 P-F); **"Belum diputuskan" = 0** di seluruh dokumen.
+Pointer header ditambah.
+
+**Arti "tertutup" — dicatat eksplisit di dokumen:** keputusan tercatat,
+BUKAN implementasi selesai. Implementasi backend belum dimulai;
+**SYS-B1–SYS-B50 tetap Todo di Linear (E13, FAT-71)** sampai backend
+mengimplementasikannya dan acceptance criteria lolos di mode Real.
+Tindak lanjut panel (P-A–P-J) disetujui di E18 tetapi belum
+diimplementasikan — menjadi epic berikut. Yang masih terbuka setelah
+putaran ini (bukan gap): tipe `operator.role` untuk label custom,
+satuan `uptime`, overlap jadwal lintas tengah malam; konfirmasi backend
+atas K-01/K-02/K-12; implementasi Fase 8 (K-15); daftar enum
+`event_type` dari kode backend.
+
+**Linear:** E19 (FAT-149) + P19.1 (FAT-150) + P19.2 (FAT-151), semua
+Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v18
+(147 issue: 88 Done / 1 In Progress / 58 Todo — Todo tetap 58 karena
+SYS-B1–SYS-B50 tidak ditutup di Linear).

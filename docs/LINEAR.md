@@ -18,7 +18,7 @@
 
 ## 1. Struktur
 
-### 1.1 Satu Project, enam belas Epic
+### 1.1 Satu Project, sembilan belas Epic
 
 | Epic (parent issue) | Fase Guide | Isi |
 | --- | --- | --- |
@@ -38,6 +38,9 @@
 | E14 Tindak lanjut panel keputusan Fase 0 | K-01–K-15 | Perubahan panel dari 12 keputusan Fase 0 yang diputuskan (K-03 slash, K-10 method, K-11 provision); K-05/K-06/K-07 diputuskan menyusul (E15) |
 | E15 K-05/K-06/K-07 ikuti desain API doc | K-05–K-07 | Panel mengikuti desain API_DOCUMENTATION/Guide Lampiran A (4 body dynsec objek tunggal, password wajib min 8, mapper enabled, overview null → UNAVAILABLE); B34/B43 dicatat sebagai tugas dokumentasi backend |
 | E16 Sinkronisasi dokumen panduan backend | — | Perbarui plan + gaps + mode akses + audit telemetry pasca-E14/E15 (angka Linear/registry/tests, status panel pasca-audit) |
+| E17 Analisis relevansi keputusan Fase 0 vs backend 18 Nov & industri | K-01–K-15 | Pull keputusan backend 18 Nov (SYS-B8–B50); 7 dikonfirmasi, 1 disempurnakan, 3 dibalik (K-03/K-09/K-11), 3 terbuka, 1 belum tercakup; tindak lanjut panel P-A–P-L |
+| E18 Penutupan keputusan gap (delegasi Fathur) | K-01–K-15 + B1/B3/B4/B6/B7/B16/enum | 22/22 diputuskan via delegasi: 4 pembalikan diterima, 4 Fase 0 dikonfirmasi tetap, 7 gap baru diputuskan, 7 arah panel disetujui (P-I tertunda); satu alur kanonis, tanpa duplikasi/deprecated flow |
+| E19 Gaps doc: semua gap tertutup (status) + push | SYS-B1–B50 | Tabel status 50/50 di gaps doc (39 backend 18 Nov, 6 delegasi E18, 5 panel-side); "tertutup" = keputusan tercatat, bukan implementasi selesai — SYS-B1–B50 tetap Todo |
 
 Setiap Epic adalah **parent issue**; modul di bawahnya adalah **child issue**
 (`parentId` ke Epic). Tidak ada issue yatim: semua task harus punya parent Epic,
@@ -198,6 +201,19 @@ dianggap selesai penuh.
 | P16.2 | BACKEND_GAPS_SYSTEM_ADMIN.md: status panel pasca-audit E14/E15 + registry 132 | E16 | Done | High | `real-backend`, `docs` |
 | P16.3 | BACKEND_REQUIREMENTS_ACCESS_MODE.md (B7: 131→132) + TELEMETRY_AUDIT.md (pointer status panel) | E16 | Done | High | `real-backend`, `docs` |
 | P16.4 | Verifikasi E16 + LINEAR.md + seed v15 | E16 | Done | High | `verification`, `docs` |
+| E17 | Analisis relevansi keputusan Fase 0 vs keputusan backend 18 Nov & real-case industri | K-01–K-15 | Done | High | `real-backend`, `docs` |
+| P17.1 | Pull + baca keputusan backend 18 Nov (SYS-B8..B50) + decision log Fase 0 | E17 | Done | High | `real-backend`, `docs` |
+| P17.2 | Riset praktik industri untuk keputusan ber-alternatif | E17 | Done | High | `real-backend`, `docs` |
+| P17.3 | Tulis dokumen analisis + daftar tindak lanjut panel | E17 | Done | High | `real-backend`, `docs` |
+| P17.4 | Verifikasi E17 + LINEAR.md + seed v16 | E17 | Done | High | `verification`, `docs` |
+| E18 | Penutupan keputusan gap (delegasi Fathur): 15 keputusan gap + 7 arah panel | K-01–K-15 + B1/B3/B4/B6/B7/B16/enum | Done | High | `real-backend`, `docs` |
+| P18.1 | Rekam keputusan A1–A4 + B1–B4 (decision log + gaps doc) | E18 | Done | High | `real-backend`, `docs` |
+| P18.2 | Rekam keputusan C1–C7 (gaps doc + rencana) | E18 | Done | High | `real-backend`, `docs` |
+| P18.3 | Rekam arah panel D1–D7 + rencana implementasi (tanpa duplikasi/deprecated flow) | E18 | Done | High | `real-backend`, `docs` |
+| P18.4 | Verifikasi E18 + LINEAR.md + seed v17 | E18 | Done | High | `verification`, `docs` |
+| E19 | Gaps doc: semua gap SYS-B1–B50 tertutup (status) + push | SYS-B1–B50 | Done | High | `real-backend`, `docs` |
+| P19.1 | Perbarui gaps doc: tabel status 50/50 + header + pertanyaan terbuka | E19 | Done | High | `real-backend`, `docs` |
+| P19.2 | Verifikasi E19 + LINEAR.md + seed v18 + snapshot-push GitHub | E19 | Done | High | `verification`, `docs` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -391,8 +407,8 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **134 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **75 Done, 1 In Progress, 58 Todo**, 16 Epic tanpa parent, 118 child dengan
+- Issue: **147 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
+  **88 Done, 1 In Progress, 58 Todo**, 19 Epic tanpa parent, 128 child dengan
   `parentId` — persis sesuai §1.3 (28 awal + E9/R9.1–R9.6 + E10/A10.1–A10.2,
   dibuat 2026-11-16 ~14:20 WIB; R9.2/R9.3/R9.4/R9.5/R9.6 Done 2026-11-16 malam,
   tersisa A10.2 + V8.1–V8.5; E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
@@ -401,7 +417,7 @@ tapi status implementasi yang berlaku adalah status di Linear.
   2026-11-17 dari `docs/E12_PROPOSAL.md` — admin-panel saja, infra Nginx +
   backend dikecualikan, Done 2026-11-17 — AUDIT.md §15, Epic E12 ditutup
   2026-11-17, di-push `af5011f`; T12.6a (Opsi A, FAT-70) dibuat 2026-11-17
-  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15; E13/SYS-B1–SYS-B50 dibuat 2026-11-17 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` — gap backend System Admin, belum dikerjakan, Epic E13 Todo; E14/P14.1–P14.5 dibuat 2026-11-17 dari keputusan Fase 0 Fathur (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §17, Epic E14 ditutup 2026-11-17; E15/P15.1–P15.5 dibuat 2026-11-17 dari keputusan Fathur mengikuti desain API_DOCUMENTATION untuk K-05/K-06/K-07 (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §18, Epic E15 ditutup 2026-11-17; E16/P16.1–P16.4 dibuat 2026-11-17 dari permintaan Fathur menyinkronkan dokumen panduan upgrade backend — Done 2026-11-17 — AUDIT.md §19, Epic E16 ditutup 2026-11-17).
+  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15; E13/SYS-B1–SYS-B50 dibuat 2026-11-17 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` — gap backend System Admin, belum dikerjakan, Epic E13 Todo; E14/P14.1–P14.5 dibuat 2026-11-17 dari keputusan Fase 0 Fathur (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §17, Epic E14 ditutup 2026-11-17; E15/P15.1–P15.5 dibuat 2026-11-17 dari keputusan Fathur mengikuti desain API_DOCUMENTATION untuk K-05/K-06/K-07 (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §18, Epic E15 ditutup 2026-11-17; E16/P16.1–P16.4 dibuat 2026-11-17 dari permintaan Fathur menyinkronkan dokumen panduan upgrade backend — Done 2026-11-17 — AUDIT.md §19, Epic E16 ditutup 2026-11-17; E17/P17.1–P17.4 dibuat 2026-11-18 dari permintaan Fathur menganalisis relevansi keputusan Fase 0 vs keputusan backend 18 Nov (SYS-B8–B50, Fathur) & real-case industri — Done 2026-11-18 — AUDIT.md §20, Epic E17 ditutup 2026-11-18; E18/P18.1–P18.4 dibuat 2026-11-18 dari delegasi Fathur menutup seluruh keputusan gap (22 item: 4 pembalikan diterima, 4 Fase 0 dikonfirmasi tetap, 7 gap baru, 7 arah panel) — Done 2026-11-18 — AUDIT.md §21, Epic E18 ditutup 2026-11-18; E19/P19.1–P19.2 dibuat 2026-11-18 dari permintaan Fathur memperbarui gaps doc agar semua gap tertutup + push — tabel status 50/50 (39 backend 18 Nov, 6 delegasi E18, 5 panel-side); "tertutup" = keputusan tercatat, SYS-B1–B50 tetap Todo — Done 2026-11-18 — AUDIT.md §22, Epic E19 ditutup 2026-11-18).
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 
@@ -477,7 +493,13 @@ tapi status implementasi yang berlaku adalah status di Linear.
 | P15.4 | FAT-132 | P15.5 | FAT-133 |
 | E16 Sinkronisasi dokumen panduan | FAT-134 | P16.1 | FAT-135 |
 | P16.2 | FAT-136 | P16.3 | FAT-137 |
-| P16.4 | FAT-138 | | |
+| P16.4 | FAT-138 | E17 Analisis relevansi Fase 0 | FAT-139 |
+| P17.1 | FAT-140 | P17.2 | FAT-141 |
+| P17.3 | FAT-142 | P17.4 | FAT-143 |
+| E18 Penutupan keputusan gap | FAT-144 | P18.1 | FAT-145 |
+| P18.2 | FAT-146 | P18.3 | FAT-147 |
+| P18.4 | FAT-148 | E19 Gaps doc semua gap tertutup | FAT-149 |
+| P19.1 | FAT-150 | P19.2 | FAT-151 |
 
 Perhatian: nomor FAT tidak berurutan per fase — Linear memberinya sesuai
 urutan pembuatan paralel, jadi selalu pakai tabel ini (dan `docs/linear-seed.json`
