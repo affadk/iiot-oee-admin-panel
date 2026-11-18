@@ -35,6 +35,12 @@
 > (API §I hanya menulis nama tipe), `mustChangePassword` tidak dipakai di
 > seluruh `src/`, filter schedule API snake_case vs Guide camelCase (kontradiksi
 > langsung), trailing slash config (API: "Wajib trailing slash").
+>
+> **Keputusan backend (18 November 2026):** gap yang tercakup lima modul
+> remediasi sudah final dan dicatat di
+> [Keputusan backend — 18 November 2026](#keputusan-backend--18-november-2026).
+> Pertanyaan terbuka yang sudah terjawab ditandai di
+> [Pertanyaan terbuka](#pertanyaan-terbuka-status-per-18-november-2026--tidak-ditebak).
 
 ## Status panel pasca-audit — E14/E15 (17 November 2026)
 
@@ -587,6 +593,120 @@ Enam tema lintas-gap:
 
 ---
 
+## Keputusan backend — 18 November 2026
+
+> **Status:** keputusan final untuk gap yang tercakup dalam lima modul remediasi
+> backend. Implementasi **belum dimulai**; tidak ada kode backend yang berubah.
+> Dokumen otoritatif ada di repo `iiot-oee`: `apps/backend/specs/034…038`
+> (`spec.md` SPECIFIED, `plan.md` PLANNED, `design.md` DESIGNED, `tasks.md` READY).
+> Acceptance criteria tetap wajib diuji di Real mode, bukan Demo.
+
+### Ringkasan modul
+
+| Modul | Spec backend | Gap | Keputusan inti |
+|---|---|---|---|
+| Audit feed & acknowledgement | `specs/034-audit-feed-and-acknowledgement` | B19, B21–B26 | Feed terpisah; ack dari JWT; severity tidak didukung; `count` = baris halaman; ekspor rute baru |
+| MQTT configuration & overview | `specs/035-mqtt-configuration-contract` | B28–B44 | Adapter bentuk panel di permukaan HTTP; internal tetap kanonik; field tanpa sumber `null`; enum alias + `domainStatus`; overview diperkaya |
+| Master data integrity | `specs/036-master-data-integrity` | B45–B50 | Hapus line 409; jam jadwal disertakan; `isActive` saat create; validasi overlap shift |
+| Access control read model | `specs/037-access-control-read-model` | B8–B10, B12–B15 | `effectiveInMode` = `mode`; permission duplikat 409; `authzVersion` di refresh; `roles` tanpa alias |
+| Health & runtime info | `specs/038-health-and-runtime-info` | B20, B27 | `/health` tetap ringkas; `/health/detail` ADMIN+LAN; nilai tak terukur `null`/`UNKNOWN` |
+
+### Keputusan per gap
+
+#### System Audit / Health / Info
+
+| Gap | Keputusan |
+|---|---|
+| SYS-B19 | `/system/audit` tetap feed operasional. Item memuat `acknowledged` (turunan `acknowledgedAt`) dan `machineName`; tidak ada `actor`/`action`/`resource`/`clientIp`/`accessMode`/`severity` karangan. Mutasi IAM tidak digabungkan. |
+| SYS-B20 | `GET /health` tidak diubah (publik, ringkas). Rute baru `GET /health/detail` (ADMIN + LAN) mengembalikan komponen aplikasi, basis data, MQTT, dan WebSocket dengan latensi terukur, `measuredAt` per komponen, dan `null`/`UNKNOWN` bila tidak terukur. |
+| SYS-B21 | `PATCH /operational-events/:id/ack` menerima `{note?}`; aktor diambil dari subjek JWT. Field aktor di body diterima tetapi diabaikan (deprecated). Ack kedua idempoten. |
+| SYS-B22 | Filter `acknowledged` didukung server-side. Filter `severity` **tidak didukung** dan tidak akan dipetakan dari `eventType`; parameter diabaikan dan didokumentasikan. |
+| SYS-B23 | `machine_id` didukung pada list global, list per-device, `/system/audit`, dan ekspor. |
+| SYS-B24 | `GET /system/audit` menerima dan memfilter `event_type` server-side. |
+| SYS-B25 | Envelope `{data, meta}` dengan `meta = {limit, hasMore, truncated, nextCursor, prevCursor?, count}`. `count` = jumlah baris halaman, bukan total dataset. |
+| SYS-B26 | Tersedia `GET /system/audit/export` dengan filter dan batas retensi yang sama dengan daftar; tidak ada field terlarang. |
+| SYS-B27 | `/health/detail` memuat `name`, `version` (build/package), `environment` (runtime), dan `commit` opsional tanpa path internal. |
+
+#### MQTT Dynamic Security & Configuration
+
+| Gap | Keputusan |
+|---|---|
+| SYS-B28 | Backend memakai `PATCH /clients/:name/password`; panel menyesuaikan dari POST. Tidak ada perubahan perilaku backend. |
+| SYS-B29 | Backend memakai `PATCH /clients/:name/enable {enabled}`; panel menyesuaikan dari POST `{disabled}`. |
+| SYS-B30 | `access` diterima verbatim (`publish`/`subscribe`/`readwrite`); panel menghapus pemetaan ke `telemetry`/`telemetry+state`. |
+| SYS-B31 | Body tunggal `{rolename, priority?}`; panel menyesuaikan dari `{roles:[…]}`. |
+| SYS-B32 | Body objek ACL tunggal `{acltype, topic, allow, priority?}`; panel menyesuaikan dari `{acls:[…]}`. |
+| SYS-B33 | `password` wajib minimal 8 karakter; **tidak ada auto-generate**. Panel wajib mengisi password dan tidak mengirim string kosong. |
+| SYS-B34 | Respons `POST /clients` mengembalikan objek klien beserta `password` sekali tampil; `GET /clients/:name` tidak lagi memuat password. |
+| SYS-B35 | Respons klien memakai `disabled` (bukan `enabled`); panel menyesuaikan mapper. |
+| SYS-B36 | Body tunggal `{username, priority?}`; panel menyesuaikan dari `{clients:[…]}`. |
+| SYS-B37 | Body tunggal `{rolename, priority?}`; panel menyesuaikan dari `{roles:[…]}`. |
+| SYS-B38 | Rute konfigurasi menerima bentuk dengan dan tanpa trailing slash. |
+| SYS-B39 | `summary` diterima sebagai alias `reason` (prioritas `reason`); `baseVersionId` opsional dengan fallback ke versi APPLIED. Field baca-saja diabaikan, bukan ditolak. |
+| SYS-B40 | 422 memuat `issues[]` (kontrak baru) **dan** `details` (kompatibilitas); setiap issue memuat `field` dan `message`. |
+| SYS-B41 | Apply/rollback asinkron; `acknowledgeUnvalidated` dihormati; panel wajib polling sampai status terminal, bukan sekali. |
+| SYS-B42 | `POST /backups` tidak ada (404). Backup dibuat otomatis saat apply. `GET /backups` hanya metadata; tidak ada unduh. |
+| SYS-B43 | Permukaan HTTP memakai bentuk panel (`version/general/limits/listeners/tls_profiles/bridges`); model internal tetap kanonik. Field tanpa sumber nyata bernilai `null` (`max_connections` global, `max_queued_bytes`, `remote_client_id`, `status` bridge); `tls_profiles` kosong (`[]`) karena tidak ada entitas first-class. Status versi/operasi memakai nilai panel + `domainStatus`. |
+| SYS-B44 | Overview diperkaya: counts DynSec, status konfigurasi, `activeVersionId`, `lastAppliedAt`, `mutationLocked`, `measuredAt`. Plugin tidak aktif → `available:false` dan counts `null`, bukan `IN_SYNC`/`0`. |
+
+#### Master Data & Operators
+
+| Gap | Keputusan |
+|---|---|
+| SYS-B45 | Filter jadwal memakai `line_id`, `day_of_week`, `shift_id`, `is_active` (snake_case) sebagai satu-satunya bentuk. Guide diperbaiki; tidak ada alias camelCase. |
+| SYS-B46 | List dan detail jadwal memuat `shiftName`, `shiftCode`, `startTime`, `endTime` dari join shift; shift hilang menghasilkan `null`, bukan 500. |
+| SYS-B47 | `POST /operators` menerima `isActive` opsional (default `true`). Proteksi `ADM-001` tidak berubah: nonaktifkan/ubah role → 400, hapus → 403. |
+| SYS-B48 | Operator dan daftar DynSec mengembalikan array penuh tanpa pemotongan diam-diam; tidak ada paginasi baru, batas praktis didokumentasikan. |
+| SYS-B49 | Hapus production line yang masih dipakai operator → 409 `PRODUCTION_LINE_IN_USE` dengan `operatorId`. Guard machines dan snapshot WO tetap. Tidak ada FK `SET NULL`. |
+| SYS-B50 | Hapus shift tetap 409 `SHIFT_IN_USE` bila dipakai jadwal atau snapshot WO. Perubahan jam shift memicu validasi overlap pada line+hari yang sama → 409 `SHIFT_TIME_OVERLAP`; jadwal mengikuti referensi live. |
+
+#### Access Control
+
+| Gap | Keputusan |
+|---|---|
+| SYS-B8 | Katalog memuat `access_control.read` dan `access_control.manage` sebagai dua kunci terpisah; panel menambahkan kunci `read` dan berhenti memakai kunci karangan. |
+| SYS-B9 | `effectiveInMode` = nilai `mode`; detail per-domain ada di `enforcedDomains` dan `/auth/me`. Tidak ada nilai `partial`. |
+| SYS-B10 | `POST /access-control/permissions` didukung dengan body camelCase (`action`, `resourceType`). Duplikat → 409 `PERMISSION_EXISTS`; tanpa rute penjaga → 400 `INERT_PERMISSION`. |
+| SYS-B12 | Inspector mengembalikan `roles` (nama tunggal, tanpa alias `effectiveRoles`) plus `operatorId`, `primaryRole`, `isActive`, `isProtected`, `authzVersion`, `effectiveInMode`, `assignments`, `permissions`. Subjek hilang → 404. |
+| SYS-B13 | `reason` tetap disimpan di audit IAM dan tidak dikembalikan pada baris policy; dokumentasi menyatakan lokasinya. |
+| SYS-B14 | Revoke assignment yang tidak ada → 200 `{success:true, removed:0}`; revoke berhasil mencatat audit dengan aktor dan alasan. |
+| SYS-B15 | `POST /auth/refresh` memuat `authzVersion` dari identitas yang dibaca ulang; 401 `AUTHZ_STALE`/`SUBJECT_INACTIVE` tidak berubah. |
+
+### Gap di luar lima modul (belum diputuskan pada putaran ini)
+
+| Gap | Status | Catatan |
+|---|---|---|
+| SYS-B1 | Belum diputuskan | Skema body policy (`subjectMatch`, `permissionId`) belum ditetapkan. |
+| SYS-B2 | Panel-side | Backend memakai `PUT`; panel mengirim `PATCH`. |
+| SYS-B3 | Sebagian | Butuh contoh `abac_condition` valid dan pesan 400 yang menyebut atribut. |
+| SYS-B4 | Belum diputuskan | Alur `mustChangePassword` dan kontrak `401` belum ditetapkan. |
+| SYS-B5 | Panel-side | Backend memakai `PUT` untuk role; panel mengirim `PATCH`. |
+| SYS-B6 | Sebagian | 037 menutup `/info` dan inspector; skema respons IAM lain belum. |
+| SYS-B7 | Belum diputuskan | Perilaku hapus role yang masih ter-assign belum ditetapkan. |
+| SYS-B11 | Panel-side | Backend sudah mendukung filter dan `limit` sampai 1000; panel belum memakainya. |
+| SYS-B16 | Belum diputuskan | Lockout panel vs rate limit server dan `Retry-After` belum diselaraskan. |
+| SYS-B17 | Panel-side | Panel tidak mengirim filter `operatorId`/`roleId`; backend perlu verifikasi dukungan filter. |
+| SYS-B18 | Panel-side | Aturan anti-eskalasi panel lebih ketat dari backend; panel menyesuaikan. |
+
+### Pertanyaan terbuka yang terjawab
+
+| # | Jawaban |
+|---|---|
+| Query param tak dikenal | Diabaikan dengan 200 dan didokumentasikan; tidak ada 400 baru. |
+| D-3 trailing slash | Kedua bentuk diterima. |
+| D-4 detail 422 | `issues[]` + `details`. |
+| D-5 body sub-operasi DynSec | Bentuk tunggal; panel menyesuaikan. |
+| D-6 skema respons DynSec | Didokumentasikan, termasuk `disabled` dan password sekali tampil. |
+| D-7 skema config terstruktur | Bentuk panel di HTTP; field tanpa sumber `null`; enum alias + `domainStatus`. |
+| D-1b rute provisioning | Tidak ada `POST /clients/provision`; gunakan `POST /clients`. |
+| Apakah `/system/audit` alias feed operasional? | Ya, feed operasional; mutasi IAM tidak digabungkan dan dibaca dari `/access-control/audit`. |
+| Apakah `severity` ada? | Tidak; filter severity tidak didukung. |
+| Casing body `POST /permissions` | CamelCase: `action`, `resourceType`. |
+
+**Masih terbuka:** item tanpa tanda **Terjawab** di atas — antara lain D-1 (`/auth/password/change` — `current_password` vs `old_password`), D-2 (bentuk `/auth/me`), aturan kenaikan `authz_version`, perilaku hapus role yang masih ter-assign, tipe `operator.role` untuk label custom, satuan `uptime`, dan overlap jadwal lintas tengah malam.
+
+---
+
 ## Tidak ada gap (endpoint System Admin yang sudah sepenuhnya mendukung panel)
 
 **IAM/Auth:** `POST /auth/login` (body `{operator_id, password, station_id?}` + respons `{success, token, expires_in, operator:{id, username, role, line_id}}` cocok dengan API §L dan `LoginResponseSchema`); `POST /auth/refresh` (`{token}` → `{success, token, expires_in}`; refresh proaktif pada 20% sisa TTL + refetch `/auth/me` — dengan catatan SYS-B15/B16); `GET /access-control/info` (`mode`/`authzVersion`/`effectiveInMode`/`enforcedDomains` dibaca `mapIamInfo`; badge menampilkan mode + versi sesuai Guide §8); `GET /access-control/roles` + `DELETE /roles/:id` (dengan catatan SYS-B7); `POST /access-control/roles` (body `{name, description?}` subset sah dari `{name, description?, reason?}`); `POST /roles/:id/permissions` (body cocok kecuali `reason` — SYS-B13); `DELETE /roles/:id/permissions/:permissionId` (method + path cocok; unbind disembunyikan untuk ADMIN); `GET /access-control/permissions` (katalog bind + template policy); `GET /access-control/user-roles` (kecuali filter — SYS-B17); `POST /user-roles` (body `{operatorId, roleName, scopeType, scopeId}` cocok; validasi client-side "scopeId wajib untuk non-ORGANIZATION" cocok Guide §8); `DELETE /user-roles` (composite key + guard root protection di UI `AssignmentsTab.tsx:81,115`); `GET /access-control/policies` (kecuali filter — SYS-B17); anti-lockout DENY-pada-ADMIN di UI + demo; reserved-permission guard di UI + demo (dengan catatan SYS-B1/B18: guard berbasis role, backend berbasis `subjectMatch`); penanganan error envelope (`mapHttpErrorToApiError`, 401 → logout, 403 → penurunan capability, sesuai API §2 dan Guide §4.5); rute panel (`Router.tsx:68,83`; Sidebar mengunci menu pada capability `access_control.manage`).
@@ -610,27 +730,32 @@ Enam tema lintas-gap:
 
 ---
 
-## Pertanyaan terbuka (tidak bisa dipastikan dari dokumen saja — tidak ditebak)
+## Pertanyaan terbuka (status per 18 November 2026 — tidak ditebak)
+
+> **Status:** item yang sudah diputuskan ditandai **Terjawab** dan tidak lagi
+> menjadi pertanyaan terbuka. Jawaban lengkap ada di
+> [Keputusan backend — 18 November 2026](#keputusan-backend--18-november-2026).
+> Item tanpa tanda tetap terbuka.
 
 1. **D-1 (diketahui, AUDIT.md §3):** `POST /auth/password/change` — API §L `{current_password, new_password}` vs Guide Lampiran J `{old_password, new_password}`. Panel memakai API §L. Bila backend mengimplementasikan Lampiran J, ganti password Real gagal. Perlu satu sumber kanonis.
 2. **D-2 (diketahui, AUDIT.md §3):** `GET /auth/me` — API §L `{operator, authz:{...}}` vs Guide §4.9 bentuk flat. Panel menangani keduanya. Tidak jelas mana yang benar-benar dikembalikan backend.
-3. **Query param tak dikenal: diabaikan atau 400?** Tidak ada dokumen yang menyatakan apakah backend (Zod) memakai mode strict terhadap query param tak dikenal. Ini menentukan dampak SYS-B22, B23, B24, B45 (diabaikan diam-diam vs gagal 400).
-4. **D-5 — Bentuk body sub-operasi dynsec:** http panel memakai bentuk jamak `{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}`; Guide Lampiran O memakai bentuk tunggal. Kemungkinan panel mengikuti bentuk native Mosquitto dynsec sementara dokumen menyederhanakan. Berlaku untuk SYS-B31, B32, B36, B37. Keputusan backend menentukan apakah yang harus diubah adalah panel atau dokumen.
-5. **D-6 — Skema respons dynsec:** tidak ada contoh JSON untuk objek klien/peran/grup/status di dokumen mana pun — field `enabled` vs `disabled`, nama field password sekali tampil, bentuk `roles`/`groups` (string vs objek) semuanya tebakan panel (SYS-B34, B35).
-6. **D-7 — Skema config terstruktur:** tidak ada contoh `GET /` / versi di dokumen acuan; field, default, dan enum status ditebak dari seed panel (SYS-B43). Dokumen `docs/mosquitto-configuration-manager.md` yang dirujuk Lampiran B tidak tersedia dalam berkas acuan.
-7. **D-3 — Trailing slash config:** API §3.3b "wajib trailing slash" vs Guide Lampiran P tanpa slash (SYS-B38).
-8. **D-4 — Detail 422:** API §2 envelope memakai `issues[]`, sedangkan §3.3b/§2 tabel menyebut detail 422 pada `details` (SYS-B40).
-9. **D-1b — Rute provisioning:** API §M bagian "Provisioning perangkat" menyebut `POST /clients` dengan body `{deviceId, access, ...}`, TAPI contoh cURL di bawahnya memakai `POST …/clients/provision`. Guide §9.1 dan §14.13 tegas: "Tidak ada `POST /clients/provision`; dokumen API lama menyebutnya, tetapi rute itu tidak terdaftar." Panel mengikuti Guide. Perlu satu sumber kebenaran.
-10. **Apakah `/system/audit` adalah alias harfiah feed yang sama atau subset?** API §I menyebutnya "Alias audit trail global (operational events)"; Guide §6.7 menyebutnya feed `operational_events` global "yang menjadi jejak mutasi sistem (termasuk `MASTER_DATA_MUTATION`, `MQTT_ADMIN_*`, perubahan IAM)" dan memperingatkan "Jangan mencampurnya dengan feed operasional publik; beda otorisasi dan beda audiens". Tidak dinyatakan apakah `/system/audit` memfilter hanya event bertipe mutasi atau mengembalikan seluruh feed yang sama.
-11. **Enum `event_type` tidak didefinisikan.** API hanya memberi contoh (`COMMAND_PAUSE_DISPATCHED`, `WO_DISPATCH_ACK_SUCCESS`, `MASTER_DATA_MUTATION`, `MQTT_ADMIN_*`, `SECURITY_REJECTION`, `AUTH_TOKEN_REFRESHED`, …). Dropdown panel (`OperationalEventsFilters.tsx:7-21`, 15 nilai: `ALARM`, `STATE_CHANGE`, `COMMAND_EXECUTED`, `DISCONNECT`, `HEARTBEAT_TIMEOUT`, `MASTER_DATA_MUTATION`, …) adalah daftar buatan panel — tidak bisa dipastikan cocok dengan enum server; nilai di luar enum bisa menghasilkan 400 atau hasil kosong. **`severity` tidak muncul di dokumen sama sekali** (grep API + Guide: nihil) — panel memakai `severity` sebagai filter UI dan field item (`mapOperationalEvent` default `'INFO'`) — keduanya asumsi panel, bukan kontrak backend.
+3. **Query param tak dikenal: diabaikan atau 400?** Tidak ada dokumen yang menyatakan apakah backend (Zod) memakai mode strict terhadap query param tak dikenal. Ini menentukan dampak SYS-B22, B23, B24, B45 (diabaikan diam-diam vs gagal 400). **Terjawab (18 Nov 2026):** parameter tak dikenal diabaikan dengan 200 dan didokumentasikan.
+4. **D-5 — Bentuk body sub-operasi dynsec:** http panel memakai bentuk jamak `{roles:[...]}`, `{acls:[...]}`, `{clients:[...]}`; Guide Lampiran O memakai bentuk tunggal. Kemungkinan panel mengikuti bentuk native Mosquitto dynsec sementara dokumen menyederhanakan. Berlaku untuk SYS-B31, B32, B36, B37. Keputusan backend menentukan apakah yang harus diubah adalah panel atau dokumen. **Terjawab (18 Nov 2026):** backend memakai bentuk tunggal; panel menyesuaikan.
+5. **D-6 — Skema respons dynsec:** tidak ada contoh JSON untuk objek klien/peran/grup/status di dokumen mana pun — field `enabled` vs `disabled`, nama field password sekali tampil, bentuk `roles`/`groups` (string vs objek) semuanya tebakan panel (SYS-B34, B35). **Terjawab (18 Nov 2026):** skema respons didokumentasikan, termasuk `disabled` dan password sekali tampil.
+6. **D-7 — Skema config terstruktur:** tidak ada contoh `GET /` / versi di dokumen acuan; field, default, dan enum status ditebak dari seed panel (SYS-B43). Dokumen `docs/mosquitto-configuration-manager.md` yang dirujuk Lampiran B tidak tersedia dalam berkas acuan. **Terjawab (18 Nov 2026):** HTTP memakai bentuk panel; field tanpa sumber bernilai `null`; enum memakai alias panel + `domainStatus`.
+7. **D-3 — Trailing slash config:** API §3.3b "wajib trailing slash" vs Guide Lampiran P tanpa slash (SYS-B38). **Terjawab (18 Nov 2026):** kedua bentuk diterima.
+8. **D-4 — Detail 422:** API §2 envelope memakai `issues[]`, sedangkan §3.3b/§2 tabel menyebut detail 422 pada `details` (SYS-B40). **Terjawab (18 Nov 2026):** 422 memuat `issues[]` dan `details`.
+9. **D-1b — Rute provisioning:** API §M bagian "Provisioning perangkat" menyebut `POST /clients` dengan body `{deviceId, access, ...}`, TAPI contoh cURL di bawahnya memakai `POST …/clients/provision`. Guide §9.1 dan §14.13 tegas: "Tidak ada `POST /clients/provision`; dokumen API lama menyebutnya, tetapi rute itu tidak terdaftar." Panel mengikuti Guide. Perlu satu sumber kebenaran. **Terjawab (18 Nov 2026):** tidak ada `POST /clients/provision`; gunakan `POST /clients`.
+10. **Apakah `/system/audit` adalah alias harfiah feed yang sama atau subset?** API §I menyebutnya "Alias audit trail global (operational events)"; Guide §6.7 menyebutnya feed `operational_events` global "yang menjadi jejak mutasi sistem (termasuk `MASTER_DATA_MUTATION`, `MQTT_ADMIN_*`, perubahan IAM)" dan memperingatkan "Jangan mencampurnya dengan feed operasional publik; beda otorisasi dan beda audiens". Tidak dinyatakan apakah `/system/audit` memfilter hanya event bertipe mutasi atau mengembalikan seluruh feed yang sama. **Terjawab (18 Nov 2026):** `/system/audit` adalah feed operasional; mutasi IAM tidak digabungkan dan dibaca dari `/access-control/audit`.
+11. **Enum `event_type` tidak didefinisikan.** API hanya memberi contoh (`COMMAND_PAUSE_DISPATCHED`, `WO_DISPATCH_ACK_SUCCESS`, `MASTER_DATA_MUTATION`, `MQTT_ADMIN_*`, `SECURITY_REJECTION`, `AUTH_TOKEN_REFRESHED`, …). Dropdown panel (`OperationalEventsFilters.tsx:7-21`, 15 nilai: `ALARM`, `STATE_CHANGE`, `COMMAND_EXECUTED`, `DISCONNECT`, `HEARTBEAT_TIMEOUT`, `MASTER_DATA_MUTATION`, …) adalah daftar buatan panel — tidak bisa dipastikan cocok dengan enum server; nilai di luar enum bisa menghasilkan 400 atau hasil kosong. **`severity` tidak muncul di dokumen sama sekali** (grep API + Guide: nihil) — panel memakai `severity` sebagai filter UI dan field item (`mapOperationalEvent` default `'INFO'`) — keduanya asumsi panel, bukan kontrak backend. **Terjawab sebagian (18 Nov 2026):** `severity` tidak didukung dan tidak dipetakan; `/system/audit` memfilter `event_type` persis, tetapi daftar enum kanonik belum ditetapkan.
 12. **Aturan naiknya `authz_version`:** API §3.4 "Setiap mutasi → reloadPolicy → bump authz_version" vs Guide §8 "Perubahan katalog permission atau deskripsi role **tidak** menaikkannya". Panel mengikuti Guide §8 untuk update role (`afterMutation(..., false)` di `useRoles.ts`) tapi default `true` untuk mutasi lain. Tidak bisa dipastikan mana yang benar; implikasinya pada advisory "sesi lain token lama berakhir (401)" di `useIamData.ts` (yang ditampilkan tanpa syarat, padahal Guide §4.6h membatasi penolakan token lama ke mode enforce).
-13. **Apakah `PATCH` diterima backend untuk `/roles/:id` dan `/policies/:id`:** dokumen hanya menulis `PUT`. Panel mengirim `PATCH` (SYS-B2, B5). Tidak bisa dipastikan tanpa mencoba live.
-14. **Apakah `POST /permissions` didukung atau katalog fixed:** dokumen di kedua sisi (ada endpoint + `INERT_PERMISSION`/`409`) vs klaim tab panel "Fixed Master Data · Read-Only" + blok demo (SYS-B10).
-15. **Perilaku hapus role yang masih ter-assign / hapus policy ADMIN / unbind yang tidak ada:** tidak didokumentasikan; demo mengarang `ROLE_IN_USE`/`FORBIDDEN`/`404` (SYS-B7, B14). Kode `PRIVILEGE_ESCALATION_DENIED` tercantum di tabel error API §2 tapi tidak dipetakan ke kasus mana pun.
-16. **Casing body `POST /permissions`:** `resource_type` (httpIam) vs `resourceType` (Guide Lampiran K) — API §3.4 tidak menulis skema body (SYS-B10).
+13. **Apakah `PATCH` diterima backend untuk `/roles/:id` dan `/policies/:id`:** dokumen hanya menulis `PUT`. Panel mengirim `PATCH` (SYS-B2, B5). Tidak bisa dipastikan tanpa mencoba live. **Terjawab (18 Nov 2026):** backend tetap `PUT`; panel menyesuaikan.
+14. **Apakah `POST /permissions` didukung atau katalog fixed:** dokumen di kedua sisi (ada endpoint + `INERT_PERMISSION`/`409`) vs klaim tab panel "Fixed Master Data · Read-Only" + blok demo (SYS-B10). **Terjawab (18 Nov 2026):** didukung dengan body camelCase; duplikat → 409 `PERMISSION_EXISTS`.
+15. **Perilaku hapus role yang masih ter-assign / hapus policy ADMIN / unbind yang tidak ada:** tidak didokumentasikan; demo mengarang `ROLE_IN_USE`/`FORBIDDEN`/`404` (SYS-B7, B14). Kode `PRIVILEGE_ESCALATION_DENIED` tercantum di tabel error API §2 tapi tidak dipetakan ke kasus mana pun. **Terjawab sebagian (18 Nov 2026):** revoke yang tidak menemukan baris → 200 `{success:true, removed:0}`; perilaku hapus role masih terbuka.
+16. **Casing body `POST /permissions`:** `resource_type` (httpIam) vs `resourceType` (Guide Lampiran K) — API §3.4 tidak menulis skema body (SYS-B10). **Terjawab (18 Nov 2026):** camelCase `action`, `resourceType`.
 17. **LoginResponse `operator.role` bila label custom:** skema panel membatasi ke enum 4 preset (`UserRoleSchema`); dokumen menyebut `operators.role` label legacy tanpa enumerasi eksplisit di §L. Kemungkinan besar selalu preset (custom role hidup di `authz_user_roles`, bukan di `operators.role`), tapi tidak dinyatakan eksplisit — bila backend suatu saat mengembalikan label custom, `LoginResponseSchema.parse` di `httpAuth.login` akan gagal dan login rusak.
 18. **Overlap jadwal lintas tengah malam:** shift mensyaratkan `startTime < endTime` (§O), jadi shift malam yang melewati tengah malam (mis. 23:00–07:00) tidak bisa direpresentasikan sebagai satu shift; dokumen tidak menjelaskan apakah overlap dihitung per `dayOfWeek` saja atau juga terhadap hari berikutnya. Demo seed mengakali dengan SHIFT-3 `00:00–07:00`. Bukan gap yang bisa diputuskan dari dokumen saja.
 19. **Satuan `uptime`:** contoh doc `450.12` ditafsirkan panel sebagai detik (`formatDuration`) — konsisten dengan deskripsi, tapi satuan tidak dinyatakan eksplisit di §A.
-20. **Status operasi async config:** dokumen tidak merinci berapa lama polling, interval yang dianjurkan, dan daftar lengkap status operasi; panel hanya poll sekali (SYS-B41).
-21. **`PROTECTED_ACCOUNT` operator:** API §H.7 + Guide §7.3 konsisten (400 untuk nonaktifkan/ubah role root, 403 untuk hapus), TAPI demo memakai 403 untuk nonaktifkan root — ini divergensi demo, bukan dokumen (SYS-B47).
+20. **Status operasi async config:** dokumen tidak merinci berapa lama polling, interval yang dianjurkan, dan daftar lengkap status operasi; panel hanya poll sekali (SYS-B41). **Terjawab sebagian (18 Nov 2026):** panel wajib polling sampai status terminal; status memakai nilai panel + `domainStatus`; interval belum ditetapkan.
+21. **`PROTECTED_ACCOUNT` operator:** API §H.7 + Guide §7.3 konsisten (400 untuk nonaktifkan/ubah role root, 403 untuk hapus), TAPI demo memakai 403 untuk nonaktifkan root — ini divergensi demo, bukan dokumen (SYS-B47). **Terjawab (18 Nov 2026):** backend tidak berubah — nonaktifkan/ubah role 400, hapus 403.
 22. **Catatan koreksi:** AUDIT.md §3 hanya berisi diskrepansi D-1/D-2 (soal auth); trailing slash ada di §2.1 #6 dan bentuk list di §2.3 — bukan di §3 seperti yang sempat dirujuk saat audit.
