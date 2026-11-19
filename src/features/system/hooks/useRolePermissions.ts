@@ -37,7 +37,6 @@ export const useRolePermissions = ({
   const [bindResourcePattern, setBindResourcePattern] = useState('');
   const [bindEffect, setBindEffect] = useState<'ALLOW' | 'DENY'>('ALLOW');
   const [bindAbacJson, setBindAbacJson] = useState('');
-  const [bindReason, setBindReason] = useState('');
   const [unbindTarget, setUnbindTarget] = useState<UnbindTarget | null>(null);
 
   useEffect(() => {
@@ -49,20 +48,19 @@ export const useRolePermissions = ({
   const openBindFromRole = (role: IamRole, preselectedPerm?: IamPermission) => {
     const defaultPerm =
       preselectedPerm ||
-      permissions.find((p) => role.is_system || !isReservedPermission(p.action, p.resource_type)) ||
+      permissions.find((p) => role.is_system || !isReservedPermission(p.action, p.resourceType)) ||
       permissions[0];
     setBindLockedMode('role');
     setBindRoleId(role.id);
     setSelectedPermId(defaultPerm?.id ?? '');
-    setBindResourcePattern(defaultPerm ? `${defaultPerm.resource_type}:*` : '*');
+    setBindResourcePattern(defaultPerm ? `${defaultPerm.resourceType}:*` : '*');
     setBindEffect('ALLOW');
     setBindAbacJson('');
-    setBindReason('');
     setIsBindModalOpen(true);
   };
 
   const openAssignFromPermission = (perm: IamPermission) => {
-    const reserved = isReservedPermission(perm.action, perm.resource_type);
+    const reserved = isReservedPermission(perm.action, perm.resourceType);
     const defaultRole =
       (reserved
         ? roles.find((r) => r.name === 'SUPERVISOR') || roles.find((r) => r.is_system)
@@ -70,10 +68,9 @@ export const useRolePermissions = ({
     setBindLockedMode('permission');
     setSelectedPermId(perm.id);
     setBindRoleId(defaultRole?.id ?? '');
-    setBindResourcePattern(`${perm.resource_type}:*`);
+    setBindResourcePattern(`${perm.resourceType}:*`);
     setBindEffect('ALLOW');
     setBindAbacJson('');
-    setBindReason('');
     setIsBindModalOpen(true);
   };
 
@@ -89,7 +86,7 @@ export const useRolePermissions = ({
     setSelectedPermId(nextPermId);
     const nextPerm = permissions.find((p) => p.id === nextPermId);
     if (nextPerm) {
-      setBindResourcePattern(`${nextPerm.resource_type}:*`);
+      setBindResourcePattern(`${nextPerm.resourceType}:*`);
     }
   };
 
@@ -102,10 +99,10 @@ export const useRolePermissions = ({
       setFeedback({ type: 'error', msg: 'Pilih role dan permission terlebih dahulu.' });
       return;
     }
-    if (!role.is_system && isReservedPermission(perm.action, perm.resource_type)) {
+    if (!role.is_system && isReservedPermission(perm.action, perm.resourceType)) {
       setFeedback({
         type: 'error',
-        msg: `Permission "${perm.action}:${perm.resource_type}" adalah reserved permission dan diblokir untuk custom role.`,
+        msg: `Permission "${perm.action}:${perm.resourceType}" adalah reserved permission dan diblokir untuk custom role.`,
       });
       return;
     }
@@ -117,7 +114,7 @@ export const useRolePermissions = ({
       });
       return;
     }
-    const pattern = bindResourcePattern.trim() || `${perm.resource_type}:*`;
+    const pattern = bindResourcePattern.trim() || `${perm.resourceType}:*`;
     if (!role.is_system && bindEffect === 'ALLOW' && (pattern === '*' || pattern === 'org:*')) {
       setFeedback({
         type: 'error',
@@ -136,11 +133,10 @@ export const useRolePermissions = ({
         resourcePattern: pattern,
         effect: bindEffect,
         abacCondition: parsedAbac.value,
-        reason: bindReason.trim() || undefined,
       });
       setIsBindModalOpen(false);
       await afterMutation(
-        `Permission ${perm.action}:${perm.resource_type} (${bindEffect} · ${pattern}) berhasil di-assign ke role ${role.name}.`,
+        `Permission ${perm.action}:${perm.resourceType} (${bindEffect} · ${pattern}) berhasil di-assign ke role ${role.name}.`,
       );
     } catch (err: unknown) {
       reportError(err, 'Gagal meng-assign permission ke role.', role.id);
@@ -177,8 +173,6 @@ export const useRolePermissions = ({
     setBindEffect,
     bindAbacJson,
     setBindAbacJson,
-    bindReason,
-    setBindReason,
     unbindTarget,
     requestUnbind: (role: IamRole, permissionId: string, label: string) =>
       setUnbindTarget({ role, permissionId, label }),

@@ -17,14 +17,12 @@ interface BindPermissionModalProps {
   bindResourcePattern: string;
   bindEffect: 'ALLOW' | 'DENY';
   bindAbacJson: string;
-  bindReason: string;
   onClose: () => void;
   onRoleIdChange: (roleId: string) => void;
   onPermIdChange: (permId: string) => void;
   onResourcePatternChange: (value: string) => void;
   onEffectChange: (effect: 'ALLOW' | 'DENY') => void;
   onAbacJsonChange: (value: string) => void;
-  onReasonChange: (value: string) => void;
   onSubmit: (e: React.FormEvent) => Promise<void>;
 }
 
@@ -45,14 +43,12 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
   bindResourcePattern,
   bindEffect,
   bindAbacJson,
-  bindReason,
   onClose,
   onRoleIdChange,
   onPermIdChange,
   onResourcePatternChange,
   onEffectChange,
   onAbacJsonChange,
-  onReasonChange,
   onSubmit,
 }) => {
   const selectedRole = useMemo(
@@ -71,7 +67,7 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
       onClose={onClose}
       title={
         bindLockedMode === 'permission' && selectedPerm
-          ? `Assign Permission ${selectedPerm.action}:${selectedPerm.resource_type} ke Role`
+          ? `Assign Permission ${selectedPerm.action}:${selectedPerm.resourceType} ke Role`
           : `Assign Permission ke Role ${selectedRole?.name ?? ''}`
       }
       subtitle="Tetapkan izin dari katalog sistem ke peran target beserta pola resource dan syarat ABAC (opsional)."
@@ -99,10 +95,10 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
           >
             {roles.map((r) => {
               const blocked =
-                selectedPerm && !r.is_system && isReservedPermission(selectedPerm.action, selectedPerm.resource_type);
+                selectedPerm && !r.is_system && isReservedPermission(selectedPerm.action, selectedPerm.resourceType);
               return (
                 <option key={r.id} value={r.id} disabled={Boolean(blocked)}>
-                  {r.name} (Level {r.privilege_level}) {blocked ? '(DIBLOKIR - RESERVED)' : ''}
+                  {r.name} {blocked ? '(DIBLOKIR - RESERVED)' : ''}
                 </option>
               );
             })}
@@ -121,10 +117,10 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
           >
             {permissions.map((p) => {
               const blocked =
-                selectedRole && !selectedRole.is_system && isReservedPermission(p.action, p.resource_type);
+                selectedRole && !selectedRole.is_system && isReservedPermission(p.action, p.resourceType);
               return (
                 <option key={p.id} value={p.id} disabled={Boolean(blocked)}>
-                  {p.action}:{p.resource_type} {blocked ? '(RESERVED - BLOCKED)' : `— ${p.description}`}
+                  {p.action}:{p.resourceType} {blocked ? '(RESERVED - BLOCKED)' : `— ${p.description}`}
                 </option>
               );
             })}
@@ -151,7 +147,7 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
             label="Resource Pattern"
             value={bindResourcePattern}
             onChange={(e) => onResourcePatternChange(e.target.value)}
-            placeholder={selectedPerm ? `${selectedPerm.resource_type}:*` : 'telemetry:*'}
+            placeholder={selectedPerm ? `${selectedPerm.resourceType}:*` : 'telemetry:*'}
             required
           />
         </div>
@@ -168,13 +164,6 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
             className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
           />
         </div>
-
-        <Input
-          label="Alasan / Catatan Penetapan (Opsional)"
-          value={bindReason}
-          onChange={(e) => onReasonChange(e.target.value)}
-          placeholder="Contoh: Izinkan tim QA audit ekspor telemetri Line 01"
-        />
       </form>
     </Modal>
   );

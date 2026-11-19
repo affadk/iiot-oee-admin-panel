@@ -91,6 +91,19 @@ function toIsoTimelineSegment(
  */
 export function buildDemoHourlyPoints(deviceId: string): HourlyOeePoint[] {
   const isUnknownCapacity = deviceId === 'STM32-OEE-05';
+  // E20 P20.5 (FAT-157): titik demo membawa `bucket` ISO 8601 (jangkar
+  // seed 2026-11-11 +07:00 — sama seperti segmen timeline X-4) + id
+  // penaut (deviceId/machineId/woId); `hour` = bucket ISO, bukan 'HH:MM'.
+  // OEE/performance `null` (bukan 0) bila kapasitas unknown (D-8).
+  const machine = store.machines.find((m) => m.bound_device_id === deviceId);
+  const activeWo = machine
+    ? store.workOrders.find((w) => w.machine_id === machine.machine_id && w.status === 'ACTIVE')
+    : undefined;
+  const ids = {
+    deviceId,
+    machineId: machine?.machine_id ?? null,
+    woId: activeWo?.wo_id ?? null,
+  };
   return [
     // E11 T11.4 (F-4): jam 07:00 — micro-stop 432 dtk → 350 dtk
     // (run 3168 → 3250 dtk) supaya Σ hourly_run_sec = 23.280 dtk
@@ -104,14 +117,14 @@ export function buildDemoHourlyPoints(deviceId: string): HourlyOeePoint[] {
     // sumber kebenarannya ada di downtime_events dt-ev-02 (1.920 dtk)
     // + dt-ev-04 (3.600 dtk) — lihat test rekonsiliasi T11.4.
     // Jam 12:00 TIDAK diubah (sepenuhnya planned — gap G8, urusan backend).
-    { hour: '07:00', oee: isUnknownCapacity ? 0 : 80.5, availability: isUnknownCapacity ? 100 : 90.3, performance: isUnknownCapacity ? 0 : 91.0, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 42, good_count: isUnknownCapacity ? 0 : 41, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3250, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-    { hour: '08:00', oee: isUnknownCapacity ? 0 : 84.6, availability: isUnknownCapacity ? 100 : 92.4, performance: isUnknownCapacity ? 0 : 94.1, quality: isUnknownCapacity ? 100 : 97.4, parts_produced: isUnknownCapacity ? 0 : 48, good_count: isUnknownCapacity ? 0 : 47, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3326, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-    { hour: '09:00', oee: isUnknownCapacity ? 0 : 86.2, availability: isUnknownCapacity ? 100 : 94.0, performance: isUnknownCapacity ? 0 : 93.5, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 50, good_count: isUnknownCapacity ? 0 : 49, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3384, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-    { hour: '10:00', oee: isUnknownCapacity ? 0 : 82.0, availability: isUnknownCapacity ? 100 : 90.0, performance: isUnknownCapacity ? 0 : 92.0, quality: isUnknownCapacity ? 100 : 99.0, parts_produced: isUnknownCapacity ? 0 : 46, good_count: isUnknownCapacity ? 0 : 46, defect_count: 0, hourly_operating_sec: 3600, hourly_run_sec: 3240, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-    { hour: '11:00', oee: isUnknownCapacity ? 0 : 85.5, availability: isUnknownCapacity ? 100 : 93.0, performance: isUnknownCapacity ? 0 : 94.0, quality: isUnknownCapacity ? 100 : 97.8, parts_produced: isUnknownCapacity ? 0 : 49, good_count: isUnknownCapacity ? 0 : 48, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3348, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false },
-    { hour: '12:00', oee: 0.0, availability: 0.0, performance: 0.0, quality: 100.0, parts_produced: 0, good_count: 0, defect_count: 0, hourly_operating_sec: 0, hourly_run_sec: 0, sampleCount: 12, targetPerHour: 0, state: 'PLANNED_DOWNTIME', planned: true, provisional: false },
-    { hour: '13:00', oee: isUnknownCapacity ? 0 : 87.8, availability: isUnknownCapacity ? 100 : 95.0, performance: isUnknownCapacity ? 0 : 94.5, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 52, good_count: isUnknownCapacity ? 0 : 51, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3420, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
-    { hour: '14:00', oee: isUnknownCapacity ? 0 : 84.0, availability: isUnknownCapacity ? 100 : 92.0, performance: isUnknownCapacity ? 0 : 93.0, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 47, good_count: isUnknownCapacity ? 0 : 46, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3312, sampleCount: 44, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true },
+    { hour: '2026-11-11T07:00:00+07:00', bucket: '2026-11-11T07:00:00+07:00', oee: isUnknownCapacity ? null : 80.5, availability: isUnknownCapacity ? 100 : 90.3, performance: isUnknownCapacity ? null : 91.0, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 42, good_count: isUnknownCapacity ? 0 : 41, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3250, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false, ...ids },
+    { hour: '2026-11-11T08:00:00+07:00', bucket: '2026-11-11T08:00:00+07:00', oee: isUnknownCapacity ? null : 84.6, availability: isUnknownCapacity ? 100 : 92.4, performance: isUnknownCapacity ? null : 94.1, quality: isUnknownCapacity ? 100 : 97.4, parts_produced: isUnknownCapacity ? 0 : 48, good_count: isUnknownCapacity ? 0 : 47, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3326, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false, ...ids },
+    { hour: '2026-11-11T09:00:00+07:00', bucket: '2026-11-11T09:00:00+07:00', oee: isUnknownCapacity ? null : 86.2, availability: isUnknownCapacity ? 100 : 94.0, performance: isUnknownCapacity ? null : 93.5, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 50, good_count: isUnknownCapacity ? 0 : 49, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3384, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false, ...ids },
+    { hour: '2026-11-11T10:00:00+07:00', bucket: '2026-11-11T10:00:00+07:00', oee: isUnknownCapacity ? null : 82.0, availability: isUnknownCapacity ? 100 : 90.0, performance: isUnknownCapacity ? null : 92.0, quality: isUnknownCapacity ? 100 : 99.0, parts_produced: isUnknownCapacity ? 0 : 46, good_count: isUnknownCapacity ? 0 : 46, defect_count: 0, hourly_operating_sec: 3600, hourly_run_sec: 3240, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false, ...ids },
+    { hour: '2026-11-11T11:00:00+07:00', bucket: '2026-11-11T11:00:00+07:00', oee: isUnknownCapacity ? null : 85.5, availability: isUnknownCapacity ? 100 : 93.0, performance: isUnknownCapacity ? null : 94.0, quality: isUnknownCapacity ? 100 : 97.8, parts_produced: isUnknownCapacity ? 0 : 49, good_count: isUnknownCapacity ? 0 : 48, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3348, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: false, ...ids },
+    { hour: '2026-11-11T12:00:00+07:00', bucket: '2026-11-11T12:00:00+07:00', oee: 0.0, availability: 0.0, performance: 0.0, quality: 100.0, parts_produced: 0, good_count: 0, defect_count: 0, hourly_operating_sec: 0, hourly_run_sec: 0, sampleCount: 12, targetPerHour: 0, state: 'PLANNED_DOWNTIME', planned: true, provisional: false, ...ids },
+    { hour: '2026-11-11T13:00:00+07:00', bucket: '2026-11-11T13:00:00+07:00', oee: isUnknownCapacity ? null : 87.8, availability: isUnknownCapacity ? 100 : 95.0, performance: isUnknownCapacity ? null : 94.5, quality: isUnknownCapacity ? 100 : 98.0, parts_produced: isUnknownCapacity ? 0 : 52, good_count: isUnknownCapacity ? 0 : 51, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3420, sampleCount: 60, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true, ...ids },
+    { hour: '2026-11-11T14:00:00+07:00', bucket: '2026-11-11T14:00:00+07:00', oee: isUnknownCapacity ? null : 84.0, availability: isUnknownCapacity ? 100 : 92.0, performance: isUnknownCapacity ? null : 93.0, quality: isUnknownCapacity ? 100 : 98.2, parts_produced: isUnknownCapacity ? 0 : 47, good_count: isUnknownCapacity ? 0 : 46, defect_count: isUnknownCapacity ? 0 : 1, hourly_operating_sec: 3600, hourly_run_sec: 3312, sampleCount: 44, targetPerHour: isUnknownCapacity ? null : 50, state: 'RUNNING', planned: false, provisional: true, ...ids },
   ];
 }
 
@@ -167,6 +180,9 @@ export const demoTelemetryOee = {
     // yang dikirim transport HTTP (API doc §I).
     if (options?.date) qs.set('date', options.date);
     if (options?.shift) qs.set('shift', options.shift);
+    // E20 P20.5 (FAT-157): `include_hourly=true` ikut tercatat — sama
+    // seperti yang dikirim transport HTTP (§Q.1).
+    if (options?.include_hourly) qs.set('include_hourly', 'true');
     const qStr = qs.toString();
     store.recordEndpoint('OEE_SHIFT_SUMMARY', `${ADMIN_ENDPOINTS.OEE_SHIFT_SUMMARY.buildPath()}${qStr ? `?${qStr}` : ''}`);
     const targetMachine = store.machines.find((m) => m.machine_id === machineId) || store.machines[0];
@@ -177,9 +193,18 @@ export const demoTelemetryOee = {
     // live-state (350/342/8). Live state tetap kumulatif dan dipakai
     // sebagai fallback bila seed hourly tidak bisa diturunkan (mis.
     // STM32-OEE-05: parts 0, target tidak diketahui).
-    const derived = deriveShiftSummaryFromHourly(
-      buildDemoHourlyPoints(targetMachine?.bound_device_id || 'STM32-OEE-01')
-    );
+    const hourlyPoints = buildDemoHourlyPoints(targetMachine?.bound_device_id || 'STM32-OEE-01');
+    const derived = deriveShiftSummaryFromHourly(hourlyPoints);
+    // E20 P20.5 (FAT-157): menit shift DITURUNKAN dari titik per jam —
+    // bukan hardcode. operating = Σ operating_sec/60 (420); run =
+    // Σ run_sec/60 (388); unplanned = Σ(operating − run)/60 (32);
+    // planned = Σ jam planned × 60 (12:00 → 60); planned_production =
+    // operating + planned (480). Nilai sama dengan hardcode lama untuk
+    // seed ini, tapi mengikuti seed bila seed berubah.
+    const operatingMin = Math.round(hourlyPoints.reduce((acc, p) => acc + (p.hourly_operating_sec ?? 0), 0) / 60);
+    const runMin = Math.round(hourlyPoints.reduce((acc, p) => acc + (p.hourly_run_sec ?? 0), 0) / 60);
+    const plannedMin = hourlyPoints.filter((p) => p.planned).length * 60;
+    const unplannedMin = Math.max(0, operatingMin - runMin);
     // E11 T11.2 (F-2): hormati rentang from/to — seed demo adalah satu shift
     // (07:00–15:00); jendela shift diproyeksikan ke tanggal kalender `to`
     // (fallback `from`), mengikuti pola anchor T11.1 pada hourly. Angka-angka
@@ -209,22 +234,28 @@ export const demoTelemetryOee = {
       availability: derived?.availability ?? live?.availability ?? 92.4,
       performance: derived?.performance ?? live?.performance ?? 94.1,
       quality: derived?.quality ?? live?.quality ?? 97.4,
-      planned_production_time_min: 480,
-      planned_break_min: 60,
-      operating_time_min: 420,
-      run_time_min: 388,
-      unplanned_downtime_min: 32,
-      planned_downtime_min: 60,
+      planned_production_time_min: operatingMin + plannedMin,
+      planned_break_min: plannedMin,
+      operating_time_min: operatingMin,
+      run_time_min: runMin,
+      unplanned_downtime_min: unplannedMin,
+      planned_downtime_min: plannedMin,
       total_parts: derived?.totalParts ?? live?.total_count ?? 350,
       good_parts: derived?.goodParts ?? live?.good_count ?? 342,
       defect_parts: derived?.defectParts ?? live?.reject_count ?? 8,
-      target_per_hour: derived?.targetPerHour ?? 64,
+      // E20 P20.5 (FAT-157): HAPUS fallback `?? 64` — target unknown
+      // (mis. STM32-OEE-05) = `null`, bukan angka karangan (D-8).
+      target_per_hour: derived?.targetPerHour ?? null,
+      // E20 P20.5 (FAT-157): `include_hourly=true` → sertakan rantai
+      // `hourly[]` (§Q.1) — sebelumnya dibuang.
+      ...(options?.include_hourly ? { hourly: hourlyPoints } : {}),
     };
   },
 
   async getShiftTimeline(
     machineId?: string,
-    bucket: '1m' | '5m' | '15m' | '1h' = '15m',
+    // E20 P20.5 (FAT-157): bucket default dokumen `5m` (§Q.3, §7I) — bukan 15m.
+    bucket: '1m' | '5m' | '15m' | '1h' = '5m',
     signal?: AbortSignal,
     options?: TelemetryRangeOptions
   ): Promise<ShiftTimelineSegment[]> {
@@ -359,15 +390,27 @@ export const demoTelemetryOee = {
     const midnightMs = Date.parse(`${anchorDate}T00:00:00${anchorOffset}`);
     const selectedShift = findDemoShiftByCode(options?.shift);
     const windowMin = selectedShift ? shiftWindowAbsMinutes(selectedShift) : null;
+    // E20 P20.5 (FAT-157): jam dinding diambil dari `bucket` ISO
+    // (titik demo kini membawa bucket ISO, bukan 'HH:MM' polos).
+    const clockFromPoint = (p: HourlyOeePoint): string => {
+      const m = /T(\d{2}:\d{2})/.exec(p.bucket ?? p.hour);
+      return m ? m[1] : p.hour;
+    };
+    const isoAt = (absMin: number) => {
+      const dayOffset = Math.floor(absMin / 1440);
+      const clock = minutesToHhmm(((absMin % 1440) + 1440) % 1440);
+      const date = addDaysToDateString(anchorDate, dayOffset) ?? anchorDate;
+      return `${date}T${clock}:00${anchorOffset}`;
+    };
     const projected = points.flatMap((p) => {
-      const hourMin = hhmmToMinutes(p.hour);
+      const hourMin = hhmmToMinutes(clockFromPoint(p));
       if (!windowMin) return [{ point: p, absMin: hourMin }];
       const absMin = windowMin.start + (hourMin - SEED_SHIFT_START_MIN);
       // Bucket di luar jendela shift dibuang (Shift 3: bucket seed terakhir
       // jatuh tepat di ujung jendela).
       if (absMin < windowMin.start || absMin >= windowMin.end) return [];
-      const clock = minutesToHhmm(((absMin % 1440) + 1440) % 1440);
-      return [{ point: { ...p, hour: clock }, absMin }];
+      const bucketIso = isoAt(absMin);
+      return [{ point: { ...p, hour: bucketIso, bucket: bucketIso }, absMin }];
     });
     let filtered = projected;
     if (options?.from || options?.to) {

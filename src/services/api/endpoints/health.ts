@@ -14,6 +14,16 @@ HEALTH: {
     buildPath: () => '/health',
   },
 
+// E20 P20.4 (FAT-156): GET /health/detail (API doc §A) — detail infrastruktur,
+// ADMIN + LAN, grant `read` pada `access_control`. Probe ringkas /health
+// tetap publik.
+HEALTH_DETAIL: {
+    key: 'HEALTH_DETAIL',
+    method: 'GET',
+    template: '/health/detail',
+    buildPath: () => '/health/detail',
+  },
+
 WS_TELEMETRY: {
     key: 'WS_TELEMETRY',
     method: 'WS',

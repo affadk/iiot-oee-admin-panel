@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../../../services/api/client';
 import { telemetrySocket } from '../../../services/ws/telemetrySocket';
-import { EdgeDevice } from '../../../types/assets';
+import { EdgeDevice, ProvisionDeviceResult } from '../../../types/assets';
 import { ApiError } from '../../../types/auth';
 import { useAuth } from '../../../context/AuthContext';
 import { ConflictDialogState } from '../../../components/ui/ConflictDialog';
@@ -19,6 +19,12 @@ export interface RegisterDeviceInput {
   mac: string;
   ip: string;
   firmware: string;
+}
+
+export interface ProvisionDeviceInput {
+  deviceId: string;
+  machineId?: string;
+  model?: string;
 }
 
 export interface UpdateDeviceInput {
@@ -110,6 +116,32 @@ export function useDevices({ onDeviceDeleted }: UseDevicesOptions) {
     [loadDevices, reportForbidden],
   );
 
+  const provisionDevice = useCallback(
+    async (input: ProvisionDeviceInput): Promise<ProvisionDeviceResult> => {
+      setFeedback(null);
+      try {
+        const result = await apiClient.provisionDevice({
+          deviceId: input.deviceId.trim(),
+          ...(input.machineId ? { machineId: input.machineId.trim() } : {}),
+          ...(input.model ? { model: input.model.trim() } : {}),
+        });
+        await loadDevices();
+        setFeedback({ type: 'success', msg: `Perangkat edge ${result.device.device_id} berhasil di-provision (PROVISIONED). Salin kredensial sekali tampil sebelum menutup dialog.` });
+        return result;
+      } catch (err: any) {
+        if (err instanceof ApiError && err.httpStatus === 403) {
+          reportForbidden('device.manage', input.deviceId, err.message);
+        }
+        if (err instanceof ApiError && err.httpStatus === 409) {
+          await loadDevices();
+        }
+        setFeedback({ type: 'error', msg: err?.message || 'Gagal mem-provision perangkat.' });
+        throw err;
+      }
+    },
+    [loadDevices, reportForbidden],
+  );
+
   const updateDevice = useCallback(
     async (deviceId: string, input: UpdateDeviceInput): Promise<void> => {
       setFeedback(null);
@@ -177,6 +209,7 @@ export function useDevices({ onDeviceDeleted }: UseDevicesOptions) {
     setFeedback,
     loadDevices,
     registerDevice,
+    provisionDevice,
     updateDevice,
     deleteTarget,
     setDeleteTarget,

@@ -26,8 +26,9 @@
  *     (HTTP) + `evaluateCapability` — lihat § "Mode akses" di bawah.
  *   - WebSocket .................... `VITE_WS_HEARTBEAT_MS` (25s),
  *     `VITE_WS_RECONNECT_MAX_MS` (30s), `VITE_DEMO_SIM_INTERVAL_MS` (5s)
- *   - Lockout login ................ `VITE_LOGIN_MAX_ATTEMPTS` (5),
- *     `VITE_LOGIN_COOLDOWN_SEC` (30)
+ *   - Throttle login ............... DIHAPUS (E20 P20.3): server 5/60s
+ *     (§L) satu-satunya throttle; panel TIDAK lockout paralel. Respons 429
+ *     membawa header `Retry-After` yang ditampilkan ke pengguna.
  *   - Identitas deployment ......... `VITE_PLANT_LABEL` (`Plant 01`),
  *     `VITE_DEFAULT_STATION_ID` (`ADMIN-CONSOLE-01`)
  *
@@ -159,7 +160,7 @@ export const DEMO_PRESETS: Array<{ operatorId: string; role: UserRole; lineId: s
 
 /**
  * Pengisi password form preset. BUKAN kredensial nyata — login demo menerima
- * password apa pun ≥4 karakter (store demo tidak menyimpan password seed);
+ * password apa pun ≥8 karakter (§L, E20 P20.3 — fallback min 4 DIHAPUS);
  * string ini hanya pengisi form agar preset bisa dipakai satu klik.
  */
 export const DEMO_PRESET_PASSWORD = 'Factory@2026!';
@@ -425,18 +426,8 @@ export function resolveDemoSimIntervalMs(): number {
 }
 
 // ---------------------------------------------------------------------------
-// Login: lockout + identitas deployment
+// Login: identitas deployment
 // ---------------------------------------------------------------------------
-
-/** Maksimal percobaan login gagal sebelum cooldown (5). */
-export function resolveLoginMaxAttempts(): number {
-  return readEnvInt('VITE_LOGIN_MAX_ATTEMPTS', 5);
-}
-
-/** Durasi cooldown lockout login dalam detik (30). */
-export function resolveLoginCooldownSec(): number {
-  return readEnvInt('VITE_LOGIN_COOLDOWN_SEC', 30);
-}
 
 /** Label plant yang tampil di Topbar (`Plant 01`). */
 export function resolvePlantLabel(): string {

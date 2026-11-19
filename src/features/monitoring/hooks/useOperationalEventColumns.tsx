@@ -17,29 +17,21 @@ export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void
         header: 'Timestamp',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-500 whitespace-nowrap">
-            {new Date(row.original.timestamp).toLocaleString()}
+            {row.original.recorded_at ? new Date(row.original.recorded_at).toLocaleString() : '—'}
           </span>
         ),
       },
       {
-        id: 'severity',
-        header: 'Severity & Type',
+        id: 'event_type',
+        header: 'Tipe Event',
         cell: ({ row }) => {
           const ev = row.original;
           return (
             <div className="space-y-1">
-              <Badge
-                variant={
-                  ev.severity === 'CRITICAL'
-                    ? 'danger'
-                    : ev.severity === 'WARN'
-                    ? 'warning'
-                    : 'info'
-                }
-              >
-                {ev.severity}
-              </Badge>
-              <div className="text-[11px] font-tabular text-slate-500">{ev.event_type}</div>
+              <Badge variant="info">{ev.event_type}</Badge>
+              {ev.trigger_source && (
+                <div className="text-[11px] font-tabular text-slate-500">{ev.trigger_source}</div>
+              )}
             </div>
           );
         },
@@ -74,7 +66,7 @@ export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void
         header: 'Pesan',
         cell: ({ row }) => (
           <span className="text-xs text-slate-700 dark:text-slate-300 block max-w-md">
-            {row.original.message}
+            {row.original.description}
           </span>
         ),
       },

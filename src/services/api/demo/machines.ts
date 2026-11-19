@@ -107,7 +107,10 @@ export const demoMachines = {
     modbus_slave_id?: number;
     bound_device_id?: string | null;
   }): Promise<Machine> {
-    assertCapability('machine.manage', ['ADMIN'], { resourceId: data.machine_id });
+    // E20 P20.5 (FAT-157, pembaruan 09:23): POST /machines =
+    // authorize("create","machine") — kunci `machine.create`, bukan
+    // `machine.manage`. Gating efektif sama (ADMIN LAN only).
+    assertCapability('machine.create', ['ADMIN'], { resourceId: data.machine_id });
     const modbusSlaveId = data.modbus_slave_id ?? 1;
     const requestedDeviceId = data.bound_device_id?.trim() || null;
 
@@ -180,7 +183,6 @@ export const demoMachines = {
       if (requestedDeviceId) {
         store.addOperationalEvent(
           'MACHINE_BOUND',
-          'INFO',
           `Edge device ${requestedDeviceId} diikatkan saat pembuatan mesin ${newMachine.name}`,
           {
             machine_id: newMachine.machine_id,
@@ -410,7 +412,6 @@ export const demoMachines = {
       });
       store.addOperationalEvent(
         'MACHINE_BOUND',
-        'INFO',
         `Edge device ${deviceId} berhasil diikatkan ke mesin ${machine.name} (${machineId})`,
         {
           machine_id: machineId,
@@ -447,7 +448,9 @@ export const demoMachines = {
         });
       }
       const activeWo = store.workOrders.find(
-        (w) => w.machine_id === machineId && (w.status === 'ACTIVE' || w.status === 'PENDING')
+        // E20 P20.5 (FAT-157): unbind hanya diblokir WO ACTIVE — PENDING
+        // tidak memblokir (§F.5).
+        (w) => w.machine_id === machineId && w.status === 'ACTIVE'
       );
       if (activeWo) {
         throw new ApiError({
@@ -481,7 +484,6 @@ export const demoMachines = {
       });
       store.addOperationalEvent(
         'MACHINE_UNBOUND',
-        'INFO',
         `Ikatan edge device ${prevDeviceId} dilepas dari mesin ${machine.name} (${machineId})`,
         {
           machine_id: machineId,

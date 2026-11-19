@@ -8,6 +8,7 @@ import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, req
 import { mapMachine, mapMachineStatusHistory } from './mappers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { Machine, MachineStatusHistoryItem } from '../../../types/assets';
+import { ApiError } from '../../../types/auth';
 import { CursorPageResponse } from '../../../types/historical';
 
 export const httpMachines = {
@@ -44,10 +45,21 @@ export const httpMachines = {
 
   async getMachineStatusHistory(
     machineId: string,
-    query: { from?: string; to?: string; limit?: number; cursor?: string | null } = {},
+    query: { from?: string; to?: string; state?: string; limit?: number; cursor?: string | null } = {},
     signal?: AbortSignal
   ): Promise<CursorPageResponse<MachineStatusHistoryItem>> {
     checkAbortHttp(signal);
+    // E20 P20.5 (FAT-157, R6): kirim filter `state` (§F.8:
+    // READY|RUNNING|PLANNED_DOWNTIME|UNPLANNED_DOWNTIME|BATCH_FINISHED|
+    // UNCONFIGURED|OFFLINE); validasi `from >= to` → 400 INVALID_RANGE
+    // dengan pesan yang jelas — JANGAN kirim rentang tak valid ke server.
+    if (query.from && query.to && Date.parse(query.from) >= Date.parse(query.to)) {
+      throw new ApiError({
+        code: 'INVALID_RANGE',
+        message: `Rentang riwayat status tidak valid: from (${query.from}) harus lebih awal dari to (${query.to}).`,
+        httpStatus: 400,
+      });
+    }
     return reqList(
       {
         path: ADMIN_ENDPOINTS.MACHINES_STATUS_HISTORY.buildPath(machineId),
@@ -56,6 +68,7 @@ export const httpMachines = {
           envelope: true,
           ...(query.from ? { from: query.from } : {}),
           ...(query.to ? { to: query.to } : {}),
+          ...(query.state ? { state: query.state } : {}),
           ...(query.cursor ? { cursor: query.cursor } : {}),
         },
         signal,
@@ -89,7 +102,10 @@ export const httpMachines = {
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'MACHINES_CREATE',
-        capability: 'machine.manage',
+        // E20 P20.5 (FAT-157, pembaruan 09:23): POST /machines =
+        // authorize("create","machine") — kunci `machine.create`, bukan
+        // `machine.manage`. Gating efektif sama (ADMIN LAN only).
+        capability: 'machine.create',
         resourceId: data.machine_id,
       },
       mapMachine,

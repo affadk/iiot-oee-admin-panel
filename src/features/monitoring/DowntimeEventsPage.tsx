@@ -135,7 +135,7 @@ export const DowntimeEventsPage: React.FC = () => {
       triggerBrowserDownload(result.filename, result.content, result.mimeType);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('export.telemetry', selectedDeviceId, err.message);
+        reportForbidden('telemetry.refresh', selectedDeviceId, err.message);
       }
       const status =
         err instanceof ApiError
@@ -260,7 +260,7 @@ export const DowntimeEventsPage: React.FC = () => {
         header: () => <div className="text-right">Klasifikasi</div>,
         cell: ({ row }) => {
           const ev = row.original;
-          const rowLabelCap = checkCapability('downtime.reason.label', ev.id);
+          const rowLabelCap = checkCapability('downtime_event.label', ev.id);
           return (
             <div className="flex justify-end">
               <Button

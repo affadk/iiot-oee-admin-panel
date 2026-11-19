@@ -36,11 +36,12 @@ export const httpWorkOrders = {
     );
   },
 
-  async resolveWorkOrder(woId: string, deviceId?: string, signal?: AbortSignal): Promise<WorkOrderResolveResult> {
+  async resolveWorkOrder(woId: string, deviceId: string, signal?: AbortSignal): Promise<WorkOrderResolveResult> {
     checkAbortHttp(signal);
+    // E20 P20.5 (FAT-157, R8): `device_id` REQUIRED (§C.3) — bukan opsional.
     const raw = await reqJson<Record<string, unknown>>({
       path: ADMIN_ENDPOINTS.WORK_ORDERS_RESOLVE.buildPath(woId),
-      query: deviceId ? { device_id: deviceId } : undefined,
+      query: { device_id: deviceId },
       signal,
       endpointKey: 'WORK_ORDERS_RESOLVE',
       capability: 'work_order.read',

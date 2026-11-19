@@ -209,7 +209,7 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({
                   >
                     {iamRoles.map((r) => (
                       <option key={r.id} value={r.name}>
-                        {r.name} (Level {r.privilege_level})
+                        {r.name}
                       </option>
                     ))}
                   </select>

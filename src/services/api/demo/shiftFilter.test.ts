@@ -115,9 +115,12 @@ test('Demo hourly: shift S2 memproyeksikan bucket ke 15:00–22:00', async () =>
     date: '2026-11-16',
     shift: 'S2',
   });
+  // E20 P20.5 (FAT-157): titik demo membawa `bucket` ISO (bukan 'HH:MM').
   assert.deepEqual(
-    points.map((p) => p.hour),
-    ['15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00']
+    points.map((p) => p.bucket),
+    ['15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'].map(
+      (h) => `2026-11-16T${h}:00+07:00`
+    )
   );
   // Nilai seed ikut bergeser bersama bucketnya (bucket 15:00 = seed 07:00).
   assert.equal(points[0].oee, 80.5);
@@ -132,8 +135,10 @@ test('Demo hourly: shift S3 memproyeksikan bucket ke 00:00–06:00 (7 bucket)', 
     shift: 'S3',
   });
   assert.deepEqual(
-    points.map((p) => p.hour),
-    ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00']
+    points.map((p) => p.bucket),
+    ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00'].map(
+      (h) => `2026-11-16T${h}:00+07:00`
+    )
   );
 });
 
@@ -145,8 +150,8 @@ test('Demo getOeeHourly: from/to kini diteruskan (sebelumnya diabaikan) + shift 
     to: '2026-11-11T12:00:00+07:00',
   });
   assert.deepEqual(
-    ranged.map((p) => p.hour),
-    ['09:00', '10:00', '11:00', '12:00']
+    ranged.map((p) => p.bucket),
+    ['09:00', '10:00', '11:00', '12:00'].map((h) => `2026-11-11T${h}:00+07:00`)
   );
 
   // Dengan shift S2: bucket 15:00–22:00.
@@ -158,14 +163,16 @@ test('Demo getOeeHourly: from/to kini diteruskan (sebelumnya diabaikan) + shift 
     shift: 'S2',
   });
   assert.deepEqual(
-    shifted.map((p) => p.hour),
-    ['15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00']
+    shifted.map((p) => p.bucket),
+    ['15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'].map(
+      (h) => `2026-11-16T${h}:00+07:00`
+    )
   );
 
   // Tanpa options: tetap 8 bucket Shift 1 seperti sebelumnya.
   const plain = await apiClient.getOeeHourly({ machine_id: 'CNC-MILLING-01' });
   assert.equal(plain.length, 8);
-  assert.equal(plain[0].hour, '07:00');
+  assert.equal(plain[0].bucket, '2026-11-11T07:00:00+07:00');
 });
 
 test('HTTP transport: getShiftSummary & getShiftTimeline mengirim date/shift; getOeeHourly tidak', async () => {

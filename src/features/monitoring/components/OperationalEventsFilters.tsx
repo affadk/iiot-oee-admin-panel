@@ -1,26 +1,19 @@
 import React from 'react';
-import { OperationalEvent } from '../../../types/monitoring';
+import { OPERATIONAL_EVENT_TYPES, OperationalEvent } from '../../../types/monitoring';
 import { HistoryFilters } from '../../../types/historical';
-import { Machine } from '../../../types/assets';
 import { Button } from '../../../components/ui/Button';
 
+// E20 P20.4 (FAT-156): dropdown = 32 nilai eksplisit enum tertutup FR-034-26/27
+// (API doc §I). Nilai tebakan lama (ALARM, STATE_CHANGE, COMMAND_EXECUTED,
+// DISCONNECT, HEARTBEAT_TIMEOUT, MQTT_ADMIN_ACTION, IAM_POLICY_CHANGED)
+// dihapus. Keluarga pola (COMMAND_<cmd>_DISPATCHED, MQTT_ADMIN_<op>,
+// DEVICE_EVENT_<n>) tidak dienumerasi di dropdown — difilter lewat
+// event_type bebas bila perlu. Filter `severity` dihapus (tidak didukung
+// dokumen); filter mesin dihapus — `machine_id` hanya untuk /system/audit
+// (D-12), bukan endpoint global ini.
 const EVENT_TYPE_OPTIONS: Array<'ALL' | OperationalEvent['event_type']> = [
   'ALL',
-  'ALARM',
-  'STATE_CHANGE',
-  'COMMAND_EXECUTED',
-  'DISCONNECT',
-  'HEARTBEAT_TIMEOUT',
-  'MASTER_DATA_MUTATION',
-  'MACHINE_BOUND',
-  'MACHINE_UNBOUND',
-  'PRODUCT_DELETED',
-  'WORK_ORDER_CANCELLED',
-  'WORK_ORDER_COMPLETED',
-  'MQTT_ADMIN_ACTION',
-  'IAM_POLICY_CHANGED',
-  'SECURITY_REJECTION',
-  'AUTH_TOKEN_REFRESHED',
+  ...OPERATIONAL_EVENT_TYPES,
 ];
 
 export interface DeviceOption {
@@ -31,13 +24,10 @@ export interface DeviceOption {
 export interface OperationalEventsFiltersProps {
   filters: HistoryFilters;
   deviceOptions: DeviceOption[];
-  machines: Machine[];
-  severityFilter: 'ALL' | OperationalEvent['severity'];
   ackFilter: 'ALL' | 'UNACK' | 'ACK';
   customDeviceInput: string;
   onCustomDeviceInputChange: (value: string) => void;
   onFilterChange: (patch: Partial<HistoryFilters>) => void;
-  onSeverityChange: (value: 'ALL' | OperationalEvent['severity']) => void;
   onAckChange: (value: 'ALL' | 'UNACK' | 'ACK') => void;
   onApplyCustomDevice: () => void;
 }
@@ -45,24 +35,19 @@ export interface OperationalEventsFiltersProps {
 export const OperationalEventsFilters: React.FC<OperationalEventsFiltersProps> = ({
   filters,
   deviceOptions,
-  machines,
-  severityFilter,
   ackFilter,
   customDeviceInput,
   onCustomDeviceInputChange,
   onFilterChange,
-  onSeverityChange,
   onAckChange,
   onApplyCustomDevice,
 }) => {
   const deviceFilter = filters.deviceId || 'ALL';
-  const machineFilter = filters.machineId || 'ALL';
   const eventTypeFilter = (filters.eventType as 'ALL' | OperationalEvent['event_type']) || 'ALL';
-  const isGlobalScope = deviceFilter === 'ALL';
 
   return (
     <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
           <label htmlFor="opev-device-scope" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
             Device Scope
@@ -88,30 +73,6 @@ export const OperationalEventsFilters: React.FC<OperationalEventsFiltersProps> =
         </div>
 
         <div>
-          <label htmlFor="opev-machine-filter" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-            Machine Filter {isGlobalScope ? '' : '(Global Only)'}
-          </label>
-          <select
-            id="opev-machine-filter"
-            value={machineFilter}
-            disabled={!isGlobalScope}
-            onChange={(e) =>
-              onFilterChange({
-                machineId: e.target.value === 'ALL' ? undefined : e.target.value,
-              })
-            }
-            className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 disabled:opacity-50"
-          >
-            <option value="ALL">Semua Mesin</option>
-            {machines.map((m) => (
-              <option key={m.machine_id} value={m.machine_id}>
-                {m.machine_id}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
           <label htmlFor="opev-type-filter" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
             Event Type
           </label>
@@ -130,23 +91,6 @@ export const OperationalEventsFilters: React.FC<OperationalEventsFiltersProps> =
                 {t}
               </option>
             ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="opev-severity-filter" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-            Severity
-          </label>
-          <select
-            id="opev-severity-filter"
-            value={severityFilter}
-            onChange={(e) => onSeverityChange(e.target.value as 'ALL' | OperationalEvent['severity'])}
-            className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua Severity</option>
-            <option value="CRITICAL">CRITICAL</option>
-            <option value="WARN">WARN</option>
-            <option value="INFO">INFO</option>
           </select>
         </div>
 

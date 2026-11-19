@@ -13,9 +13,11 @@ import { httpApiClient } from '../httpClient';
 test('Demo hourly: tanpa options mengembalikan 8 bucket tetap seperti sebelumnya', async () => {
   const points = await apiClient.getHourlyTrend('STM32-OEE-01');
   assert.equal(points.length, 8);
+  // E20 P20.5 (FAT-157): titik demo kini membawa `bucket` ISO (bukan
+  // 'HH:MM' polos); `hour` = bucket ISO.
   assert.deepEqual(
-    points.map((p) => p.hour),
-    ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00']
+    points.map((p) => p.bucket),
+    ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'].map((h) => `2026-11-11T${h}:00+07:00`)
   );
 });
 
@@ -26,8 +28,8 @@ test('Demo hourly: rentang 09:00–12:00 hanya mengembalikan 4 bucket dalam rent
     limit: 50,
   });
   assert.deepEqual(
-    points.map((p) => p.hour),
-    ['09:00', '10:00', '11:00', '12:00']
+    points.map((p) => p.bucket),
+    ['09:00', '10:00', '11:00', '12:00'].map((h) => `2026-11-11T${h}:00+07:00`)
   );
 });
 
@@ -37,8 +39,8 @@ test('Demo hourly: rentang sehari penuh di tanggal lain tetap 8 bucket (anchor m
     to: '2026-11-09T23:59:00+07:00',
   });
   assert.equal(points.length, 8);
-  assert.equal(points[0].hour, '07:00');
-  assert.equal(points[7].hour, '14:00');
+  assert.equal(points[0].bucket, '2026-11-11T07:00:00+07:00');
+  assert.equal(points[7].bucket, '2026-11-11T14:00:00+07:00');
 });
 
 test('Demo hourly: rentang di luar jam shift (00:00–06:00) mengembalikan daftar kosong', async () => {
@@ -56,8 +58,8 @@ test('Demo hourly: limit memotong ke N bucket terakhir dalam rentang', async () 
     limit: 3,
   });
   assert.deepEqual(
-    points.map((p) => p.hour),
-    ['12:00', '13:00', '14:00']
+    points.map((p) => p.bucket),
+    ['12:00', '13:00', '14:00'].map((h) => `2026-11-11T${h}:00+07:00`)
   );
 });
 
@@ -237,7 +239,7 @@ test('Demo summary: endpoint yang tercatat memuat from/to', async () => {
 });
 
 test('Demo timeline: tanpa options mengembalikan 33 fragmen bucket 15m (E11 T11.4)', async () => {
-  const segs = await apiClient.getShiftTimeline('CNC-MILLING-01');
+  const segs = await apiClient.getShiftTimeline('CNC-MILLING-01', '15m');
   // Segmen kanonis (5) dipecah eksak per bucket 15m: 32 bucket + 1 pecahan
   // di 09:45–10:00 (batas state 09:47). Σ durasi tetap 480.
   // E12 T12.11 (X-4 / FAT-59): start/end ISO 8601 Asia/Jakarta, bukan 'HH:MM'.
@@ -246,6 +248,14 @@ test('Demo timeline: tanpa options mengembalikan 33 fragmen bucket 15m (E11 T11.
     segs.map((s) => s.start),
     ['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30', '08:45', '09:00', '09:15', '09:30', '09:45', '09:47', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45'].map(iso)
   );
+  assert.equal(segs.reduce((acc, s) => acc + s.duration_min, 0), 480);
+});
+
+test('P20.5: Demo timeline bucket default 5m (§Q.3, §7I) — bukan 15m', async () => {
+  const segs = await apiClient.getShiftTimeline('CNC-MILLING-01');
+  // 480 mnt / 5 mnt = 96 bucket + 1 pecahan di 09:45–09:50 (batas 09:47).
+  assert.equal(segs.length, 97);
+  assert.equal(segs[0].start, '2026-11-11T07:00:00+07:00');
   assert.equal(segs.reduce((acc, s) => acc + s.duration_min, 0), 480);
 });
 
@@ -617,19 +627,19 @@ test('Demo rekonsiliasi: Σ hourly_run_sec/operating = shift summary; downtime p
   // dt-ev-04 (3.600 dtk), dibuktikan pada test 'event downtime cocok'
   // di bawah, bukan lagi dari titik per jam.
   const derivedDowntimeByHour = new Map(
-    hourly.map((p) => [p.hour, (p.hourly_operating_sec ?? 0) - (p.hourly_run_sec ?? 0)])
+    hourly.map((p) => [p.bucket, (p.hourly_operating_sec ?? 0) - (p.hourly_run_sec ?? 0)])
   );
   assert.deepEqual(
     [...derivedDowntimeByHour.entries()],
     [
-      ['07:00', 350],
-      ['08:00', 274],
-      ['09:00', 216],
-      ['10:00', 360],
-      ['11:00', 252],
-      ['12:00', 0], // jam planned penuh: operating 0 (G8), turunan 0
-      ['13:00', 180],
-      ['14:00', 288],
+      ['2026-11-11T07:00:00+07:00', 350],
+      ['2026-11-11T08:00:00+07:00', 274],
+      ['2026-11-11T09:00:00+07:00', 216],
+      ['2026-11-11T10:00:00+07:00', 360],
+      ['2026-11-11T11:00:00+07:00', 252],
+      ['2026-11-11T12:00:00+07:00', 0], // jam planned penuh: operating 0 (G8), turunan 0
+      ['2026-11-11T13:00:00+07:00', 180],
+      ['2026-11-11T14:00:00+07:00', 288],
     ]
   );
   const derivedDtSec = [...derivedDowntimeByHour.values()].reduce((acc, v) => acc + v, 0);
@@ -641,7 +651,7 @@ test('Demo rekonsiliasi: Σ hourly_run_sec/operating = shift summary; downtime p
 
 test('Demo rekonsiliasi: jam 12:00 tidak diubah (sepenuhnya planned, gap G8)', async () => {
   const hourly = await apiClient.getHourlyTrend('STM32-OEE-01');
-  const noon = hourly.find((p) => p.hour === '12:00');
+  const noon = hourly.find((p) => p.bucket === '2026-11-11T12:00:00+07:00');
   assert.ok(noon);
   assert.equal(noon.hourly_operating_sec, 0);
   assert.equal(noon.hourly_run_sec, 0);

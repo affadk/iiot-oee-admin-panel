@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { TelemetryRollupGroupBy, TelemetryRollupItem } from '../../../types/analytics';
-import { formatDuration, parseServerMetric } from '../../../utils/oeeCalculations';
+import { formatDuration, formatNullablePct } from '../../../utils/oeeCalculations';
 import { formatRollupPerformance } from '../../shared/historyFilters';
 
 export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
@@ -36,7 +36,7 @@ export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
         header: 'OEE',
         cell: ({ row }) => (
           <span className="font-tabular text-xs font-bold text-slate-900 dark:text-slate-100">
-            {parseServerMetric(row.original.oeePct).toFixed(2)}%
+            {formatNullablePct(row.original.oeePct, 2)}
           </span>
         ),
       },
@@ -45,7 +45,7 @@ export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
         header: 'Availability',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-700 dark:text-slate-300">
-            {parseServerMetric(row.original.availabilityPct).toFixed(2)}%
+            {formatNullablePct(row.original.availabilityPct, 2)}
           </span>
         ),
       },
@@ -63,7 +63,7 @@ export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
         header: 'Quality',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-700 dark:text-slate-300">
-            {parseServerMetric(row.original.qualityPct).toFixed(2)}%
+            {formatNullablePct(row.original.qualityPct, 2)}
           </span>
         ),
       },

@@ -1,4 +1,4 @@
-export type WorkOrderStatus = 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+export type WorkOrderStatus = 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';
 
 export interface WorkOrder {
   wo_id: string;
@@ -12,14 +12,22 @@ export interface WorkOrder {
   shift_name: string;
   target_quantity: number;
   target_qty?: number;
-  completed_quantity: number;
-  rejected_quantity: number;
+  // E20 P20.5 (FAT-157): `completed_quantity`/`rejected_quantity` DIHAPUS —
+  // field karangan, tidak ada di item §C. Progres WO dibaca dari live-state
+  // / telemetri, bukan dari baris WO.
   status: WorkOrderStatus;
-  planned_start: string;
+  /** Null bila server tidak mengirimnya — jangan fallback ke start_time/created_at. */
+  planned_start: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  actual_start?: string | null;
-  actual_end?: string | null;
+  /** E20 P20.5 (FAT-157): nama kanonis §C — `actual_start_at`/`actual_end_at`. */
+  actual_start_at?: string | null;
+  actual_end_at?: string | null;
+  /** E20 P20.5 (FAT-157): field workflow §C.1 (nullable bila belum terjadi). */
+  dispatched_at?: string | null;
+  acked_at?: string | null;
+  provisional?: boolean;
+  count_uncertain?: boolean;
   notes?: string;
   cancel_reason?: string;
 }
@@ -72,7 +80,11 @@ export interface Product {
 export interface Operator {
   operator_id: string;
   name: string;
-  role: 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'MAINTENANCE';
+  /**
+   * Role adalah string bebas (API doc §H, E20 P20.3): bukan enum — default
+   * `UNASSIGNED`, daftar otoritatif di `GET /access-control/roles`.
+   */
+  role: string;
   line_id: string;
   is_active: boolean;
   is_protected?: boolean;

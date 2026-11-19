@@ -5,17 +5,65 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { AuthClientHooks } from './helpers';
-import { INITIAL_MACHINES, INITIAL_DEVICES, INITIAL_DEVICE_HEALTH_OVERRIDES, INITIAL_PRODUCTS, INITIAL_OPERATORS, INITIAL_WORK_ORDERS, INITIAL_LIVE_STATES, INITIAL_DOWNTIME_EVENTS, INITIAL_OPERATIONAL_EVENTS, INITIAL_MQTT_CLIENTS, INITIAL_MQTT_ROLES, INITIAL_MQTT_GROUPS, INITIAL_BROKER_CONFIG, INITIAL_CONFIG_VERSIONS, INITIAL_BROKER_OPERATIONS, INITIAL_BROKER_BACKUPS, INITIAL_SYSTEM_HEALTH, INITIAL_AUDIT_LOGS, INITIAL_IAM_ROLES, INITIAL_IAM_PERMISSIONS, INITIAL_IAM_ASSIGNMENTS, INITIAL_IAM_POLICIES, INITIAL_IAM_AUDIT_DECISIONS, INITIAL_PRODUCTION_LINES, INITIAL_SHIFTS, INITIAL_SHIFT_SCHEDULES } from '../mockData';
+import { INITIAL_MACHINES, INITIAL_DEVICES, INITIAL_DEVICE_HEALTH_OVERRIDES, INITIAL_PRODUCTS, INITIAL_OPERATORS, INITIAL_WORK_ORDERS, INITIAL_LIVE_STATES, INITIAL_DOWNTIME_EVENTS, INITIAL_OPERATIONAL_EVENTS, INITIAL_MQTT_CLIENTS, INITIAL_MQTT_ROLES, INITIAL_MQTT_GROUPS, INITIAL_BROKER_CONFIG, INITIAL_CONFIG_VERSIONS, INITIAL_BROKER_OPERATIONS, INITIAL_BROKER_BACKUPS, INITIAL_SYSTEM_HEALTH, INITIAL_HEALTH_DETAIL, INITIAL_AUDIT_LOGS, INITIAL_IAM_ROLES, INITIAL_IAM_PERMISSIONS, INITIAL_IAM_ASSIGNMENTS, INITIAL_IAM_POLICIES, INITIAL_IAM_AUDIT_DECISIONS, INITIAL_PRODUCTION_LINES, INITIAL_SHIFTS, INITIAL_SHIFT_SCHEDULES } from '../mockData';
 import { AdminEndpointKey, FORBIDDEN_ENDPOINT_PATTERNS, isValidEndpointPrefix } from '../endpoints';
 import { OperationalEvent } from '../../../types/monitoring';
 import { BrokerConfigSchema, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
-import { AuditLogItem } from '../../../types/system';
 import { IamInfo } from '../../../types/iam';
 import { UserRole, NetworkAccessMode, ApiError } from '../../../types/auth';
+
+/**
+ * E20 P20.4 (FAT-156): petakan aksi internal demo ke nilai enum `event_type`
+ * kanonis FR-034-26/27 (API doc §I). Demo-only — backend sungguhan yang
+ * menentukan nilai ini.
+ */
+function mapDemoAuditActionToEventType(action: string): OperationalEvent['event_type'] {
+  switch (action) {
+    case 'MACHINE_BOUND':
+    case 'MACHINE_UNBOUND':
+    case 'PRODUCT_DELETED':
+    case 'WORK_ORDER_CANCELLED':
+      return action;
+    case 'PASSWORD_CHANGED':
+    case 'ROTATE_OPERATOR_PASSWORD':
+      return 'OPERATOR_PASSWORD_ROTATED';
+    case 'CREATE_OPERATOR':
+      return 'OPERATOR_PROVISIONED';
+    case 'DELETE_OPERATOR':
+      return 'OPERATOR_DELETED';
+    case 'UPDATE_OPERATOR':
+    case 'UPDATE_OPERATOR_STATUS':
+      return 'OPERATOR_UPDATED';
+    case 'PROVISION_DEVICE':
+    case 'REGISTER_DEVICE':
+      return 'DEVICE_PROVISIONED';
+    case 'REVOKE_DEVICE':
+    case 'DELETE_DEVICE':
+      return 'DEVICE_REVOKED';
+    case 'ROTATE_DEVICE_CREDENTIALS':
+      return 'DEVICE_CREDENTIAL_ROTATED';
+    case 'BROKER_CONFIG_APPLIED':
+      return 'MOSQUITTO_CONFIG_APPLIED';
+    case 'BROKER_CONFIG_ROLLBACK':
+      return 'MOSQUITTO_CONFIG_ROLLED_BACK';
+    case 'ACK_EVENT':
+      return 'OPERATIONAL_EVENT_ACKNOWLEDGED';
+    default:
+      // Aksi admin MQTT (`MQTT_CLIENT_CREATED`, `MQTT_ROLE_ACL_ADDED`, …)
+      // → pola MQTT_ADMIN_<op>; sisanya mutasi master data.
+      if (action.startsWith('MQTT_')) {
+        return `MQTT_ADMIN_${action.slice('MQTT_'.length)}`;
+      }
+      return 'MASTER_DATA_MUTATION';
+  }
+}
 
 class MemoryStore {
   machines = [...INITIAL_MACHINES];
   devices = [...INITIAL_DEVICES];
+  /** E20 P20.2 (§E.3a): deviceId yang pernah terdaftar lalu dihapus — provision
+   * ulang id ini ditolak 409 DEVICE_ID_HAS_HISTORY agar data lama tidak tercampur. */
+  deviceHistoryIds = new Set<string>();
   deviceHealthOverrides = { ...INITIAL_DEVICE_HEALTH_OVERRIDES };
   products = [...INITIAL_PRODUCTS];
   operators = [...INITIAL_OPERATORS];
@@ -34,6 +82,7 @@ class MemoryStore {
   brokerOperations: BrokerOperation[] = [...INITIAL_BROKER_OPERATIONS];
   brokerBackups: BrokerBackup[] = [...INITIAL_BROKER_BACKUPS];
   systemHealth = { ...INITIAL_SYSTEM_HEALTH };
+  healthDetail = JSON.parse(JSON.stringify(INITIAL_HEALTH_DETAIL)) as typeof INITIAL_HEALTH_DETAIL;
   auditLogs = [...INITIAL_AUDIT_LOGS];
 
   iamInfo: IamInfo = {
@@ -57,6 +106,13 @@ class MemoryStore {
   authToken: string | null = 'mem_jwt_initial_admin_lan';
   isAuthenticated = true;
   tokenAuthzVersion = 7;
+
+  /**
+   * Spec 043 (§L) — operator dengan password sementara yang wajib diganti.
+   * Di-seed dengan MNT-208 (Elena Rostova, MAINTENANCE); di-clear oleh
+   * demo `changePassword`. Gerbang ditegakkan `assertAuthenticated`.
+   */
+  operatorMustChangePassword = new Set<string>(['MNT-208']);
 
   endpointCalls = new Map<AdminEndpointKey, string[]>();
   reconciliationCallTimestamps: number[] = [];
@@ -100,47 +156,76 @@ class MemoryStore {
     this.endpointCalls.set(key, existing);
   }
 
+  /**
+   * E20 P20.4 (FAT-156): entri audit demo = `OperationalEventItem` FR-034-01
+   * (API doc §I) — tanpa field karangan. Aksi internal demo (mis.
+   * 'CREATE_MACHINE', 'MQTT_CLIENT_CREATED') dipetakan ke nilai enum
+   * kanonis terdekat; yang tidak punya padanan → 'MASTER_DATA_MUTATION'.
+   * `resource_type`/`resource_id` pemanggil dipertahankan di tanda tangan
+   * demi kompatibilitas, tapi TIDAK disimpan (tidak ada di FR-034-01).
+   * Catatan: mutasi IAM di sini hanya jejak demo — feed kanonisnya adalah
+   * `/access-control/audit`, bukan `/system/audit` (O12).
+   */
   addAudit(
     action: string,
-    resource_type: AuditLogItem['resource_type'],
+    resource_type: string,
     resource_id: string,
     details: string,
-    extras?: { device_id?: string | null; machine_id?: string | null; machine_name?: string }
+    extras?: { device_id?: string | null; machine_id?: string | null; machine_name?: string | null; wo_id?: string | null }
   ) {
+    void resource_type;
+    void resource_id;
+    const now = new Date().toISOString();
     this.auditLogs.unshift({
       id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      timestamp: new Date().toISOString(),
+      recorded_at: now,
       device_id: extras?.device_id ?? null,
       machine_id: extras?.machine_id ?? null,
-      machine_name: extras?.machine_name ?? 'Plant System',
-      operator_id: this.currentUserId,
-      operator_name: this.currentUserName,
-      event_type: action,
-      action,
-      resource_type,
-      resource_id,
-      details,
-      client_ip: this.networkAccessMode === 'LAN' ? '192.168.1.105' : '10.200.0.14',
-      access_mode: this.networkAccessMode,
+      machine_name: extras?.machine_name ?? null,
+      wo_id: extras?.wo_id ?? null,
+      event_type: mapDemoAuditActionToEventType(action),
+      trigger_source: 'ADMIN_PANEL',
+      event_code: null,
+      snapshot_total_count: null,
+      snapshot_run_sec: null,
+      description: details,
+      acknowledged: false,
+      acknowledged_at: null,
+      acknowledged_by: null,
+      ack_note: null,
+      created_at: now,
     });
   }
 
+  /**
+   * E20 P20.4 (FAT-156): entri operational-event demo = FR-034-01 — tanpa
+   * `severity` (tidak ada di dokumen), `machine_name` null bila tak ada
+   * (bukan 'Plant System').
+   */
   addOperationalEvent(
     event_type: OperationalEvent['event_type'],
-    severity: OperationalEvent['severity'],
-    message: string,
-    extras?: { device_id?: string | null; machine_id?: string | null; machine_name?: string }
+    description: string,
+    extras?: { device_id?: string | null; machine_id?: string | null; machine_name?: string | null; wo_id?: string | null }
   ) {
+    const now = new Date().toISOString();
     this.operationalEvents.unshift({
       id: `op-ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      recorded_at: now,
       device_id: extras?.device_id ?? null,
       machine_id: extras?.machine_id ?? null,
-      machine_name: extras?.machine_name ?? 'Plant System',
+      machine_name: extras?.machine_name ?? null,
+      wo_id: extras?.wo_id ?? null,
       event_type,
-      severity,
-      message,
+      trigger_source: 'ADMIN_PANEL',
+      event_code: null,
+      snapshot_total_count: null,
+      snapshot_run_sec: null,
+      description,
       acknowledged: false,
-      timestamp: new Date().toISOString(),
+      acknowledged_at: null,
+      acknowledged_by: null,
+      ack_note: null,
+      created_at: now,
     });
   }
 
@@ -168,6 +253,7 @@ class MemoryStore {
       const snapshot = {
         machines: this.machines.map((m) => ({ ...m })),
         devices: this.devices.map((d) => ({ ...d })),
+        deviceHistoryIds: new Set(this.deviceHistoryIds),
         liveStates: this.liveStates.map((l) => ({ ...l })),
         workOrders: this.workOrders.map((w) => ({ ...w })),
         downtimes: this.downtimes.map((dt) => ({ ...dt })),
@@ -179,6 +265,7 @@ class MemoryStore {
       } catch (err) {
         this.machines = snapshot.machines;
         this.devices = snapshot.devices;
+        this.deviceHistoryIds = snapshot.deviceHistoryIds;
         this.liveStates = snapshot.liveStates;
         this.workOrders = snapshot.workOrders;
         this.downtimes = snapshot.downtimes;

@@ -8,7 +8,7 @@ import { store } from './store';
 import { Machine, EdgeDevice } from '../../../types/assets';
 import { RejectParetoItem, TelemetryHistoryRecord } from '../../../types/analytics';
 import { UserRole, ApiError } from '../../../types/auth';
-import { CapabilityKey, evaluateCasbinAbacDecision, matchAbacCondition, policyMatchesRole, doTimeRangesOverlap } from '../../../utils/capabilities';
+import { CapabilityKey, evaluateCasbinAbacDecision, matchAbacCondition, policyMatchesSubject, doTimeRangesOverlap } from '../../../utils/capabilities';
 import { EdgeDeviceSchema, MachineSchema } from '../schemas';
 import { resolveEffectiveAccess } from '../mode';
 import { normalizeFsmState } from '../../../utils/oeeCalculations';
@@ -16,6 +16,8 @@ import { normalizeFsmState } from '../../../utils/oeeCalculations';
 export interface AuthClientHooks {
   onUnauthorized?: (reason?: string) => void;
   onForbidden?: (capability: CapabilityKey, resourceId?: string, reason?: string) => void;
+  /** Spec 043 (§L): gerbang ganti-password-wajib — 403 PASSWORD_ROTATION_REQUIRED. */
+  onPasswordRotationRequired?: () => void;
 }
 
 /** 409 SHIFT_SCHEDULE_OVERLAP: satu lini tidak boleh punya 2 shift yang jamnya tumpang tindih di hari yang sama. */
@@ -43,7 +45,12 @@ export function checkAbort(signal?: AbortSignal) {
   }
 }
 
-export function assertAuthenticated() {
+/**
+ * Guard sesi demo. Opsi `skipRotationGate` dipakai jalur auth sendiri
+ * (changePassword / getAuthMe / refresh) — gerbang rotasi TIDAK memblokir
+ * ketiganya (§L: GET /auth/me tetap 200 saat gerbang aktif).
+ */
+export function assertAuthenticated(options: { skipRotationGate?: boolean } = {}) {
   if (!store.isAuthenticated || !store.authToken) {
     const err = new ApiError({
       code: 'UNAUTHORIZED',
@@ -58,8 +65,8 @@ export function assertAuthenticated() {
     store.isAuthenticated = false;
     store.authToken = null;
     const err = new ApiError({
-      code: 'UNAUTHORIZED',
-      message: 'Akun operator dinonaktifkan atau tidak lagi terdaftar. Silakan login ulang.',
+      code: 'SUBJECT_INACTIVE',
+      message: 'Akun operator nonaktif (SUBJECT_INACTIVE). Silakan hubungi administrator.',
       httpStatus: 401,
     });
     store.hooks.onUnauthorized?.(err.message);
@@ -69,11 +76,22 @@ export function assertAuthenticated() {
     store.isAuthenticated = false;
     store.authToken = null;
     const err = new ApiError({
-      code: 'AUTHZ_VERSION_STALE',
-      message: 'Sesi berakhir karena perubahan hak akses (authz_version kedaluwarsa). Silakan login ulang.',
+      code: 'AUTHZ_STALE',
+      message: 'Hak akses akun berubah (AUTHZ_STALE). Silakan login ulang.',
       httpStatus: 401,
     });
     store.hooks.onUnauthorized?.(err.message);
+    throw err;
+  }
+  // Spec 043 (§L): gerbang ganti-password-wajib — rute terproteksi menolak
+  // dengan 403 PASSWORD_ROTATION_REQUIRED selama flag aktif.
+  if (!options.skipRotationGate && store.operatorMustChangePassword.has(store.currentUserId)) {
+    const err = new ApiError({
+      code: 'PASSWORD_ROTATION_REQUIRED',
+      message: 'Password sementara wajib diganti sebelum melanjutkan (PASSWORD_ROTATION_REQUIRED).',
+      httpStatus: 403,
+    });
+    store.hooks.onPasswordRotationRequired?.();
     throw err;
   }
 }
@@ -85,7 +103,7 @@ export function assertAuthenticated() {
  * Gating di sini hanya UX/pertahanan lapis pertama — backend WAJIB menegakkan
  * aturan yang sama di server (lihat docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md).
  */
-export function assertLanAccess(capability: CapabilityKey, resourceId?: string) {
+export function assertLanAccess(capability?: CapabilityKey, resourceId?: string) {
   const effective = resolveEffectiveAccess(store.networkAccessMode);
   if (!effective.canMutate) {
     const err = new ApiError({
@@ -93,27 +111,37 @@ export function assertLanAccess(capability: CapabilityKey, resourceId?: string) 
       message: effective.reason,
       httpStatus: 403,
     });
-    store.addAuthzDecision('DENY', capability, resourceId ?? 'remote-tunnel', err.message);
-    store.hooks.onForbidden?.(capability, resourceId, err.message);
+    if (capability) {
+      store.addAuthzDecision('DENY', capability, resourceId ?? 'remote-tunnel', err.message);
+      store.hooks.onForbidden?.(capability, resourceId, err.message);
+    }
     throw err;
   }
 }
 
+/**
+ * Pemetaan capability → (action, resourceType) kanonis (§3.4) untuk evaluasi
+ * policy demo. Registry ini JUGA dipakai guard INERT_PERMISSION:
+ * pasangan (action, resourceType) yang tidak ada di sini tidak punya rute
+ * penjaga → 400 INERT_PERMISSION saat dibuat via POST /permissions.
+ */
 export const CAPABILITY_CASBIN_MAP: Partial<Record<CapabilityKey, { action: string; resourceType: string }>> = {
-  'operational_event.ack': { action: 'ack', resourceType: 'operational_events' },
-  'downtime.reason.label': { action: 'classify', resourceType: 'downtime' },
-  'export.telemetry': { action: 'refresh', resourceType: 'telemetry' },
-  'audit.system.read': { action: 'read', resourceType: 'access_control' },
-  'device.manage': { action: 'manage', resourceType: 'assets' },
-  'machine.manage': { action: 'manage', resourceType: 'assets' },
-  'product.manage': { action: 'manage', resourceType: 'products' },
-  'operator.read': { action: 'read', resourceType: 'operators' },
-  'operator.create': { action: 'create', resourceType: 'operators' },
-  'operator.status.update': { action: 'status', resourceType: 'operators' },
-  'operator.password.rotate': { action: 'rotate_password', resourceType: 'operators' },
-  'operator.update': { action: 'update', resourceType: 'operators' },
-  'operator.delete': { action: 'delete', resourceType: 'operators' },
-  'work_order.cancel': { action: 'cancel', resourceType: 'work_orders' },
+  'operational_event.ack': { action: 'ack', resourceType: 'operational_event' },
+  'downtime_event.label': { action: 'label', resourceType: 'downtime_event' },
+  'telemetry.refresh': { action: 'refresh', resourceType: 'telemetry' },
+  'access_control.read': { action: 'read', resourceType: 'access_control' },
+  'device.manage': { action: 'manage', resourceType: 'device' },
+  'machine.manage': { action: 'manage', resourceType: 'machine' },
+  // E20 P20.5 (FAT-157, pembaruan 09:23): authorize("create","machine").
+  'machine.create': { action: 'create', resourceType: 'machine' },
+  'product.manage': { action: 'manage', resourceType: 'product' },
+  'operator.read': { action: 'read', resourceType: 'operator' },
+  'operator.create': { action: 'create', resourceType: 'operator' },
+  'operator.status.update': { action: 'update_status', resourceType: 'operator' },
+  'operator.password.rotate': { action: 'rotate_password', resourceType: 'operator' },
+  'operator.update': { action: 'update', resourceType: 'operator' },
+  'operator.delete': { action: 'delete', resourceType: 'operator' },
+  'work_order.cancel': { action: 'cancel', resourceType: 'work_order' },
   'telemetry.reconciliation.refresh': { action: 'refresh', resourceType: 'telemetry' },
   'access_control.manage': { action: 'manage', resourceType: 'access_control' },
   'mqtt.dynsec.read': { action: 'read', resourceType: 'mqtt_admin' },
@@ -183,6 +211,7 @@ export function assertCapability(
       resourceKey,
       baselineAllowed,
       env: abacEnv,
+      subjectId: store.currentUserId,
     });
 
     if (casbinEval.shadowMismatch) {
@@ -192,18 +221,23 @@ export function assertCapability(
     if (store.iamInfo.mode === 'enforce') {
       let hasSpecificDeny = false;
       for (const p of store.iamPolicies) {
-        if (!p.is_active) continue;
-        if (!policyMatchesRole(p.role, effectiveRoleSet)) continue;
-        if (!matchesMappedPolicy(p.action, p.resource_pattern, mapped, resourceKey)) continue;
-        const abac = matchAbacCondition(p.abac_condition, abacEnv);
+        if (!p.enabled) continue;
+        if (
+          !policyMatchesSubject(p.subjectMatch, { role: store.currentUserRole, operatorId: store.currentUserId }) &&
+          !orgAssignedRoles.some((r) => policyMatchesSubject(p.subjectMatch, { role: r, operatorId: store.currentUserId }))
+        ) {
+          continue;
+        }
+        if (!matchesMappedPolicy(p.action, p.resourcePattern, mapped, resourceKey)) continue;
+        const abac = matchAbacCondition(p.abacCondition, abacEnv);
         if (abac.malformed) {
           hasSpecificDeny = true;
           continue;
         }
         if (!abac.matched) continue;
-        if (p.eft === 'DENY') {
+        if (p.effect === 'DENY') {
           hasSpecificDeny = true;
-        } else if (p.eft === 'ALLOW') {
+        } else if (p.effect === 'ALLOW') {
           hasDynamicAllow = true;
         }
       }

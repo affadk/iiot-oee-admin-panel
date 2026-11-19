@@ -62,44 +62,25 @@ export const httpMqttDynsec = {
     textdescription?: string;
     roles?: string[];
     groups?: string[];
-    deviceId?: string;
-    access?: 'publish' | 'subscribe' | 'readwrite';
   }): Promise<{ client: MqttClient; generatedPassword?: string }> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    // Backend (Guide §6.x): {username, password, clientid?, roles:[{rolename,
-    // priority}]} ATAU {username, password, deviceId, access}. Demo memakai
-    // roles: string[] — dipetakan ke {rolename, priority: 1}; access demo
-    // dipetakan ke access Guide.
-    const accessMap: Record<string, string> = { publish: 'telemetry', subscribe: 'telemetry+state', readwrite: 'telemetry+state' };
-    const body: Record<string, unknown> =
-      data.roles && data.roles.length > 0
-        ? {
-            username: data.username.trim(),
-            password: data.password ?? '',
-            ...(data.clientid ? { clientid: data.clientid } : {}),
-            roles: data.roles.map((r) => ({ rolename: r, priority: 1 })),
-          }
-        : {
-            username: data.username.trim(),
-            password: data.password ?? '',
-            deviceId: data.deviceId,
-            access: data.access ? accessMap[data.access] : 'telemetry',
-          };
-    // K-11 (b): provisioning perangkat (cabang deviceId+access) memakai
-    // POST /api/v1/mqtt/dynamic-security/clients/provision; cabang roles
-    // tetap POST /api/v1/mqtt/dynamic-security/clients.
-    const isProvision = !(data.roles && data.roles.length > 0) && !!data.deviceId;
+    // E20 P20.2 (X1/X2, D-11): cabang deviceId+access + accessMap DIHAPUS.
+    // Provisioning perangkat HANYA lewat POST /api/v1/devices/provision
+    // (§E.3a); endpoint ini hanya membuat client dynsec mode roles.
+    const body: Record<string, unknown> = {
+      username: data.username.trim(),
+      password: data.password ?? '',
+      ...(data.clientid ? { clientid: data.clientid } : {}),
+      roles: (data.roles ?? []).map((r) => ({ rolename: r, priority: 1 })),
+    };
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
-      path: (isProvision
-        ? ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_PROVISION
-        : ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE
-      ).buildPath(),
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath(),
       body,
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
-      endpointKey: isProvision ? 'MQTT_DYNSEC_CLIENTS_PROVISION' : 'MQTT_DYNSEC_CLIENTS_CREATE',
+      endpointKey: 'MQTT_DYNSEC_CLIENTS_CREATE',
       capability: 'mqtt.dynsec.manage',
       resourceId: data.username,
     });

@@ -34,7 +34,12 @@ interface NavItem {
   name: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;
-  capability: CapabilityKey;
+  /**
+   * Kunci capability pengatur visibilitas. Opsional: item tanpa capability
+   * selalu tampil (mis. System Health / System Information — kunci
+   * `dashboard.read` karangan DIHAPUS, E20 P20.3).
+   */
+  capability?: CapabilityKey;
 }
 
 interface NavGroup {
@@ -111,10 +116,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
       title: 'System',
       icon: ShieldCheck,
       items: [
-        { name: 'System Health', path: '/admin/system/health', icon: ShieldCheck, capability: 'dashboard.read' },
-        { name: 'Hak Akses Pengguna', path: '/admin/access-control', icon: KeyRound, capability: 'access_control.manage' },
-        { name: 'Audit Trail', path: '/admin/system-audit', icon: FileText, capability: 'audit.system.read' },
-        { name: 'System Information', path: '/admin/system/info', icon: Info, capability: 'dashboard.read' },
+        { name: 'System Health', path: '/admin/system/health', icon: ShieldCheck },
+        { name: 'Hak Akses Pengguna', path: '/admin/access-control', icon: KeyRound, capability: 'access_control.read' },
+        { name: 'Audit Trail', path: '/admin/system-audit', icon: FileText, capability: 'access_control.read' },
+        { name: 'System Information', path: '/admin/system/info', icon: Info },
       ],
     },
   ];
@@ -184,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
           {navGroups.map((group) => {
             const isOpen = openGroups[group.title] !== false;
             // Capability-first navigation gating (Build Guide §4.5 via /auth/me)
-            const visibleItems = group.items.filter((item) => checkCapability(item.capability).canInteract);
+            const visibleItems = group.items.filter((item) => !item.capability || checkCapability(item.capability).canInteract);
 
             if (visibleItems.length === 0) return null;
 

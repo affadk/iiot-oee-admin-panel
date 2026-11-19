@@ -108,9 +108,15 @@ export const ApiErrorEnvelopeSchema = z.object({
       })
     )
     .optional(),
+  // 422: `{error, issues, details:{validation}}` (§3.3b) — diteruskan, bukan dibuang (X30).
+  details: z.unknown().optional(),
 });
 
-export function mapHttpErrorToApiError(httpStatus: number, rawBody?: unknown): ApiError {
+/**
+ * Pemetaan error HTTP → ApiError. `retryAfterSec` diisi dari header
+ * `Retry-After` respons 429 (server 5/60s, §L) — dibaca di fetchRaw.
+ */
+export function mapHttpErrorToApiError(httpStatus: number, rawBody?: unknown, retryAfterSec?: number): ApiError {
   if (httpStatus === 0) {
     return new ApiError({
       code: 'NETWORK',
@@ -136,6 +142,8 @@ export function mapHttpErrorToApiError(httpStatus: number, rawBody?: unknown): A
     httpStatus,
     issues,
     activeWoId: parsed.success ? parsed.data.active_wo_id : undefined,
+    retryAfterSec,
+    details: parsed.success ? parsed.data.details : undefined,
   });
 }
 
@@ -156,9 +164,13 @@ function fallbackCodeForStatus(status: number): string {
     case 429:
       return 'TOO_MANY_REQUESTS';
     case 502:
-      return 'MQTT_ADMIN_ERROR';
+      // §2: 502 = MQTT_PROVISION_FAILED.
+      return 'MQTT_PROVISION_FAILED';
     case 503:
-      return 'SERVICE_UNAVAILABLE';
+      // §2: 503 = DEVICE_OFFLINE / MQTT_UNAVAILABLE. Fallback generik tanpa
+      // konteks body memakai MQTT_UNAVAILABLE (layanan tak terjangkau);
+      // DEVICE_OFFLINE dikirim eksplisit oleh server bila perangkatnya offline.
+      return 'MQTT_UNAVAILABLE';
     case 504:
       return 'MQTT_RESPONSE_TIMEOUT';
     default:

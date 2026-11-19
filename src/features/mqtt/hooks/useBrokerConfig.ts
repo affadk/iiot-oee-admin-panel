@@ -4,6 +4,7 @@ import { ApiError } from '../../../types/auth';
 import {
   BrokerBackup,
   BrokerConfigSchema,
+  BrokerConfigStatus,
   BrokerConfigVersion,
   BrokerOperation,
 } from '../../../types/mqtt';
@@ -15,12 +16,11 @@ export type BrokerDiffResult = { version_id: string; diff_summary: string; chang
 
 export type BrokerFeedback = { type: 'success' | 'error'; msg: string };
 
-export type BrokerSyncStatus = {
-  active_version: string;
-  sync_state: string;
-  last_applied_at: string;
-  mutation_locked: boolean;
-};
+/**
+ * E20 P20.5 (FAT-157): status konfigurasi = bentuk dokumen §3.3b
+ * (`BrokerConfigStatus`), bukan asumsi lama `active_version`/`sync_state`.
+ */
+export type BrokerSyncStatus = BrokerConfigStatus;
 
 export type BrokerValidationIssue = { field?: string; message: string };
 

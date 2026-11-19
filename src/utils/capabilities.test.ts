@@ -1,22 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CUSTOM_ROLE_MAX_LEVEL,
   CapabilityDenialStore,
   VALIDATION_PATTERNS,
   buildAuthMeCapabilities,
-  canManageTargetRole,
   evaluateCapability,
   evaluateCasbinAbacDecision,
+  isAdminRoleName,
   isReservedPermission,
+  policyMatchesSubject,
   validateDeviceInput,
   validateMachineInput,
   validateOperatorInput,
   validateProductInput,
 } from './capabilities';
+import type { IamPolicyRule } from '../types/iam';
+
+/** Factory policy kanonis (§3.4) untuk tes evaluator. */
+function makePolicy(over: Partial<IamPolicyRule> & { id: string }): IamPolicyRule {
+  return {
+    roleId: 'role-x',
+    roleName: 'X',
+    subjectMatch: 'role:X',
+    permissionId: 'perm-00',
+    action: 'read:oee',
+    resourceType: 'oee',
+    resourcePattern: '*',
+    effect: 'ALLOW',
+    abacCondition: null,
+    enabled: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    ...over,
+  };
+}
 
 test('Build Guide §4.5: unknown capabilities remain interactive (canInteract = true) and never proactively disable', () => {
-  const res = evaluateCapability('downtime.reason.label', {
+  const res = evaluateCapability('downtime_event.label', {
     role: 'OPERATOR',
     networkMode: 'LAN',
     isAuthenticated: true,
@@ -58,11 +77,11 @@ test('GET /api/v1/auth/me capability projection overrides baseline role specs wh
   assert.equal(serverAllowed.canInteract, true);
 
   // Server deny overrides even if static role allows
-  const serverDenied = evaluateCapability('export.telemetry', {
+  const serverDenied = evaluateCapability('telemetry.refresh', {
     role: 'SUPERVISOR',
     networkMode: 'REMOTE_TUNNEL',
     isAuthenticated: true,
-    serverCapabilities: { 'export.telemetry': 'deny' },
+    serverCapabilities: { 'telemetry.refresh': 'deny' },
   });
   assert.equal(serverDenied.state, 'denied');
   assert.equal(serverDenied.canInteract, false);
@@ -105,8 +124,8 @@ test('CapabilityDenialStore: role-only 403 downgrades globally while scoped 403 
   assert.equal(otherTarget.canInteract, true);
 
   // Role-only capability: downgrades globally across session
-  store.recordDenial('export.telemetry', 'STM32-OEE-01', 'Missing refresh:telemetry');
-  const exportDeniedGlobal = evaluateCapability('export.telemetry', {
+  store.recordDenial('telemetry.refresh', 'STM32-OEE-01', 'Missing refresh:telemetry');
+  const exportDeniedGlobal = evaluateCapability('telemetry.refresh', {
     role: 'SUPERVISOR',
     networkMode: 'LAN',
     isAuthenticated: true,
@@ -117,7 +136,7 @@ test('CapabilityDenialStore: role-only 403 downgrades globally while scoped 403 
   assert.equal(exportDeniedGlobal.canInteract, false);
 
   store.clearAll();
-  const afterClear = evaluateCapability('export.telemetry', {
+  const afterClear = evaluateCapability('telemetry.refresh', {
     role: 'SUPERVISOR',
     networkMode: 'LAN',
     isAuthenticated: true,
@@ -153,8 +172,8 @@ test('REMOTE_TUNNEL and unauthenticated states block LAN-only / auth-required ca
   assert.equal(tunnelDynsecManage.state, 'denied');
   assert.equal(tunnelDynsecManage.canInteract, false);
 
-  // export.telemetry works on REMOTE_TUNNEL for authenticated ADMIN/SUPERVISOR
-  const tunnelExport = evaluateCapability('export.telemetry', {
+  // telemetry.refresh works on REMOTE_TUNNEL for authenticated ADMIN/SUPERVISOR
+  const tunnelExport = evaluateCapability('telemetry.refresh', {
     role: 'SUPERVISOR',
     networkMode: 'REMOTE_TUNNEL',
     isAuthenticated: true,
@@ -162,7 +181,7 @@ test('REMOTE_TUNNEL and unauthenticated states block LAN-only / auth-required ca
   assert.equal(tunnelExport.state, 'allowed');
   assert.equal(tunnelExport.canInteract, true);
 
-  const unauthExport = evaluateCapability('export.telemetry', {
+  const unauthExport = evaluateCapability('telemetry.refresh', {
     role: 'ADMIN',
     networkMode: 'LAN',
     isAuthenticated: false,
@@ -180,22 +199,26 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
       { role_name: 'QUALITY_AUDITOR', scope_type: 'ORGANIZATION' },
     ],
     policies: [
-      {
+      makePolicy({
         id: 'pol-qa',
-        role: 'QUALITY_AUDITOR',
+        roleId: 'role-quality-auditor',
+        roleName: 'QUALITY_AUDITOR',
+        subjectMatch: 'role:QUALITY_AUDITOR',
+        permissionId: 'perm-22',
         action: 'read:oee',
-        resource_pattern: 'oee:*',
-        eft: 'ALLOW',
-        is_active: true,
-      },
-      {
+        resourceType: 'oee',
+        resourcePattern: 'oee:*',
+      }),
+      makePolicy({
         id: 'pol-sup',
-        role: 'SUPERVISOR',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:*',
-        eft: 'ALLOW',
-        is_active: true,
-      },
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:*',
+      }),
     ],
     mode: 'enforce',
     action: 'read:oee',
@@ -209,14 +232,16 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
     primaryRole: 'OPERATOR',
     assignments: [{ role_name: 'SUPERVISOR', scope_type: 'LINE' }],
     policies: [
-      {
+      makePolicy({
         id: 'pol-sup',
-        role: 'SUPERVISOR',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:*',
-        eft: 'ALLOW',
-        is_active: true,
-      },
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:*',
+      }),
     ],
     mode: 'enforce',
     action: 'refresh:telemetry',
@@ -230,22 +255,27 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
     primaryRole: 'SUPERVISOR',
     assignments: [],
     policies: [
-      {
+      makePolicy({
         id: 'p1',
-        role: 'SUPERVISOR',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:*',
-        eft: 'ALLOW',
-        is_active: true,
-      },
-      {
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:*',
+      }),
+      makePolicy({
         id: 'p2',
-        role: 'SUPERVISOR',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:STM32-01',
-        eft: 'DENY',
-        is_active: true,
-      },
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:STM32-01',
+        effect: 'DENY',
+      }),
     ],
     mode: 'enforce',
     action: 'refresh:telemetry',
@@ -255,20 +285,22 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
   assert.equal(denyWins.finalDecision, 'DENY');
   assert.match(denyWins.reason, /eksplisit DENY/);
 
-  // 3. Malformed abac_condition JSON fails closed
+  // 3. Malformed abac_condition fails closed (operator `all` bukan array)
   const malformedAbac = evaluateCasbinAbacDecision({
     primaryRole: 'SUPERVISOR',
     assignments: [],
     policies: [
-      {
-        id: 'p-bad-json',
-        role: 'SUPERVISOR',
+      makePolicy({
+        id: 'p-bad-abac',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:*',
-        eft: 'ALLOW',
-        abac_condition: '{invalid-json',
-        is_active: true,
-      },
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:*',
+        abacCondition: { all: 'not-an-array' },
+      }),
     ],
     mode: 'enforce',
     action: 'refresh:telemetry',
@@ -283,14 +315,17 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
     primaryRole: 'SUPERVISOR',
     assignments: [],
     policies: [
-      {
+      makePolicy({
         id: 'p-deny',
-        role: 'SUPERVISOR',
+        roleId: 'role-supervisor',
+        roleName: 'SUPERVISOR',
+        subjectMatch: 'role:SUPERVISOR',
+        permissionId: 'perm-06',
         action: 'refresh:telemetry',
-        resource_pattern: 'telemetry:*',
-        eft: 'DENY',
-        is_active: true,
-      },
+        resourceType: 'telemetry',
+        resourcePattern: 'telemetry:*',
+        effect: 'DENY',
+      }),
     ],
     mode: 'shadow',
     action: 'refresh:telemetry',
@@ -303,15 +338,20 @@ test('Casbin 4-Dim ABAC Evaluator: ORGANIZATION-only effective roles, DENY wins,
   assert.match(shadowCheck.reason, /SHADOW_MISMATCH/);
 });
 
-test('IAM privilege ceiling & reserved permission helpers enforce §6.8 / §7.1 guards', () => {
-  assert.equal(CUSTOM_ROLE_MAX_LEVEL, 29);
-  assert.equal(canManageTargetRole('ADMIN', 'ADMIN'), true);
-  assert.equal(canManageTargetRole('ADMIN', 'SUPERVISOR'), true);
-  assert.equal(canManageTargetRole('SUPERVISOR', 'OPERATOR'), true);
-  assert.equal(canManageTargetRole('SUPERVISOR', 'MAINTENANCE'), true);
-  assert.equal(canManageTargetRole('SUPERVISOR', 'SUPERVISOR'), false);
-  assert.equal(canManageTargetRole('SUPERVISOR', 'ADMIN'), false);
-  assert.equal(canManageTargetRole('OPERATOR', 'MAINTENANCE'), false);
+test('IAM helpers: isAdminRoleName & policyMatchesSubject enforce §3.4 subject patterns (no hierarchy levels)', () => {
+  assert.equal(isAdminRoleName('ADMIN'), true);
+  assert.equal(isAdminRoleName('admin'), true);
+  assert.equal(isAdminRoleName('SUPERVISOR'), false);
+  assert.equal(isAdminRoleName('QUALITY_AUDITOR'), false);
+
+  assert.equal(policyMatchesSubject('*', { role: 'OPERATOR' }), true);
+  assert.equal(policyMatchesSubject('role:SUPERVISOR', { role: 'SUPERVISOR' }), true);
+  assert.equal(policyMatchesSubject('role:SUPERVISOR', { role: 'OPERATOR' }), false);
+  assert.equal(policyMatchesSubject('operator:OP-115', { role: 'OPERATOR', operatorId: 'OP-115' }), true);
+  assert.equal(policyMatchesSubject('operator:OP-115', { role: 'OPERATOR', operatorId: 'OP-999' }), false);
+  assert.equal(policyMatchesSubject('operator:OP-115', { role: 'OPERATOR' }), false);
+  // Nama role polos diterima sebagai alias `role:<nama>` (bentuk lama).
+  assert.equal(policyMatchesSubject('SUPERVISOR', { role: 'SUPERVISOR' }), true);
 
   assert.equal(isReservedPermission('manage', 'access_control'), true);
   assert.equal(isReservedPermission('manage', 'mqtt_admin'), true);

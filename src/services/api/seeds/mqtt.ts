@@ -169,18 +169,12 @@ export const INITIAL_BROKER_CONFIG: BrokerConfigSchema = {
       max_connections: 100,
     },
   ],
-  tls_profiles: [
-    {
-      id: 'tls-factory-ca',
-      name: 'Factory Internal CA v2',
-      certfile_ref: '/etc/mosquitto/certs/server.crt',
-      cafile_ref: '/etc/mosquitto/ca/ca.crt',
-      tls_version: 'tlsv1.3',
-      require_certificate: true,
-      expires_at: '2028-06-30T00:00:00Z',
-      status: 'VALID',
-    },
-  ],
+  // E20 P20.5 (FAT-157): `tls_profiles` selalu `[]` (§3.3b) — TLS
+  // melekat pada listener/bridge, bukan profil terpisah.
+  tls_profiles: [],
+  // E20 P20.5 (FAT-157): `unmanaged[]` (§3.3b) — demo tidak punya kunci
+  // tak terkelola.
+  unmanaged: [],
   bridges: [
     {
       id: 'bridge-mes-cloud',
@@ -220,7 +214,8 @@ export const INITIAL_CONFIG_VERSIONS: BrokerConfigVersion[] = [
     applied_by: 'Alexandria Vance',
     summary: 'Enabled persistence autosave to 1800s and increased queued bytes to 100MB',
     operation_type: 'RESTART',
-    status: 'APPLIED',
+    // E20 P20.5 (FAT-157): status versi kanonis STAGED/ACTIVE/ROLLED_BACK.
+    status: 'ROLLED_BACK',
     config: INITIAL_BROKER_CONFIG,
   },
 ];
@@ -228,7 +223,8 @@ export const INITIAL_CONFIG_VERSIONS: BrokerConfigVersion[] = [
 export const INITIAL_BROKER_OPERATIONS: BrokerOperation[] = [
   {
     operation_id: 'op-cfg-001',
-    type: 'APPLY',
+    // E20 P20.5 (FAT-157): apply = RELOAD (operation_type kanonis).
+    type: 'RELOAD',
     version_id: 'cfg-v2.0.18-rel-4',
     status: 'SUCCEEDED',
     reason: 'Aktivasi listener TLS 8883 dan penyesuaian kapasitas WebSocket',

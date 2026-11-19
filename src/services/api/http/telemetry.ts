@@ -17,7 +17,8 @@ export const httpTelemetry = {
     options?: TelemetryRangeOptions
   ): Promise<ShiftSummary> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): agregat OEE read-only, tunnel-safe, TANPA auth
+    // (§Q, §7H) — assertAuthenticatedHttp DIHAPUS dari read OEE/telemetri.
     // E11 T11.2 (F-2): kirim from/to agar ringkasan shift terikat periode
     // yang sama dengan tabel per jam (API doc §I). Tanpa options, query
     // sama seperti sebelumnya (hanya machine_id).
@@ -29,6 +30,9 @@ export const httpTelemetry = {
       ...(options?.to ? { to: options.to } : {}),
       ...(options?.date ? { date: options.date } : {}),
       ...(options?.shift ? { shift: options.shift } : {}),
+      // E20 P20.5 (FAT-157): `include_hourly=true` meminta rantai
+      // `hourly[]` (§Q.1) — mapper membacanya, bukan membuangnya.
+      ...(options?.include_hourly ? { include_hourly: 'true' } : {}),
     };
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.OEE_SHIFT_SUMMARY.buildPath(),
@@ -43,12 +47,13 @@ export const httpTelemetry = {
 
   async getShiftTimeline(
     machineId?: string,
-    bucket: '1m' | '5m' | '15m' | '1h' = '15m',
+    // E20 P20.5 (FAT-157): bucket default dokumen `5m` (§Q.3, §7I) — bukan 15m.
+    bucket: '1m' | '5m' | '15m' | '1h' = '5m',
     signal?: AbortSignal,
     options?: TelemetryRangeOptions
   ): Promise<ShiftTimelineSegment[]> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read OEE tanpa auth (§Q, §7H).
     // E11 T11.2 (F-2): kirim from/to agar timeline terikat periode yang
     // sama dengan tabel per jam (API doc §I).
     // E12 T12.1 (X-1 / FAT-54): kirim juga date/shift bila filter shift aktif.
@@ -74,7 +79,7 @@ export const httpTelemetry = {
   // -- Reconciliation ----------------------------------------------------------
   async getReconciliationJobs(signal?: AbortSignal): Promise<ReconciliationJob[]> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
     return reqList<ReconciliationJob>(
       { path: ADMIN_ENDPOINTS.RECONCILIATION_JOBS.buildPath(), signal, endpointKey: 'RECONCILIATION_JOBS', capability: 'telemetry.read' },
       (raw) => mapReconciliationJob(raw),
@@ -90,14 +95,16 @@ export const httpTelemetry = {
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
       path: ADMIN_ENDPOINTS.RECONCILIATION_REFRESH.buildPath(),
+      // E20 P20.5 (FAT-157): body kanonis `{from, to}` (§K.6) — bukan
+      // `{startWindow, endWindow}`.
       body: {
-        ...(request.startWindow ?? request.from ? { startWindow: request.startWindow ?? request.from } : {}),
-        ...(request.endWindow ?? request.to ? { endWindow: request.endWindow ?? request.to } : {}),
+        ...(request.from ? { from: request.from } : {}),
+        ...(request.to ? { to: request.to } : {}),
       },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'RECONCILIATION_REFRESH',
-      capability: 'export.telemetry',
+      capability: 'telemetry.refresh',
     });
     return { success: bool(raw.success, true), message: (raw.message as string) ?? 'Refresh reconciliation diterima.' };
   },
@@ -105,7 +112,7 @@ export const httpTelemetry = {
   // -- Quality rejects ----------------------------------------------------------
   async getRejectPareto(deviceId: string, signal?: AbortSignal): Promise<RejectParetoItem[]> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read quality tanpa auth (§7H `/quality/*` open).
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.QUALITY_REJECTS_BY_DEVICE.buildPath(deviceId),
       signal,
@@ -118,7 +125,7 @@ export const httpTelemetry = {
 
   async getRejectParetoGlobal(signal?: AbortSignal): Promise<RejectParetoItem[]> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read quality tanpa auth (§7H `/quality/*` open).
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.QUALITY_REJECTS_GLOBAL.buildPath(),
       signal,

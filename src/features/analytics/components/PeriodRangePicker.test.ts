@@ -29,13 +29,28 @@ function render(from: string, to: string, shiftFilterActive = false): string {
   );
 }
 
+/** `now` dinamis: hari ini (Jakarta) pukul 10:24. Fixture tanggal tetap
+ *  (dulu 2026-11-17) membuat test 'Hari ini' gagal di hari lain, karena
+ *  PeriodRangePicker mendeteksi preset lewat `detectTimeWindowPreset(from, to)`
+ *  dengan `now = new Date()` sungguhan — rentang 2026-11-17 bukan "hari ini"
+ *  bila test dijalankan 2026-11-19 (E20 verifikasi). */
+function todayAt1024(): Date {
+  const jakartaToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  return new Date(`${jakartaToday}T10:24:00+07:00`);
+}
+
 /** Tombol preset `label` sedang aktif (aria-pressed="true") di markup. */
 function isPresetPressed(markup: string, label: string): boolean {
   return new RegExp(`<button[^>]*aria-pressed="true"[^>]*>${label}</button>`).test(markup);
 }
 
 test('rentang 7 hari menyorot preset "7 Hari" dan menampilkan rentang aktif', () => {
-  const now = new Date('2026-11-17T10:24:00+07:00');
+  const now = todayAt1024();
   const range = resolveTimeWindowPreset('7d', now);
   const markup = render(range.from, range.to);
   assert.equal(isPresetPressed(markup, '7 Hari'), true);
@@ -45,7 +60,7 @@ test('rentang 7 hari menyorot preset "7 Hari" dan menampilkan rentang aktif', ()
 });
 
 test('rentang hari ini menyorot preset "Hari ini"', () => {
-  const now = new Date('2026-11-17T10:24:00+07:00');
+  const now = todayAt1024();
   const range = resolveTimeWindowPreset('today', now);
   const markup = render(range.from, range.to);
   assert.equal(isPresetPressed(markup, 'Hari ini'), true);

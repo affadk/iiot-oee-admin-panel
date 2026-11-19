@@ -110,16 +110,21 @@ export function useWorkOrderColumns({
       },
       {
         id: 'output',
-        header: 'Output / Target',
+        header: 'Target',
         cell: ({ row }) => {
           const wo = row.original;
           const target = wo.target_qty ?? wo.target_quantity;
           return (
             <div className="text-right font-tabular text-xs">
+              {/* E20 P20.5 (FAT-157): `completed_quantity`/`rejected_quantity`
+                  DIHAPUS dari kontrak WO (§C) — kolom hanya menampilkan
+                  target; output/reject dibaca dari telemetri/OEE. */}
               <div className="font-semibold text-slate-900 dark:text-slate-100">
-                {wo.completed_quantity} / {target}
+                {target} pcs
               </div>
-              <div className="text-[11px] text-red-500">Reject: {wo.rejected_quantity}</div>
+              {wo.provisional && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400">Provisional</div>
+              )}
             </div>
           );
         },
@@ -135,6 +140,8 @@ export function useWorkOrderColumns({
                 wo.status === 'ACTIVE'
                   ? 'success'
                   : wo.status === 'PENDING'
+                  ? 'warning'
+                  : wo.status === 'PENDING_CLOSE'
                   ? 'warning'
                   : wo.status === 'ABORTED'
                   ? 'danger'

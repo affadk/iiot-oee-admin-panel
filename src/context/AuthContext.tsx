@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { AuthMeResponse, UserRole } from '../types/auth';
+import { AuthMeResponse, LoginResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
 import { resolveAuthTtlFallbackSec } from '../services/api/mode';
 import {
@@ -23,7 +23,13 @@ interface AuthContextType {
   clearSessionExpiredReason: () => void;
   authzVersion: number;
   authMe: AuthMeResponse | null;
-  login: (operator_id: string, password?: string, station_id?: string) => Promise<void>;
+  /**
+   * Spec 043 (§L) — gerbang ganti-password-wajib: true = password sementara,
+   * pengguna HARUS ganti password sebelum navigasi lain (tanpa jalur kedua).
+   */
+  mustChangePassword: boolean;
+  clearMustChangePassword: () => void;
+  login: (operator_id: string, password?: string, station_id?: string) => Promise<LoginResponse>;
   // TIDAK ADA setRole: ganti peran HANYA lewat login — logout dulu, lalu
   // login sebagai operator lain. Pengalih peran langsung dari Topbar sudah
   // dihapus (bukan perilaku standar; peran berasal dari token /auth/me).
@@ -42,7 +48,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const DEFAULT_FALLBACK_TTL = resolveAuthTtlFallbackSec();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { mode, accessMode } = useNetworkAccess();
+  const { mode, accessMode, refreshServerAccessMode, clearServerAccessMode } = useNetworkAccess();
   // Guide §4.4/D5: tidak ada sesi pra-login. Pengguna HARUS login lewat
   // /login; AuthProvider tidak lagi start sebagai ADM-001.
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -54,9 +60,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }>({
     operator_id: '',
     name: '',
-    role: 'OPERATOR',
+    role: 'UNASSIGNED',
     line_id: undefined,
   });
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
   const [sessionTtlRemaining, setSessionTtlRemaining] = useState<number>(0);
   const [sessionTtlTotal, setSessionTtlTotal] = useState<number>(0);
   const [sessionExpiredReason, setSessionExpiredReason] = useState<string | null>(null);
@@ -79,6 +86,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const me = await apiClient.getAuthMe();
       setAuthMe(me);
       setAuthzVersion(me.authzVersion);
+      // Spec 043: flag gerbang juga dibaca dari GET /auth/me.
+      if (typeof me.operator.mustChangePassword === 'boolean') {
+        setMustChangePassword(me.operator.mustChangePassword);
+      }
     } catch {
       // Fall back cleanly if unauthenticated or offline
     }
@@ -88,16 +99,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessionExpiredReason(null);
   }, []);
 
+  const clearMustChangePassword = useCallback(() => {
+    setMustChangePassword(false);
+  }, []);
+
   const logout = useCallback((reason?: string) => {
     capabilityDenialStore.clearAll();
     apiClient.setSessionActive(false, null);
+    // E20 P20.5 (FAT-157): bersihkan nilai server access-mode — sesi
+    // berikutnya mengambil ulang dari server (bila ada).
+    clearServerAccessMode();
     setIsAuthenticated(false);
     setAuthMe(null);
+    setMustChangePassword(false);
     setSessionTtlRemaining(0);
     if (reason) {
       setSessionExpiredReason(reason);
     }
-  }, []);
+  }, [clearServerAccessMode]);
 
   const reportForbidden = useCallback(
     (capability: CapabilityKey, resourceId?: string, reason?: string) => {
@@ -115,6 +134,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       onForbidden: (cap, resourceId, reason) => {
         capabilityDenialStore.recordDenial(cap, resourceId, reason);
       },
+      // Spec 043: 403 PASSWORD_ROTATION_REQUIRED dari rute terproteksi
+      // mengaktifkan gerbang ganti-password-wajib.
+      onPasswordRotationRequired: () => {
+        setMustChangePassword(true);
+      },
     });
   }, [logout]);
 
@@ -122,8 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (isAuthenticated) {
       refreshCapabilities();
+      // E20 P20.5 (FAT-157): ambil nilai server access-mode setelah login;
+      // gagal (404/401 backend lama) → fallback env+kanal, jangan pecah.
+      refreshServerAccessMode();
     }
-  }, [isAuthenticated, currentUser.role, currentUser.operator_id, refreshCapabilities]);
+  }, [isAuthenticated, currentUser.role, currentUser.operator_id, refreshCapabilities, refreshServerAccessMode]);
 
   const login = useCallback(async (operator_id: string, password?: string, station_id?: string) => {
     capabilityDenialStore.clearAll();
@@ -139,17 +166,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ttl = res.expires_in || DEFAULT_FALLBACK_TTL;
     setSessionTtlTotal(ttl);
     setSessionTtlRemaining(ttl);
+    // Spec 043: flag gerbang dari respons login 200 (operator.must_change_password).
+    setMustChangePassword(res.operator.must_change_password === true);
     try {
       const me = await apiClient.getAuthMe();
       setAuthMe(me);
       setAuthzVersion(me.authzVersion);
+      if (typeof me.operator.mustChangePassword === 'boolean') {
+        setMustChangePassword(me.operator.mustChangePassword);
+      }
     } catch {
       // Ignored if auth/me unavailable immediately
     }
+    return res;
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    return apiClient.changePassword(currentPassword, newPassword);
+    const result = await apiClient.changePassword(currentPassword, newPassword);
+    // Sukses ganti password menutup gerbang rotasi (spec 043).
+    if (result.success) setMustChangePassword(false);
+    return result;
   }, []);
 
   // Session TTL countdown + proactive single-flight sliding refresh at 80% elapsed (20% remaining, LAN only)
@@ -210,6 +246,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearSessionExpiredReason,
         authzVersion,
         authMe,
+        mustChangePassword,
+        clearMustChangePassword,
         login,
         logout,
         changePassword,

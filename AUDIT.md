@@ -1215,3 +1215,275 @@ atas K-01/K-02/K-12; implementasi Fase 8 (K-15); daftar enum
 Done; `docs/LINEAR.md` §1.1/§1.3/§8 + `docs/linear-seed.json` v18
 (147 issue: 88 Done / 1 In Progress / 58 Todo — Todo tetap 58 karena
 SYS-B1–SYS-B50 tidak ditutup di Linear).
+
+## 23. E20 — Diff API docs terupdate + keputusan D-1–D-14 + arsip gaps (2026-11-19)
+
+**Permintaan (Fathur, 2026-11-19 07:47 WIB):** "ini adalah api docs yang sudah
+terupdate mengikuti backend upgrade. sekarang singkronkan admin-panel
+menggunakan api ini. buat tanpa meninggalkan deprecated" — API docs baru
+`~/workspace/user/files/pasted-text.txt` (2100 baris, Fastify 5.x + spec
+015/020/027/032/034/035/036/037/042/043).
+
+**P20.1 — Diff (FAT-153, Done):** `docs/API_SYNC_DIFF.md` (374 baris) — 3
+peneliti paralel (registry+transport, mapper+demo+types, UI+pages+auth),
+**294 entri: 162 OK / 102 CHANGE / 21 NEW / 9 REMOVE**. Temuan terberat:
+`POST /devices/provision` nol hit di `src` (panel masih cabang `isProvision`
+→ `/clients/provision` + `accessMap` hidup); `mapDevice` melempar untuk device
+terikat; body tulis policy snake_case akan 400 `INVALID_POLICY`;
+effective-permissions baca `effectiveRoles` yang dilarang; gerbang
+`mustChangePassword` belum ada; lockout lokal masih hidup; mapper op-event
+mengarang `severity` + `machine_name: 'Plant System'`; null `*Pct` di-koersi
+ke 0; health sintetis. Daftar hapusan deprecated **X1–X34**; **22 kontradiksi
+internal dokumen (C1–C22)** — termasuk C15: `401 PASSWORD_CHANGE_REQUIRED`
+tidak ada di dokumen (yang ada flag + `403 PASSWORD_ROTATION_REQUIRED`).
+Verifikasi independen parent: provision 0 hit ✓, accessMap di
+`http/mqttDynsec.ts:74,87` ✓, `mustChangePassword` 0 hit ✓, lockout env di
+`mode.ts:433-438` ✓, `severity` default `'INFO'` di `mappers/monitoring.ts:81`
+✓, `PASSWORD_CHANGE_REQUIRED` 0 di dokumen vs `PASSWORD_ROTATION_REQUIRED` 1
+✓, `must_change_password=<redacted>` di 3 baris dokumen ✓ (C20).
+
+**Fakta baru dari api_docs (menggantikan keputusan lama):** provisioning resmi
+= `POST /api/v1/devices/provision` (spec 015, ADR-009) — **K-11 E18
+(`POST /clients`) DIGANTIKAN**; `POST /devices` manual = legacy/deprecated;
+`GET /health/detail` terdefinisi lengkap (P-I tidak terblokir); skema
+`OperationalEventItem` FR-034-01; enum `event_type` 32 nilai + pola; gate
+`mustChangePassword` spec 043; panel dilarang lockout paralel; IAM kanonis
+camelCase tanpa `privilege_level`; PIN dihapus total.
+
+**P20.7 — Keputusan + tinjau-ulang + arsip (FAT-159, Done):** Fathur (19 Nov):
+"ikuti api_docs dulu". **D-1–D-14 diputuskan mengikuti api_docs** (D-1 flag +
+403; D-2 panel toleran 3 bentuk `/auth/me`; D-3 minta daftar ABAC; D-4 OFFLINE
+nilai item; D-5 legacy `POST /devices` dipertahankan berlabel; D-6 cancel
+ADMIN; D-7 operator ADMIN/SUPERVISOR; D-8 `oeePct` null; D-9
+`MACHINE_NOT_BOUND`; D-10 camelCase saja; D-11 panel abaikan §M; D-12 hanya
+kirim parameter terdaftar; D-13 guard ekspor per endpoint; D-14 semantik flag
+jelas dari konteks). **Dokumen baru `docs/API_SYNC_REVIEW.md`** — 15 item yang
+perlu ditinjau kembali backend (R-1–R-15) + tabel pertanyaan lama yang sudah
+terjawab api_docs (uptime detik, overlap lintas tengah malam, enum event_type,
+K-01/K-02/K-12/K-15, B1/B4/B6/B7/B16, Fase 8). **Gaps lama diarsipkan:**
+`docs/BACKEND_GAPS_SYSTEM_ADMIN.md` → `docs/archive/` (header arsip
+ditambahkan; pointer di `BACKEND_UPGRADE_PLAN.md`); referensi historis di
+AUDIT.md/LINEAR.md/reality-check dibiarkan sebagai riwayat.
+
+**Status E20:** diff + keputusan + arsip selesai. Implementasi batch
+(P20.2–P20.5) **belum dimulai** — menunggu kata Fathur ("mulai"). Tidak ada
+perubahan kode di putaran ini (hanya dokumen).
+
+## 24. E20 — Implementasi sinkronisasi ke API docs terupdate (2026-11-19)
+
+**Permintaan (Fathur, 2026-11-19 08:12 WIB):** "mulai implementasikan
+singkronisasi terhadap admin-panel". Koordinator + 4 worker berurutan (satu
+worker per batch, satu commit lokal per batch, verifikasi hijau per batch).
+**Tidak di-push** (menunggu kata Fathur). Linear tidak disentuh koordinator —
+parent menutup issue setelah verifikasi independen (di bawah).
+
+**P20.2 — Batch 1 provisioning (`331ce38`, 25 file, +1367/−197):**
+`POST /api/v1/devices/provision` (registry + transport + demo + UI onboarding
+— kredensial sekali tampil `{credential: {username, password, clientId,
+topicPrefix}}`), `POST /devices/:deviceId/revoke`, `POST
+/devices/:deviceId/credentials` (guard 409 `DEVICE_IN_PRODUCTION`),
+`GET /devices/:deviceId/health`; field baru (`enrollmentState`,
+`provisionedAt`, `credentialRotatedAt`, `boundMachine {machineId,
+machineName}`); `mapDevice` diperbaiki (tidak lagi melempar untuk device
+terikat). **Dihapus seluruhnya:** registry `MQTT_DYNSEC_CLIENTS_PROVISION` +
+cabang `isProvision` (HTTP + demo) + `accessMap` + default `'telemetry'`.
+Modal register manual legacy tetap ada berlabel legacy (D-5).
+
+**P20.3 — Batch 2 auth + IAM (`3ca57c8`, 73 file, +2620/−1461):** gerbang
+`mustChangePassword` spec 043 — flag dari login + `403
+PASSWORD_ROTATION_REQUIRED` → halaman ganti password (satu alur, tanpa jalur
+kedua); **lockout lokal dihapus** (`LoginPage` + `mode.ts` env
+`VITE_LOGIN_MAX_ATTEMPTS`/`VITE_LOGIN_COOLDOWN_SEC` + `.env.example`) —
+throttle hanya server 5/60s + `Retry-After`; refresh mengembalikan
+`authzVersion` server, 401 `AUTHZ_STALE` → login ulang; demo login password
+min 8. Body tulis IAM **camelCase** (`{roleId, permissionId, resourcePattern,
+effect, abacCondition}`, `{action, resourceType}`); `reason` dihapus dari
+baris policy; default `privilege_level`/`policy_count` + badge Level +
+validasi level demo dihapus; hanya **ADMIN immutable** (preset lain bisa
+diubah/dihapus bila tak dipakai), `deleteIamRole` membedakan `ROLE_IMMUTABLE`
+vs `ROLE_IN_USE` (sebut operatorId); revoke tanpa baris cocok → 200
+`{success: true, removed: 0}`; demo `createIamPermission` diizinkan (guard
+`INERT_PERMISSION`/`PERMISSION_EXISTS`); effective-permissions baca `roles`
+saja (tanpa alias `effectiveRoles`); `access_control.read` ditambahkan, kunci
+capability karangan dihapus; validator ABAC dipertahankan (whitelist menunggu
+backend — R-1); `mapAuthMe` toleran 3 bentuk; filter audit IAM
+(subject/decision/mode/from/to); role string bebas (`ROLE_LEVELS`/
+`canManageTargetRole` dihapus; default `UNASSIGNED`); demo `updateOperator`
+cek `ADMIN_SINGLETON_DENIED`; toggle `ADM-001` → 400 (bukan 403). Kunci
+capability baru dari pembaruan api_docs 09:23: `cancel:work_order`,
+`create:machine`, `read:mqtt_admin`, `manage:mqtt_admin`.
+
+**P20.4 — Batch 3 health + audit (`00eadb6`, 39 file, +1496/−455):**
+`GET /health/detail` (ADMIN+LAN) + **sintesis di `http/health.ts` dihapus**
+(label 'API v1', environment 'production', latency 0, mqtt 'UP'); mapper
+`OperationalEventItem` FR-034-01 persis (description, recordedAt, acknowledged
+turunan acknowledgedAt, machineName null bila mesin dihapus, **tanpa severity**,
+tanpa 'Plant System'); enum `event_type` kanonis 32 nilai + pola (gantikan
+dropdown 15 tebakan); filter + kolom + tipe severity dihapus; builder kirim
+`acknowledged` + `machine_id` hanya ke `/system/audit`; `mapAuditLog` tanpa
+field karangan; ack note max 1000; export system-audit `GET
+/system/audit/export` (tombol + transport + demo, format csv/ndjson/json,
+retensi 90 hari).
+
+**P20.5 — Batch 4 telemetry/OEE/mesin/config (`d4ea63e`, 72 file, +1497/−391):**
+null `*Pct` dipertahankan null (koersi ke 0 + skema tak-nullable dihapus;
+`oeePct` null saat kapasitas unknown — D-8); shift-summary baca `hourly[]`
+bila `include_hourly`; `HourlyOeePoint` tambah deviceId/machineId/woId;
+timeline bucket default 5m; `assertAuthenticatedHttp` dihapus pada read
+OEE/telemetri; refresh rekonsiliasi body `{from, to}`; demo hourly bucket ISO
++ provisional; demo shift-summary hapus hardcode menit + fallback target 64
+(pakai turunan demo 50); live-state hapus `device_online: true` hardcode +
+field fabrikasi; FSM `OFFLINE` nilai item sah (D-4); status-history kirim
+filter state + validasi from>=to; operators create kirim `isActive`; resolve
+`device_id` required; trailing slash `/operational-events/` dihapus; MQTT
+overview status `READY` + count null + available/lastError/measuredAt/
+lastOperation; config GET field tanpa sumber = null; config status bentuk
+dokumen; apply/rollback harap 202 `{operationId, versionId}` + polling
+`GET /operations/:operationId` sampai terminal + `{confirm: true}`;
+**`POST /backups` dihapus** dari registry + UI; `mapDowntime` baca
+`duration_sec`; demo `unlabeled_only` = operatorReason IS NULL;
+`classifyDowntimeReason` bentuk dokumen; `mapWorkOrder` baca
+`dispatched_at`/`acked_at`/`actual_start_at`/`actual_end_at`/
+`provisional`/`count_uncertain` + status `PENDING_CLOSE` (field karangan
+dihapus); demo unbind hanya blokir WO ACTIVE; WS
+`DOWNTIME_EVENT_OPENED`/`CLOSED`; fallback kode error 502/503 + teruskan
+`details` pada 422 + baca `Retry-After`. **Endpoint baru dari pembaruan
+09:23:** `GET /api/v1/system/access-mode` (registry + transport + demo +
+wiring UI — prefer nilai server di mode Real, fallback derivasi env+kanal;
+demo kembalikan nilai turunan env). Registry **132 → 137 kunci** (test
+menegaskan).
+
+**Verifikasi independen parent (2026-11-19, semua hijau):** `tsc` 0 error;
+tests **368/368**; `vite build` OK (peringatan chunk yang sudah ada);
+preview HTTP 200; checker **0 FAIL + 0 pengecualian** (305 file, 37 WARN
+lunak). Dua temuan saat verifikasi — diperbaiki parent sebelum penutupan:
+(1) test `PeriodRangePicker` 'Hari ini' gagal 367/368 — **bukan akibat E20**
+(file tidak disentuh E20 sejak E12; fixture tanggal tetap 2026-11-17
+sedangkan deteksi preset memakai `new Date()` sungguhan → lolos hanya bila
+dijalankan 2026-11-17); diperbaiki test saja (`now` dinamis: hari ini Jakarta
+10:24). (2) worker Batch 1 tidak mengembalikan `/clients/provision` ke
+`FORBIDDEN_ENDPOINT_PATTERNS` (bertentangan dengan keputusan E18 P-A) —
+dikembalikan parent (`endpoints.ts` + asersi test dibalik) dan suite hijau
+kembali 368/368.
+
+**Yang tetap belum terverifikasi:** Real mode end-to-end (tidak ada backend);
+visual di browser sungguhan (Fathur cek setelah `npm run dev`); item
+R-1–R-15 (`API_SYNC_REVIEW.md` §2) masih menunggu backend. **E21** (FAT-160)
+menunggu giliran: penutupan backend sync/gaps di Linear setelah E20.
+
+### 24.1 Koreksi + tindak lanjut laporan koordinator E20 (parent, 2026-11-19)
+
+Laporan akhir koordinator (4 batch) diterima setelah §24 ditulis. Verifikasi
+parent atas poin-poinnya:
+
+- **Koreksi hitungan enum (kesalahan saya, bukan implementasi):** dokumen
+  menulis **33** nilai eksplisit `event_type`, yang benar **32** — dihitung
+  langsung dari `pasted-text.txt` baris 1074 (32 backtick; panel
+  `OPERATIONAL_EVENT_TYPES` di `src/types/monitoring.ts` sudah benar 32
+  sejak Batch 3). Dikoreksi 33 → 32 di `API_SYNC_DIFF.md` (O2, §15),
+  `API_SYNC_REVIEW.md` §3, AUDIT.md §23/§24, dan MEMORY.md. Laporan ke
+  Fathur sebelumnya menyebut "33 nilai" — dikoreksi di pesan lanjutan.
+- **`CursorPaginationBar` diperbaiki:** bar menampilkan akumulasi "loaded
+  count" sebagai "dari total" — padahal server tidak pernah mengirim total
+  dataset (envelope `meta.count` = baris halaman). Kini "dari {totalCount}"
+  hanya tampil bila `hasMore` false (saat itu semua rekaman sudah dimuat,
+  jadi total = jumlah dimuat); bila masih ada halaman lanjutan, tampil
+  "Menampilkan {loadedCount} rekaman" + "Halaman lanjutan tersedia".
+  Satu file komponen, tanpa perubahan call-site (6 halaman).
+- **Batasan yang dicatat (bukan diputuskan sepihak):** bentuk pasti JSON
+  `GET /mqtt/configuration/status` tidak sepenuhnya dispesifikasi dokumen
+  (mapper Batch 4 membaca defensif; `lastOperation: string | null`) —
+  verifikasi melawan backend sungguhan. Fallback 502 generik: 502 →
+  `MQTT_PROVISION_FAILED`; `DEVICE_OFFLINE` bersifat per-device sehingga
+  tidak dipakai sebagai fallback umum.
+- **Salinan API doc lama di repo** (`docs/API_DOCUMENTATION.md:1578`) masih
+  menyebut `DOWNTIME_STARTED|DOWNTIME_ENDED` — bukan kode panel, jadi tidak
+  diubah isinya; ditambahkan catatan kepala dokumen bahwa salinan ini sudah
+  digantikan api_docs terupdate.
+- **Hitungan test per batch (koordinator):** 343/344 → 350/351 → 351/352 →
+  367/368 — satu-satunya yang gagal di tiap batch adalah test
+  `PeriodRangePicker` yang sama (pre-existing, dibuktikan koordinator gagal
+  identik di tree bersih `84c692a`); sudah diperbaiki parent (§24).
+
+## 25. E21 — Penutupan backend sync/gaps di Linear (2026-11-19)
+
+Epic E21 (FAT-160) + anak P21.1–P21.7 (FAT-161–FAT-167), semua Done
+2026-11-19. Syarat Fathur terpenuhi: dilaksanakan SETELAH E20 selesai +
+terverifikasi. Metode: 6 worker paralel (5 kelompok gap + R-items/
+kontradiksi), tiap verdict dikutip pasal + nomor baris api_docs terupdate
+(`~/workspace/user/files/pasted-text.txt`, 2100 baris, upload 07:47 WIB).
+Deliverable: `docs/BACKEND_SYNC_CLOSURE.md` (commit lokal `59e4ffc`;
+koordinator, tanpa ubah kode, tanpa push, tanpa tutup Linear sendiri).
+
+### 25.1 Verdict 50 gap (parent verifikasi independen)
+
+- **34 TERSELESAIKAN** (implementasi backend tercermin di api_docs) +
+  **2 BERUBAH/DIGANTIKAN** (B13: `reason` hanya di audit IAM, tidak pernah
+  di baris policy §3.4:1507; B30: provisioning kini `POST /devices/provision`
+  tanpa field `access` §E.3a:442–478) = **36 issue ditutup di Linear** —
+  FAT-72, 73, 75, 76, 78, 79, 80, 81, 84, 85, 86, 87, 89, 90, 91, 92, 93, 95,
+  96, 97, 98, 99, 100, 101, 109, 110, 111, 113, 114, 115, 116, 117, 118, 119,
+  120, 121.
+- **14 MASIH TERBUKA** — tetap Todo: B3, B6, B11, B12, B17, B23, B31–B37,
+  B41 (FAT-74, 77, 82, 83, 88, 94, 102–108, 112). Pola: DynSec paling belum
+  selesai (7/10 terbuka — rute terkonfirmasi, seluruh skema body sub-op dan
+  skema objek klien absen); Master Data paling tuntas (6/6, spec 036).
+- Verifikasi parent: tabel §2 dokumen = 50 baris, ID 1–50 lengkap; hitungan
+  verdict per baris 34/14/2 persis dengan §1; close+todo = 72–121 lengkap
+  dan saling lepas; spot-check bukti di file (B41 `acknowledgeUnvalidated`
+  0 hit; B23 list global tanpa `machine_id` :1007–1018; §H.4:940 PUT
+  operator "ADMIN LAN only"; §K:1163 aturan null; `lastSeenAt` :411/:463).
+- "Tutup" di sini = implementasi backend tercermin di api_docs — BUKAN
+  bukti terhadap backend yang sedang berjalan. Verifikasi terhadap backend
+  sungguhan tetap langkah terpisah (Real E2E, V8.2/FAT-28); bila backend
+  nyata menyimpang, issue dapat dibuka kembali dengan bukti divergensi.
+
+### 25.2 Keputusan lama vs api_docs baru
+
+- Terkonfirmasi: K-01, K-03 (c), K-04 (dual), K-07, K-09 (a), K-10, K-12,
+  K-13, K-14, K-15; B1, B4 (koreksi kode: gerbang 403, bukan "401 khusus"
+  seperti redaksi E18), B7, B16; spec 036 + 038 seluruhnya; enum
+  `event_type` 32 nilai eksplisit.
+- Dibalik lagi: K-11 (kedua pilihan lama digantikan `/devices/provision`);
+  B23 dibalik sebagian (`machine_id` hanya di `/system/audit` + export-nya).
+- Tidak terkonfirmasi: K-02 (masih 3 varian `/auth/me`), K-05/K-06 (tidak
+  ada skema body sub-op dynsec maupun skema objek klien), K-08 global
+  (klausul abaikan param hanya untuk `/system/audit`); B3, B6 sebagian.
+
+### 25.3 R-items, kontradiksi, item baru
+
+- R-1–R-15: **3 terjawab** (R-7, R-11, R-15), **2 berubah** (R-3, R-9
+  sebagian — keduanya bersandar amandemen 09:23, lihat §25.4), **10 masih
+  terbuka** (R-1, R-2, R-4, R-5, R-6, R-8, R-10, R-12, R-13, R-14).
+- C1–C22: 4 terjawab (C13, C14, C15, C18), 4 berubah, 13 masih terbuka,
+  1 fakta (C10).
+- Item baru **R-16–R-23** (§5.3 dokumen penutupan): R-16
+  `acknowledgeUnvalidated`, R-17 PUT `/operators` ADMIN-only vs D-7, R-18
+  `machine_id` global, R-19 filter `acknowledged` di `/system/audit`, R-20
+  skema dynsec, R-21 skema `GET /info` + `GET /access-control/audit`, R-22
+  filter `operatorId`/`roleId`, R-23 salinan api_docs baru.
+- Prioritas tindak lanjut backend: P0 — R-1, R-2, R-4+R-17, R-6, R-20, R-23;
+  P1 — R-9/R-3/C8/C21, R-8, R-10, R-5, R-18, R-19, R-16, R-21, R-22;
+  P2 — R-12, R-13, R-14, C6, C22, C20.
+- Koreksi penilaian E20 awal (diterapkan ke `API_SYNC_REVIEW.md`): R-7
+  ternyata sudah terjawab (§K:1163); R-15 premisnya salah (`DeviceResponse`
+  membawa `lastSeenAt`); D-7 perlu ditinjau ulang untuk PUT (§H.4:940).
+
+### 25.4 Caveat metodologi — salinan file vs amandemen 09:23 (PENTING)
+
+Salinan `pasted-text.txt` di disk bermtime 19 Nov 00:47 UTC (= 07:47 WIB)
+— salinan upload asli. Amandemen 09:23 dari Fathur **tidak ada dalam file
+ini** — diverifikasi parent: 0 hit `access-mode`, 0 hit
+`authorize("cancel"`, baris 1340 masih `/clients/provision`. Verdict yang
+bersandar pada amandemen (R-3/C8 cancel ADMIN, C21 §M ke model
+`authorize(...)`, R-9/C1/C5 sebagian, keberadaan
+`GET /api/v1/system/access-mode`) berstatus *tercatat dari amandemen, belum
+terverifikasi di dokumen*; penutupan definitifnya menunggu salinan api_docs
+baru (R-23). Tidak ada gap B yang verdictnya semata-mata amandemen.
+
+### 25.5 Linear — terverifikasi live 2026-11-19
+
+**163 issue = 140 Done / 1 In Progress (hanya E10 FAT-34) / 22 Todo.**
+Todo tersisa: 14 SYS-B terbuka + E13 (FAT-71) + V8.1–V8.5 + A10.2 (FAT-40)
++ E8 (FAT-7). LINEAR.md + seed v21. Pemetaan E21:
+`~/workspace/tmp-e21-mapping.json`.

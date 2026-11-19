@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useCapability, useAuth } from '../../context/AuthContext';
-import { EdgeDevice } from '../../types/assets';
+import { EdgeDevice, DeviceCredential } from '../../types/assets';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog } from '../../components/ui/ConflictDialog';
@@ -11,6 +11,8 @@ import { DeviceDetailModal } from './DeviceDetailModal';
 import { useDevices } from './hooks/useDevices';
 import { DeviceTable } from './components/DeviceTable';
 import { DeviceRegisterModal } from './components/DeviceRegisterModal';
+import { DeviceProvisionModal } from './components/DeviceProvisionModal';
+import { DeviceCredentialModal } from './components/DeviceCredentialModal';
 import { DeviceEditModal } from './components/DeviceEditModal';
 
 export const DevicesPage: React.FC = () => {
@@ -21,8 +23,12 @@ export const DevicesPage: React.FC = () => {
   const [selectedHealthDevice, setSelectedHealthDevice] = useState<EdgeDevice | null>(null);
   const [detailDeviceId, setDetailDeviceId] = useState<string | null>(null);
 
-  // Register Modal
+  // Register Modal (legacy — D-5: dipertahankan berlabel legacy)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+
+  // Provision Modal (kanonis §E.3a) + kredensial sekali tampil (di-wipe saat tutup)
+  const [isProvisionOpen, setIsProvisionOpen] = useState(false);
+  const [oneTimeCredential, setOneTimeCredential] = useState<DeviceCredential | null>(null);
 
   // Edit Modal (only ip_address & firmware_version editable; device_id & mac_address immutable)
   const [editTarget, setEditTarget] = useState<EdgeDevice | null>(null);
@@ -42,6 +48,7 @@ export const DevicesPage: React.FC = () => {
     setFeedback,
     loadDevices,
     registerDevice,
+    provisionDevice,
     updateDevice,
     deleteTarget,
     setDeleteTarget,
@@ -78,12 +85,22 @@ export const DevicesPage: React.FC = () => {
           </Button>
           <Button
             size="sm"
-            onClick={() => setIsRegisterOpen(true)}
+            onClick={() => setIsProvisionOpen(true)}
             disabled={!canManage.canInteract}
-            title={!canManage.canInteract ? canManage.reason : 'Registrasi perangkat STM32 baru'}
+            title={!canManage.canInteract ? canManage.reason : 'Provision perangkat baru (broker identity + registry)'}
           >
             <Plus className="w-4 h-4" />
-            <span>Registrasi Edge Device</span>
+            <span>Provision Device</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsRegisterOpen(true)}
+            disabled={!canManage.canInteract}
+            title={!canManage.canInteract ? canManage.reason : 'Registrasi manual legacy (tanpa kredensial broker) — gunakan Provision untuk alur lengkap'}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Registrasi Edge Device (Legacy)</span>
           </Button>
         </div>
       </div>
@@ -171,7 +188,20 @@ export const DevicesPage: React.FC = () => {
         onDelete={setDeleteTarget}
       />
 
-      {/* Register Modal */}
+      {/* Provision Modal (kanonis) */}
+      <DeviceProvisionModal
+        isOpen={isProvisionOpen}
+        onClose={() => setIsProvisionOpen(false)}
+        onSubmit={async (input) => {
+          const result = await provisionDevice(input);
+          setOneTimeCredential(result.credential);
+        }}
+      />
+
+      {/* Kredensial sekali tampil — di-wipe dari state saat dialog ditutup */}
+      <DeviceCredentialModal credential={oneTimeCredential} onClose={() => setOneTimeCredential(null)} />
+
+      {/* Register Modal (Legacy) */}
       <DeviceRegisterModal
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}

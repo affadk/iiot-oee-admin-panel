@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../features/auth/LoginPage';
+import { ForceChangePasswordPage } from '../features/auth/ForceChangePasswordPage';
 import { OverviewPage } from '../features/overview/OverviewPage';
 import { WorkOrdersPage } from '../features/production/WorkOrdersPage';
 import { ProductsPage } from '../features/production/ProductsPage';
@@ -34,6 +35,10 @@ export const AppRouter: React.FC = () => {
         
         {/* Auth Route (Spec §8.1) */}
         <Route path="/login" element={<LoginPage />} />
+
+        {/* Gerbang ganti-password-wajib — spec 043 (§L): di luar AdminLayout,
+            tanpa jalur kedua selama gerbang aktif. */}
+        <Route path="/force-change-password" element={<ForceChangePasswordPage />} />
 
         {/* Canonical Historical & Operations Top-Level Routes (§1) */}
         <Route element={<AdminLayout />}>

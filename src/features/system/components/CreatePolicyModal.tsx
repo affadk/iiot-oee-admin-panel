@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileCode2 } from 'lucide-react';
 import type { IamPermission, IamRole } from '../../../types/iam';
 import type { CreatePolicyPayload } from '../hooks/usePolicies';
@@ -16,10 +16,11 @@ interface CreatePolicyModalProps {
 }
 
 /**
- * Modal Tambah Aturan Kebijakan Baru. Field form milik modal; select
- * template `polTemplatePermId` adalah controlled value yang live — memilih
- * template mengisi action/resource dari permission katalog. Role ADMIN
- * memaksa eft ALLOW. Sukses hanya membersihkan abacJson/reason.
+ * Modal Tambah Aturan Kebijakan Baru. Field form milik modal; memilih
+ * permission dari katalog mengikat action + mengisi resource pattern default
+ * (`<resourceType>:*`). Role ADMIN memaksa effect ALLOW. Sukses hanya
+ * membersihkan abacJson. Body tulis kanonis (§3.4): policy terikat pada
+ * `permissionId` — action TIDAK bisa diisi bebas.
  */
 export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   isOpen,
@@ -29,27 +30,40 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [polTemplatePermId, setPolTemplatePermId] = useState('');
-  const [polRole, setPolRole] = useState('SUPERVISOR');
-  const [polEft, setPolEft] = useState<'ALLOW' | 'DENY'>('ALLOW');
-  const [polAction, setPolAction] = useState('read');
-  const [polResource, setPolResource] = useState('telemetry:*');
+  const [polRoleId, setPolRoleId] = useState('');
+  const [polPermId, setPolPermId] = useState('');
+  const [polEffect, setPolEffect] = useState<'ALLOW' | 'DENY'>('ALLOW');
+  const [polResourcePattern, setPolResourcePattern] = useState('telemetry:*');
   const [polAbacJson, setPolAbacJson] = useState('');
-  const [polReason, setPolReason] = useState('');
+
+  // Default hanya bila kosong: role pertama + permission pertama.
+  useEffect(() => {
+    if (!polRoleId && roles.length > 0) setPolRoleId(roles[0].id);
+  }, [roles, polRoleId]);
+  useEffect(() => {
+    if (!polPermId && permissions.length > 0) {
+      const first = permissions[0];
+      setPolPermId(first.id);
+      setPolResourcePattern(`${first.resourceType}:*`);
+    }
+  }, [permissions, polPermId]);
+
+  const selectedRole = roles.find((r) => r.id === polRoleId);
+  const selectedPerm = permissions.find((p) => p.id === polPermId);
 
   const submit = async () => {
     if (isSubmitting) return;
+    if (!selectedRole || !selectedPerm) return;
     const ok = await onSubmit({
-      role: polRole,
-      eft: polEft,
-      action: polAction,
-      resource: polResource,
+      roleId: selectedRole.id,
+      roleName: selectedRole.name,
+      permissionId: selectedPerm.id,
+      effect: polEffect,
+      resourcePattern: polResourcePattern,
       abacJson: polAbacJson,
-      reason: polReason,
     });
     if (ok) {
       setPolAbacJson('');
-      setPolReason('');
     }
   };
 
@@ -79,43 +93,47 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       >
         <div>
           <label className="block text-xs font-semibold mb-1">
-            Template dari Katalog Permission (Opsional)
+            Permission (Katalog)
           </label>
           <select
-            value={polTemplatePermId}
+            value={polPermId}
             onChange={(e) => {
               const pid = e.target.value;
-              setPolTemplatePermId(pid);
+              setPolPermId(pid);
               const found = permissions.find((p) => p.id === pid);
               if (found) {
-                setPolAction(found.action);
-                setPolResource(`${found.resource_type}:*`);
+                setPolResourcePattern(`${found.resourceType}:*`);
               }
             }}
             className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
           >
-            <option value="">Custom / Wildcard (*)</option>
             {permissions.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.action}:{p.resource_type} — {p.description}
+                {p.action}:{p.resourceType} — {p.description}
               </option>
             ))}
           </select>
+          {selectedPerm && (
+            <p className="text-[11px] text-slate-500 mt-1">
+              Action terikat: <code className="font-mono">{selectedPerm.action}</code> (tidak bisa diubah — ikatan permission).
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold mb-1">Role</label>
             <select
-              value={polRole}
+              value={polRoleId}
               onChange={(e) => {
-                const nextRole = e.target.value;
-                setPolRole(nextRole);
-                if (nextRole === 'ADMIN') setPolEft('ALLOW');
+                const nextRoleId = e.target.value;
+                setPolRoleId(nextRoleId);
+                const nextRole = roles.find((r) => r.id === nextRoleId);
+                if (nextRole?.name === 'ADMIN') setPolEffect('ALLOW');
               }}
               className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
             >
               {roles.map((r) => (
-                <option key={r.id} value={r.name}>
+                <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
               ))}
@@ -124,19 +142,18 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           <div>
             <label className="block text-xs font-semibold mb-1">Jenis Aturan</label>
             <select
-              value={polEft}
-              onChange={(e) => setPolEft(e.target.value as 'ALLOW' | 'DENY')}
+              value={polEffect}
+              onChange={(e) => setPolEffect(e.target.value as 'ALLOW' | 'DENY')}
               className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
             >
               <option value="ALLOW">ALLOW</option>
-              <option value="DENY" disabled={polRole === 'ADMIN'}>
-                DENY {polRole === 'ADMIN' ? '(Diblokir untuk ADMIN)' : ''}
+              <option value="DENY" disabled={selectedRole?.name === 'ADMIN'}>
+                DENY {selectedRole?.name === 'ADMIN' ? '(Diblokir untuk ADMIN)' : ''}
               </option>
             </select>
           </div>
         </div>
-        <Input label="Action" value={polAction} onChange={(e) => setPolAction(e.target.value)} required />
-        <Input label="Resource Pattern" value={polResource} onChange={(e) => setPolResource(e.target.value)} required />
+        <Input label="Resource Pattern" value={polResourcePattern} onChange={(e) => setPolResourcePattern(e.target.value)} required />
         <div>
           <label className="block text-xs font-semibold mb-1 flex items-center gap-1">
             <FileCode2 className="w-3.5 h-3.5" /> Syarat Kondisi Tambahan (Opsional)
@@ -145,11 +162,10 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             rows={2}
             value={polAbacJson}
             onChange={(e) => setPolAbacJson(e.target.value)}
-            placeholder='{"line_id": "LINE-01"}'
+            placeholder='{"attr": "subject.line_id", "eq": "LINE-01"}'
             className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
           />
         </div>
-        <Input label="Alasan / Keterangan" value={polReason} onChange={(e) => setPolReason(e.target.value)} />
       </form>
     </Modal>
   );

@@ -16,8 +16,9 @@ interface EditPolicyModalProps {
 /**
  * Modal Edit Aturan Kebijakan. Target ganda sebagai open flag DAN target
  * mutasi. Field diinisialisasi dari target saat target berubah; serialisasi
- * abac_condition (string passthrough atau JSON.stringify 2-spasi) pindah
- * ke sini dari openEditPolicyModal.
+ * abacCondition (string passthrough atau JSON.stringify 2-spasi) pindah
+ * ke sini dari openEditPolicyModal. Action TIDAK bisa diubah (ikatan
+ * permission — §3.4).
  */
 export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   target,
@@ -25,36 +26,30 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [editPolEft, setEditPolEft] = useState<'ALLOW' | 'DENY'>('ALLOW');
-  const [editPolAction, setEditPolAction] = useState('');
+  const [editPolEffect, setEditPolEffect] = useState<'ALLOW' | 'DENY'>('ALLOW');
   const [editPolResource, setEditPolResource] = useState('');
   const [editPolAbacJson, setEditPolAbacJson] = useState('');
-  const [editPolReason, setEditPolReason] = useState('');
 
   useEffect(() => {
     if (target) {
-      setEditPolEft(target.eft);
-      setEditPolAction(target.action);
-      setEditPolResource(target.resource_pattern);
+      setEditPolEffect(target.effect);
+      setEditPolResource(target.resourcePattern);
       setEditPolAbacJson(
-        target.abac_condition
-          ? typeof target.abac_condition === 'string'
-            ? target.abac_condition
-            : JSON.stringify(target.abac_condition, null, 2)
+        target.abacCondition
+          ? typeof target.abacCondition === 'string'
+            ? target.abacCondition
+            : JSON.stringify(target.abacCondition, null, 2)
           : '',
       );
-      setEditPolReason(target.reason ?? '');
     }
   }, [target]);
 
   const submit = async () => {
     if (isSubmitting) return;
     await onSubmit({
-      eft: editPolEft,
-      action: editPolAction,
-      resource: editPolResource,
+      effect: editPolEffect,
+      resourcePattern: editPolResource,
       abacJson: editPolAbacJson,
-      reason: editPolReason,
     });
   };
 
@@ -63,7 +58,7 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       isOpen={Boolean(target)}
       onClose={onClose}
       title={`Edit Aturan ${target?.id ?? ''}`}
-      subtitle={`Perbarui aturan Casbin ABAC untuk peran ${target?.role ?? ''}.`}
+      subtitle={`Perbarui aturan Casbin ABAC untuk peran ${target?.roleName ?? ''}.`}
       footer={
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
@@ -85,15 +80,15 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         <div>
           <label className="block text-xs font-semibold mb-1">Jenis Aturan</label>
           <select
-            value={editPolEft}
-            onChange={(e) => setEditPolEft(e.target.value as 'ALLOW' | 'DENY')}
+            value={editPolEffect}
+            onChange={(e) => setEditPolEffect(e.target.value as 'ALLOW' | 'DENY')}
             className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
           >
             <option value="ALLOW">ALLOW</option>
             <option value="DENY">DENY</option>
           </select>
         </div>
-        <Input label="Action" value={editPolAction} onChange={(e) => setEditPolAction(e.target.value)} required />
+        <Input label="Action (terikat permission — tidak bisa diubah)" value={target?.action ?? ''} disabled />
         <Input label="Resource Pattern" value={editPolResource} onChange={(e) => setEditPolResource(e.target.value)} required />
         <div>
           <label className="block text-xs font-semibold mb-1 flex items-center gap-1">
@@ -107,7 +102,6 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
           />
         </div>
-        <Input label="Alasan / Keterangan" value={editPolReason} onChange={(e) => setEditPolReason(e.target.value)} />
       </form>
     </Modal>
   );

@@ -56,7 +56,7 @@ export function useOperatorCrud({
         operator_id: input.operatorId.trim(),
         name: input.name.trim(),
         role: input.role,
-        line_id: input.lineId.trim() || 'LINE-01',
+        line_id: input.lineId.trim(),
         password: input.password,
       });
       await loadOperators();
@@ -82,7 +82,7 @@ export function useOperatorCrud({
       const updated = await apiClient.updateOperator(operatorId, {
         name: input.name.trim(),
         role: input.role,
-        line_id: input.lineId.trim() || 'LINE-01',
+        line_id: input.lineId.trim(),
       });
       await loadOperators();
       await refreshCapabilities();

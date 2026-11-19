@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { CUSTOM_ROLE_MAX_LEVEL } from '../../utils/capabilities';
 import { Badge } from '../../components/ui/Badge';
 import type { IamMutationDeps, IamTab } from './accessControlTypes';
 import { useIamData } from './hooks/useIamData';
@@ -61,13 +60,13 @@ export const AccessControlPage: React.FC = () => {
   const inspector = useInspector({
     activeTab,
     initialOpParam,
-    canInteract: iam.canManage.canInteract,
+    canInteract: iam.canRead.canInteract,
     operatorsLength: iam.operators.length,
     reportError: iam.reportError,
     setFeedback: iam.setFeedback,
   });
 
-  if (!iam.canManage.canInteract) {
+  if (!iam.canRead.canInteract) {
     return (
       <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
         <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold text-sm">
@@ -75,7 +74,7 @@ export const AccessControlPage: React.FC = () => {
           <span>Akses Pengaturan Hak Akses Terkunci</span>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400">
-          {iam.canManage.reason || 'Halaman pengaturan hak akses hanya tersedia untuk peran Admin dari jaringan lokal pabrik.'}
+          {iam.canRead.reason || 'Halaman pengaturan hak akses hanya tersedia untuk peran Admin dari jaringan lokal pabrik.'}
         </p>
       </div>
     );
@@ -89,7 +88,7 @@ export const AccessControlPage: React.FC = () => {
             Pengaturan Hak Akses &amp; Kebijakan Pengguna
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Pengaturan peran pengguna (tingkat peran tambahan maksimal {CUSTOM_ROLE_MAX_LEVEL}), penugasan area kerja, aturan izin, dan riwayat pemeriksaan akses.
+            Pengaturan peran pengguna, penugasan area kerja, aturan izin, dan riwayat pemeriksaan akses. Baca digate <code className="font-mono">access_control.read</code>, tulis digate <code className="font-mono">access_control.manage</code>.
           </p>
         </div>
 
@@ -209,7 +208,7 @@ export const AccessControlPage: React.FC = () => {
             />
           )}
 
-          {activeTab === 'audit' && <AuditTab decisions={iam.decisions} />}
+          {activeTab === 'audit' && <AuditTab decisions={iam.decisions} onApplyFilters={iam.reloadDecisions} />}
         </>
       )}
 
@@ -249,14 +248,12 @@ export const AccessControlPage: React.FC = () => {
         bindResourcePattern={bindApi.bindResourcePattern}
         bindEffect={bindApi.bindEffect}
         bindAbacJson={bindApi.bindAbacJson}
-        bindReason={bindApi.bindReason}
         onClose={() => !iam.isSubmitting && bindApi.closeBindModal()}
         onRoleIdChange={bindApi.changeBindRoleId}
         onPermIdChange={bindApi.changeSelectedPermId}
         onResourcePatternChange={bindApi.setBindResourcePattern}
         onEffectChange={bindApi.setBindEffect}
         onAbacJsonChange={bindApi.setBindAbacJson}
-        onReasonChange={bindApi.setBindReason}
         onSubmit={bindApi.handleBindPermission}
       />
 

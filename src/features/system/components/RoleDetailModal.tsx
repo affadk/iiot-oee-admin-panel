@@ -28,10 +28,10 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
   onBind,
 }) => {
   const boundRules = useMemo(
-    () => (role ? policies.filter((p) => p.role_id === role.id && Boolean(p.permission_id)) : []),
+    () => (role ? policies.filter((p) => p.roleId === role.id && Boolean(p.permissionId)) : []),
     [role, policies],
   );
-  const boundPermIds = useMemo(() => new Set(boundRules.map((b) => b.permission_id).filter(Boolean)), [boundRules]);
+  const boundPermIds = useMemo(() => new Set(boundRules.map((b) => b.permissionId).filter(Boolean)), [boundRules]);
   const availablePerms = useMemo(
     () => permissions.filter((p) => !boundPermIds.has(p.id)),
     [permissions, boundPermIds],
@@ -51,7 +51,7 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
       isOpen={true}
       onClose={onClose}
       title={`Detail Role: ${role.name}`}
-      subtitle={`Level ${role.privilege_level} · ${role.is_system ? 'System Protected Role' : 'Custom Role'} · ID: ${role.id}`}
+      subtitle={`${role.is_system ? 'System Protected Role' : 'Custom Role'} · ID: ${role.id}`}
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="text-[11px] text-slate-500">
@@ -69,7 +69,6 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
             <Badge variant={role.is_system ? 'warning' : 'info'}>
               {role.is_system ? 'SYSTEM ROLE' : 'CUSTOM ROLE'}
             </Badge>
-            <Badge variant="neutral">Level {role.privilege_level}</Badge>
             <Badge variant={roleAssignments.length > 0 ? 'success' : 'neutral'}>
               {roleAssignments.length > 0 ? `Digunakan (${roleAssignments.length} user)` : 'Belum digunakan'}
             </Badge>
@@ -96,10 +95,10 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
           ) : (
             <div className="space-y-1.5">
               {boundRules.map((br) => {
-                const permObj = permissions.find((p) => p.id === br.permission_id);
+                const permObj = permissions.find((p) => p.id === br.permissionId);
                 const permLabel = permObj
-                  ? `${permObj.action}:${permObj.resource_type}`
-                  : `${br.action} (${br.resource_pattern})`;
+                  ? `${permObj.action}:${permObj.resourceType}`
+                  : `${br.action} (${br.resourcePattern})`;
                 return (
                   <div
                     key={br.id}
@@ -107,18 +106,18 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
                   >
                     <div>
                       <div className="flex items-center gap-1.5 font-mono">
-                        <Badge variant={br.eft === 'ALLOW' ? 'success' : 'danger'}>{br.eft}</Badge>
+                        <Badge variant={br.effect === 'ALLOW' ? 'success' : 'danger'}>{br.effect}</Badge>
                         <span className="font-semibold">{permLabel}</span>
-                        <span className="text-slate-500">({br.resource_pattern})</span>
+                        <span className="text-slate-500">({br.resourcePattern})</span>
                       </div>
                       {permObj && <div className="text-[11px] text-slate-500 mt-0.5">{permObj.description}</div>}
                     </div>
-                    {role.name !== 'ADMIN' && br.permission_id && (
+                    {role.name !== 'ADMIN' && br.permissionId && (
                       <Button
                         size="sm"
                         variant="danger"
                         disabled={isSubmitting}
-                        onClick={() => onUnbind(role, br.permission_id!, permLabel)}
+                        onClick={() => onUnbind(role, br.permissionId!, permLabel)}
                       >
                         Cabut
                       </Button>
@@ -136,7 +135,7 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
           </div>
           <div className="space-y-1.5">
             {availablePerms.map((p) => {
-              const reservedBlocked = !role.is_system && isReservedPermission(p.action, p.resource_type);
+              const reservedBlocked = !role.is_system && isReservedPermission(p.action, p.resourceType);
               return (
                 <div
                   key={p.id}
@@ -145,7 +144,7 @@ export const RoleDetailModal: React.FC<RoleDetailModalProps> = ({
                   <div>
                     <div className="flex items-center gap-1.5 font-mono">
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {p.action}:{p.resource_type}
+                        {p.action}:{p.resourceType}
                       </span>
                       {reservedBlocked && <Badge variant="danger">RESERVED</Badge>}
                     </div>

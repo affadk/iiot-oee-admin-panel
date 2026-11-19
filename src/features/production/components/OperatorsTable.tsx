@@ -3,7 +3,7 @@ import { Edit3, Eye, KeyRound, Trash2 } from 'lucide-react';
 import { Operator } from '../../../types/production';
 import { IamAssignment } from '../../../types/iam';
 import { UserRole } from '../../../types/auth';
-import { CapabilityKey, canManageTargetRole, isProtectedOperator } from '../../../utils/capabilities';
+import { CapabilityKey, isProtectedOperator } from '../../../utils/capabilities';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 
@@ -67,7 +67,6 @@ export const OperatorsTable: React.FC<OperatorsTableProps> = ({
               </tr>
             ) : (
               operators.map((op) => {
-                const canManageTarget = canManageTargetRole(currentUserRole, op.role);
                 const isProtectedRoot = isProtectedOperator(op);
                 const rowStatusCap = checkCapability('operator.status.update', op.operator_id);
                 const rowUpdateCap = checkCapability('operator.update', op.operator_id);
@@ -134,15 +133,12 @@ export const OperatorsTable: React.FC<OperatorsTableProps> = ({
                           isLoading={togglingId === op.operator_id}
                           disabled={
                             !rowStatusCap.canInteract ||
-                            !canManageTarget ||
                             isProtectedRoot ||
                             Boolean(togglingId)
                           }
                           title={
                             isProtectedRoot
                               ? `Akun dilindungi (${op.operator_id})`
-                              : !canManageTarget
-                              ? `Hierarki peran: ${currentUserRole} tidak dapat mengubah akun ${op.role}`
                               : !rowStatusCap.canInteract
                               ? rowStatusCap.reason
                               : 'Aktifkan/nonaktifkan operator'

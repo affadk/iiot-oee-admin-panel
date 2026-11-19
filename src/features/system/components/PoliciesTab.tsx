@@ -30,10 +30,10 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({
     if (!q) return policies;
     return policies.filter(
       (p) =>
-        p.role.toLowerCase().includes(q) ||
+        p.roleName.toLowerCase().includes(q) ||
+        p.subjectMatch.toLowerCase().includes(q) ||
         p.action.toLowerCase().includes(q) ||
-        p.resource_pattern.toLowerCase().includes(q) ||
-        (p.reason ?? '').toLowerCase().includes(q)
+        p.resourcePattern.toLowerCase().includes(q)
     );
   }, [policies, policySearch]);
 
@@ -71,27 +71,28 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {filteredPolicies.map((pol) => {
-              const isAdminProtected = policyTargetsAdmin(pol.role);
+              const isAdminProtected = policyTargetsAdmin(pol.subjectMatch);
               return (
                 <tr key={pol.id}>
                   <td className="py-2.5 px-4">
-                    <div className="font-semibold text-slate-900 dark:text-slate-100">{pol.role}</div>
-                    <Badge variant={pol.eft === 'ALLOW' ? 'success' : 'danger'}>{pol.eft}</Badge>
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">{pol.roleName}</div>
+                    <div className="text-[11px] text-slate-500 font-mono">{pol.subjectMatch}</div>
+                    <Badge variant={pol.effect === 'ALLOW' ? 'success' : 'danger'}>{pol.effect}</Badge>
                   </td>
                   <td className="py-2.5 px-4 font-mono text-[11px]">
                     <div>{pol.action}</div>
-                    <div className="text-slate-500">{pol.resource_pattern}</div>
+                    <div className="text-slate-500">{pol.resourcePattern}</div>
                   </td>
                   <td className="py-2.5 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                    {pol.abac_condition
-                      ? typeof pol.abac_condition === 'string'
-                        ? pol.abac_condition
-                        : JSON.stringify(pol.abac_condition)
+                    {pol.abacCondition
+                      ? typeof pol.abacCondition === 'string'
+                        ? pol.abacCondition
+                        : JSON.stringify(pol.abacCondition)
                       : '—'}
                   </td>
                   <td className="py-2.5 px-4">
-                    <Badge variant={pol.is_active ? 'success' : 'neutral'}>
-                      {pol.is_active ? 'ACTIVE' : 'DISABLED'}
+                    <Badge variant={pol.enabled ? 'success' : 'neutral'}>
+                      {pol.enabled ? 'ACTIVE' : 'DISABLED'}
                     </Badge>
                   </td>
                   <td className="py-2.5 px-4 text-right space-x-1.5">
@@ -111,7 +112,7 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({
                       disabled={isAdminProtected || isSubmitting}
                       onClick={() => onTogglePolicy(pol)}
                     >
-                      {pol.is_active ? 'Disable' : 'Enable'}
+                      {pol.enabled ? 'Disable' : 'Enable'}
                     </Button>
                     <Button
                       size="sm"

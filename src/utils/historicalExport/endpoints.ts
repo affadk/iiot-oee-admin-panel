@@ -3,6 +3,7 @@ import {
   DowntimeHistoryQuery,
   OperationalEventsExportQuery,
   OperationalEventsQuery,
+  SystemAuditExportQuery,
   TelemetryExportQuery,
   TelemetryHistoryQuery,
   WorkOrdersQuery,
@@ -73,16 +74,23 @@ export function buildDowntimeExportEndpoint(query: DowntimeExportQuery): string 
   return `/api/v1/downtime-events/${deviceId}/export${qs}`;
 }
 
+/**
+ * E20 P20.4 (FAT-156, O4/O13/R9, D-12): hanya kirim parameter terdaftar
+ * `GET /operational-events` (from, to, event_type, acknowledged, limit,
+ * cursor, envelope) — tanpa trailing slash, tanpa `machine_id` (hanya
+ * /system/audit), tanpa `severity`. Filter `acknowledged` yang sebelumnya
+ * dibuang kini dikirim.
+ */
 export function buildOperationalEventsEndpoint(query: OperationalEventsQuery): string {
   const isGlobal = !query.device_id || query.device_id === 'ALL';
   const base = isGlobal
-    ? '/api/v1/operational-events/'
+    ? '/api/v1/operational-events'
     : `/api/v1/operational-events/${encodeURIComponent(query.device_id!)}`;
   const qs = buildQueryString({
-    machine_id: isGlobal ? query.machine_id : undefined,
     from: query.from,
     to: query.to,
     event_type: query.event_type,
+    acknowledged: query.acknowledged !== undefined ? String(query.acknowledged) : undefined,
     cursor: query.cursor,
     limit: query.limit,
     envelope: query.envelope ?? true,
@@ -90,20 +98,38 @@ export function buildOperationalEventsEndpoint(query: OperationalEventsQuery): s
   return `${base}${qs}`;
 }
 
+/**
+ * E20 P20.4 (FAT-156, O8/O13, D-12): `GET /operational-events/export` hanya
+ * mendaftarkan `from, to, format, limit` — tanpa `machine_id`/`event_type`.
+ */
 export function buildOperationalEventsExportEndpoint(query: OperationalEventsExportQuery): string {
   const isGlobal = !query.device_id || query.device_id === 'ALL';
   const base = isGlobal
     ? '/api/v1/operational-events/export'
     : `/api/v1/operational-events/${encodeURIComponent(query.device_id!)}/export`;
   const qs = buildQueryString({
-    machine_id: isGlobal ? query.machine_id : undefined,
     from: query.from,
     to: query.to,
-    event_type: query.event_type,
     format: query.format,
     limit: query.limit,
   });
   return `${base}${qs}`;
+}
+
+/**
+ * E20 P20.4 (FAT-156, O9): `GET /system/audit/export` — filter sama dengan
+ * daftar (`from`, `to`, `event_type`, `machine_id`).
+ */
+export function buildSystemAuditExportEndpoint(query: SystemAuditExportQuery): string {
+  const qs = buildQueryString({
+    from: query.from,
+    to: query.to,
+    event_type: query.event_type,
+    machine_id: query.machine_id,
+    format: query.format,
+    limit: query.limit,
+  });
+  return `/api/v1/system/audit/export${qs}`;
 }
 
 export function buildTelemetryHistoryEndpoint(query: TelemetryHistoryQuery): string {

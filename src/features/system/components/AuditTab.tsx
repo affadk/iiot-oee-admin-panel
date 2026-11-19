@@ -1,43 +1,133 @@
-import { useMemo, useState } from 'react';
-import type { IamAuditDecision } from '../../../types/iam';
+import { useState } from 'react';
+import type { IamAuditDecision, IamAuditFilters } from '../../../types/iam';
 import { Badge } from '../../../components/ui/Badge';
+import { Button } from '../../../components/ui/Button';
 
 interface AuditTabProps {
   decisions: IamAuditDecision[];
+  /** Filter server-side (§3.4: subject/decision/mode/from/to). */
+  onApplyFilters: (filters: IamAuditFilters) => Promise<void> | void;
 }
 
-/** Tab Riwayat Pemeriksaan: tabel keputusan otorisasi. Search + memo tinggal di tab ini. */
-export const AuditTab: React.FC<AuditTabProps> = ({ decisions }) => {
-  const [auditSearch, setAuditSearch] = useState('');
+/**
+ * Tab Riwayat Pemeriksaan: tabel keputusan otorisasi dengan filter
+ * server-side (§3.4). Filter dikirim sebagai query ke GET
+ * /access-control/audit — bukan search client-side atas halaman yang
+ * sudah dimuat.
+ */
+export const AuditTab: React.FC<AuditTabProps> = ({ decisions, onApplyFilters }) => {
+  const [subject, setSubject] = useState('');
+  const [decision, setDecision] = useState<'ALL' | 'ALLOW' | 'DENY'>('ALL');
+  const [mode, setMode] = useState<'ALL' | 'shadow' | 'enforce'>('ALL');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
 
-  const filteredDecisions = useMemo(() => {
-    const q = auditSearch.trim().toLowerCase();
-    if (!q) return decisions;
-    return decisions.filter(
-      (d) =>
-        d.subject.toLowerCase().includes(q) ||
-        d.action.toLowerCase().includes(q) ||
-        d.resource.toLowerCase().includes(q) ||
-        d.decision.toLowerCase().includes(q) ||
-        (d.reason ?? '').toLowerCase().includes(q)
-    );
-  }, [decisions, auditSearch]);
+  const applyFilters = async () => {
+    setIsApplying(true);
+    try {
+      await onApplyFilters({
+        subject: subject.trim() || undefined,
+        decision: decision === 'ALL' ? undefined : decision,
+        mode: mode === 'ALL' ? undefined : mode,
+        from: from ? new Date(from).toISOString() : undefined,
+        to: to ? new Date(to).toISOString() : undefined,
+      });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const resetFilters = async () => {
+    setSubject('');
+    setDecision('ALL');
+    setMode('ALL');
+    setFrom('');
+    setTo('');
+    setIsApplying(true);
+    try {
+      await onApplyFilters({});
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <input
-          type="search"
-          aria-label="Cari riwayat keputusan otorisasi"
-          value={auditSearch}
-          onChange={(e) => setAuditSearch(e.target.value)}
-          placeholder="Cari subjek, keputusan, action, atau resource..."
-          className="w-72 px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        />
-        <span className="text-[11px] text-slate-500">
-          Menampilkan {filteredDecisions.length} dari {decisions.length} keputusan
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void applyFilters();
+        }}
+      >
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Subjek</label>
+          <input
+            type="search"
+            aria-label="Filter subjek"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Operator ID..."
+            className="w-44 px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Keputusan</label>
+          <select
+            aria-label="Filter keputusan"
+            value={decision}
+            onChange={(e) => setDecision(e.target.value as 'ALL' | 'ALLOW' | 'DENY')}
+            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          >
+            <option value="ALL">Semua</option>
+            <option value="ALLOW">ALLOW</option>
+            <option value="DENY">DENY</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Mode</label>
+          <select
+            aria-label="Filter mode"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as 'ALL' | 'shadow' | 'enforce')}
+            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          >
+            <option value="ALL">Semua</option>
+            <option value="shadow">shadow</option>
+            <option value="enforce">enforce</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Dari</label>
+          <input
+            type="datetime-local"
+            aria-label="Filter dari tanggal"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Sampai</label>
+          <input
+            type="datetime-local"
+            aria-label="Filter sampai tanggal"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          />
+        </div>
+        <Button type="submit" size="sm" isLoading={isApplying}>
+          Terapkan
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => void resetFilters()} disabled={isApplying}>
+          Reset
+        </Button>
+        <span className="text-[11px] text-slate-500 ml-auto">
+          Menampilkan {decisions.length} keputusan
         </span>
-      </div>
+      </form>
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -50,7 +140,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ decisions }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {filteredDecisions.map((d) => (
+            {decisions.map((d) => (
               <tr key={d.id}>
                 <td className="py-2.5 px-4 font-tabular text-slate-500">
                   {new Date(d.timestamp).toLocaleString()}

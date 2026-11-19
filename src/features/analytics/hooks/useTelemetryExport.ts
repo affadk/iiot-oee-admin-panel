@@ -83,7 +83,7 @@ export function useTelemetryExport({
       triggerBrowserDownload(result.filename, result.content, result.mimeType);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('export.telemetry', selectedDevice, err.message);
+        reportForbidden('telemetry.refresh', selectedDevice, err.message);
       }
       const status =
         err instanceof ApiError

@@ -48,17 +48,17 @@ export const demoWorkOrders = {
     if (query.from) {
       const fromMs = new Date(query.from).getTime();
       if (!Number.isNaN(fromMs)) {
-        items = items.filter((w) => new Date(w.planned_start).getTime() >= fromMs);
+        items = items.filter((w) => new Date(w.planned_start ?? '').getTime() >= fromMs);
       }
     }
     if (query.to) {
       const toMs = new Date(query.to).getTime();
       if (!Number.isNaN(toMs)) {
-        items = items.filter((w) => new Date(w.planned_start).getTime() <= toMs);
+        items = items.filter((w) => new Date(w.planned_start ?? '').getTime() <= toMs);
       }
     }
 
-    return paginateWithCursor(items, (w) => w.planned_start, {
+    return paginateWithCursor(items, (w) => w.planned_start ?? '', {
       cursor: query.cursor,
       limit: query.limit ?? 50,
       maxLimit: 100,
@@ -80,10 +80,12 @@ export const demoWorkOrders = {
     return { ...wo };
   },
 
-  async resolveWorkOrder(woId: string, deviceId?: string, signal?: AbortSignal): Promise<WorkOrderResolveResult> {
+  async resolveWorkOrder(woId: string, deviceId: string, signal?: AbortSignal): Promise<WorkOrderResolveResult> {
     checkAbort(signal);
+    // E20 P20.5 (FAT-157): `device_id` REQUIRED (§C.3) — bukan opsional;
+    // demo meniru kontrak yang sama (tanpa fallback ke device terikat mesin).
     const base = ADMIN_ENDPOINTS.WORK_ORDERS_RESOLVE.buildPath(woId);
-    const resolvedPath = deviceId ? `${base}?device_id=${encodeURIComponent(deviceId)}` : base;
+    const resolvedPath = `${base}?device_id=${encodeURIComponent(deviceId)}`;
     store.recordEndpoint('WORK_ORDERS_RESOLVE', resolvedPath);
 
     const wo = store.workOrders.find((w) => w.wo_id === woId);
@@ -91,8 +93,7 @@ export const demoWorkOrders = {
       throw new ApiError({ code: 'WO_NOT_FOUND', message: `Work Order "${woId}" tidak ditemukan.`, httpStatus: 404 });
     }
 
-    const machine = store.machines.find((m) => m.machine_id === wo.machine_id);
-    const targetDeviceId = deviceId ?? machine?.bound_device_id ?? undefined;
+    const targetDeviceId = deviceId;
     const device = targetDeviceId ? store.devices.find((d) => d.device_id === targetDeviceId) : undefined;
 
     if (device && !device.online) {
@@ -158,7 +159,7 @@ export const demoWorkOrders = {
     }
 
     wo.status = 'ABORTED';
-    wo.actual_end = new Date().toISOString();
+    wo.actual_end_at = new Date().toISOString();
     if (reason?.trim()) {
       wo.cancel_reason = reason.trim();
       wo.notes = reason.trim();

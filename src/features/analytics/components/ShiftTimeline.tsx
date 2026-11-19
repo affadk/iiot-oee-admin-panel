@@ -16,6 +16,8 @@ const FSM_SEGMENT_COLORS: Record<MachineFsmState, string> = {
   PLANNED_DOWNTIME: 'bg-amber-400',
   UNPLANNED_DOWNTIME: 'bg-red-500',
   BATCH_FINISHED: 'bg-indigo-500',
+  // E20 P20.5 (FAT-157, D-4): OFFLINE nilai item sah (D-4) — segmen abu-abu.
+  OFFLINE: 'bg-zinc-500',
 };
 
 interface ShiftTimelineProps {

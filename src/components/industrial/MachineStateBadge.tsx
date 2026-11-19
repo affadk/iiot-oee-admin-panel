@@ -47,6 +47,14 @@ export const MachineStateBadge: React.FC<MachineStateBadgeProps> = ({ state, sho
       dot: 'bg-indigo-500',
       label: 'BATCH FINISHED',
     },
+    // E20 P20.5 (FAT-157, D-4): OFFLINE nilai item sah — bukan
+    // UNCONFIGURED. Abu-abu gelap + label OFFLINE.
+    OFFLINE: {
+      text: 'text-zinc-700 dark:text-zinc-300',
+      bg: 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700',
+      dot: 'bg-zinc-500',
+      label: 'OFFLINE',
+    },
   };
 
   const current = styles[normalized] || styles.UNCONFIGURED;

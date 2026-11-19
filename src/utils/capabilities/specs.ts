@@ -10,7 +10,6 @@ import { UserRole } from '../../types/auth';
  * Build Guide §4.5 & §4.6 — Capability-First UI Authorization & §7.2 Input Validation
  */
 export type CapabilityKey =
-  | 'dashboard.read'
   | 'telemetry.read'
   | 'quality.read'
   | 'downtime.read'
@@ -21,11 +20,11 @@ export type CapabilityKey =
   | 'oee.read'
   | 'work_order.read'
   | 'operational_event.ack'
-  | 'downtime.reason.label'
-  | 'export.telemetry'
-  | 'audit.system.read'
+  | 'downtime_event.label'
+  | 'telemetry.refresh'
   | 'device.manage'
   | 'machine.manage'
+  | 'machine.create'
   | 'product.manage'
   | 'production_line.read'
   | 'production_line.manage'
@@ -41,6 +40,7 @@ export type CapabilityKey =
   | 'operator.delete'
   | 'work_order.cancel'
   | 'telemetry.reconciliation.refresh'
+  | 'access_control.read'
   | 'access_control.manage'
   | 'mqtt.dynsec.read'
   | 'mqtt.dynsec.manage'
@@ -51,17 +51,6 @@ export type CapabilityKey =
 
 export type CapabilityState = 'allowed' | 'denied' | 'unknown';
 
-export const ROLE_LEVELS: Record<UserRole, number> = {
-  ADMIN: 40,
-  SUPERVISOR: 30,
-  OPERATOR: 20,
-  MAINTENANCE: 10,
-};
-
-export const ACCOUNT_MANAGER_MIN_LEVEL = 30;
-
-export const CUSTOM_ROLE_MAX_LEVEL = 29;
-
 export const RESERVED_PERMISSIONS = [
   'manage:access_control',
   'manage:mqtt_admin',
@@ -69,10 +58,15 @@ export const RESERVED_PERMISSIONS = [
   'read_raw:mqtt_configuration',
 ] as const;
 
-export const SYSTEM_ROLE_NAMES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'] as const;
-
-export function isSystemRoleName(roleName: string): boolean {
-  return (SYSTEM_ROLE_NAMES as readonly string[]).includes(roleName.trim().toUpperCase());
+/**
+ * Hanya ADMIN yang immutable/reserved (§3.4, FR-RL-002): SUPERVISOR /
+ * OPERATOR / MAINTENANCE adalah preset opsional — bisa diubah/dihapus bila
+ * tidak dipakai (E20 P20.3, X8). Hierarki level statis DIHAPUS (ROLE_LEVELS /
+ * canManageTargetRole / CUSTOM_ROLE_MAX_LEVEL) — otorisasi peran adalah
+ * string bebas + guard policy, bukan perbandingan level.
+ */
+export function isAdminRoleName(roleName: string): boolean {
+  return roleName.trim().toUpperCase() === 'ADMIN';
 }
 
 export function isReservedPermission(action: string, resourceType: string): boolean {
@@ -94,27 +88,33 @@ export function isReservedPermission(action: string, resourceType: string): bool
   return false;
 }
 
-export function policyTargetsAdmin(policyRole: string): boolean {
-  return policyRole
-    .split('|')
-    .map((r) => r.trim().toUpperCase())
-    .some((r) => r === 'ADMIN' || r === '*');
+/**
+ * Apakah pola subjek policy menargetkan ADMIN (atau semua subjek)?
+ * Pola kanonis (§3.4): `*`, `role:<nama>`, `operator:<id>`; nama role polos
+ * diterima sebagai alias `role:<nama>` (bentuk lama).
+ */
+export function policyTargetsAdmin(subjectMatch: string): boolean {
+  const match = subjectMatch.trim();
+  if (match === '*') return true;
+  if (match.toLowerCase().startsWith('role:')) return match.slice(5).trim().toUpperCase() === 'ADMIN';
+  if (match.toLowerCase().startsWith('operator:')) return match.slice(9).trim().toUpperCase() === 'ADM-001';
+  return match.toUpperCase() === 'ADMIN';
 }
 
-export function policyMatchesRole(policyRole: string, effectiveRoles: Set<string> | string[]): boolean {
-  const roleSet = Array.isArray(effectiveRoles) ? new Set(effectiveRoles) : effectiveRoles;
-  return policyRole
-    .split('|')
-    .map((r) => r.trim())
-    .some((r) => r === '*' || roleSet.has(r));
-}
-
-export function canManageTargetRole(actorRole: UserRole, targetRole: UserRole): boolean {
-  const actorLevel = ROLE_LEVELS[actorRole] ?? 0;
-  const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
-  if (actorLevel >= 40) return true;
-  if (actorLevel >= ACCOUNT_MANAGER_MIN_LEVEL) return targetLevel < actorLevel;
-  return false;
+/**
+ * Apakah pola subjek policy berlaku untuk subjek ini? Pola kanonis (§3.4):
+ * `*` → semua; `role:<nama>` → role itu; `operator:<id>` → operator itu.
+ * Nama role polos diterima sebagai alias `role:<nama>` (bentuk lama).
+ */
+export function policyMatchesSubject(
+  subjectMatch: string,
+  subject: { role: string; operatorId?: string },
+): boolean {
+  const match = subjectMatch.trim();
+  if (match === '*') return true;
+  if (match.toLowerCase().startsWith('role:')) return match.slice(5).trim().toUpperCase() === subject.role.trim().toUpperCase();
+  if (match.toLowerCase().startsWith('operator:')) return subject.operatorId !== undefined && match.slice(9).trim().toUpperCase() === subject.operatorId.trim().toUpperCase();
+  return match.toUpperCase() === subject.role.trim().toUpperCase();
 }
 
 export interface CapabilitySpec {
@@ -131,7 +131,6 @@ export const ALL_ROLES: UserRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTE
 
 export const CAPABILITY_SPECS: Record<CapabilityKey, CapabilitySpec> = {
   // Public read endpoints (tunnel-safe)
-  'dashboard.read': { allowedRoles: ALL_ROLES, requiresLan: false, requiresAuth: false },
   'telemetry.read': { allowedRoles: ALL_ROLES, requiresLan: false, requiresAuth: false },
   'quality.read': { allowedRoles: ALL_ROLES, requiresLan: false, requiresAuth: false },
   'downtime.read': { allowedRoles: ALL_ROLES, requiresLan: false, requiresAuth: false },
@@ -149,25 +148,19 @@ export const CAPABILITY_SPECS: Record<CapabilityKey, CapabilitySpec> = {
     requiresAuth: true,
     attributeDependent: true,
   },
-  'downtime.reason.label': {
+  'downtime_event.label': {
     allowedRoles: ALL_ROLES,
     requiresLan: true,
     requiresAuth: true,
     attributeDependent: true,
   },
 
-  // Historical export (Bearer refresh:telemetry; works on REMOTE_TUNNEL for ADMIN/SUPERVISOR)
-  'export.telemetry': {
+  // Historical export — policy `refresh:telemetry` (§I, D-13); works on
+  // REMOTE_TUNNEL for ADMIN/SUPERVISOR (perilaku lama dipertahankan;
+  // "LAN only" §I ditegakkan server-side).
+  'telemetry.refresh': {
     allowedRoles: ['ADMIN', 'SUPERVISOR'],
     requiresLan: false,
-    requiresAuth: true,
-    roleOnly: true,
-  },
-
-  // System audit (ADMIN + LAN only)
-  'audit.system.read': {
-    allowedRoles: ['ADMIN'],
-    requiresLan: true,
     requiresAuth: true,
     roleOnly: true,
   },
@@ -180,6 +173,15 @@ export const CAPABILITY_SPECS: Record<CapabilityKey, CapabilitySpec> = {
     attributeDependent: true,
   },
   'machine.manage': {
+    allowedRoles: ['ADMIN'],
+    requiresLan: true,
+    requiresAuth: true,
+    attributeDependent: true,
+  },
+  // E20 P20.5 (FAT-157, pembaruan 09:23): `POST /machines` =
+  // authorize("create","machine") ADMIN LAN only — kunci terpisah dari
+  // `machine.manage` (ubah/ikat/hapus).
+  'machine.create': {
     allowedRoles: ['ADMIN'],
     requiresLan: true,
     requiresAuth: true,
@@ -284,7 +286,13 @@ export const CAPABILITY_SPECS: Record<CapabilityKey, CapabilitySpec> = {
     attributeDependent: true,
   },
 
-  // IAM Console (ADMIN + LAN)
+  // IAM Console — baca digate `access_control.read`, tulis `access_control.manage` (§3.4)
+  'access_control.read': {
+    allowedRoles: ['ADMIN'],
+    requiresLan: true,
+    requiresAuth: true,
+    roleOnly: true,
+  },
   'access_control.manage': {
     allowedRoles: ['ADMIN'],
     requiresLan: true,

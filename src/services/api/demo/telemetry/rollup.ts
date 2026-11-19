@@ -68,7 +68,7 @@ export const demoTelemetryRollup = {
         const goodCount = Math.max(0, totalCount - rejectCount);
         const qual = totalCount > 0 ? Number(((goodCount / totalCount) * 100).toFixed(2)) : 100;
         const perf = cand.zeroCapacity ? null : Number((live?.performance ?? 92.5).toFixed(2));
-        const oee = perf === null ? 0 : Number(((avail * perf * qual) / 10000).toFixed(2));
+        const oee = perf === null ? null : Number(((avail * perf * qual) / 10000).toFixed(2));
 
         rows.push(
           TelemetryRollupItemSchema.parse({
@@ -90,7 +90,7 @@ export const demoTelemetryRollup = {
             availabilityPct: avail.toFixed(2),
             performancePct: perf === null ? null : perf.toFixed(2),
             qualityPct: qual.toFixed(2),
-            oeePct: oee.toFixed(2),
+            oeePct: oee === null ? null : oee.toFixed(2),
             sampleCount: cand.zeroCapacity ? 48 : 380 - idx * 35,
             provisional: true,
           })
@@ -112,7 +112,7 @@ export const demoTelemetryRollup = {
         const rejectCount = zeroCap ? 0 : 18 + (i % 5) * 3;
         const goodCount = Math.max(0, totalCount - rejectCount);
         const qual = totalCount > 0 ? Number(((goodCount / totalCount) * 100).toFixed(2)) : 100;
-        const oee = perf === null ? 0 : Number(((avail * perf * qual) / 10000).toFixed(2));
+        const oee = perf === null ? null : Number(((avail * perf * qual) / 10000).toFixed(2));
 
         rows.push(
           TelemetryRollupItemSchema.parse({
@@ -133,7 +133,7 @@ export const demoTelemetryRollup = {
             availabilityPct: avail.toFixed(2),
             performancePct: perf === null ? null : perf.toFixed(2),
             qualityPct: qual.toFixed(2),
-            oeePct: oee.toFixed(2),
+            oeePct: oee === null ? null : oee.toFixed(2),
             sampleCount: 1440 - i * 40,
             provisional: i === 0,
           })
@@ -153,7 +153,7 @@ export const demoTelemetryRollup = {
         const rejectCount = zeroCap ? 0 : 480 - i * 20;
         const goodCount = Math.max(0, totalCount - rejectCount);
         const qual = totalCount > 0 ? Number(((goodCount / totalCount) * 100).toFixed(2)) : 100;
-        const oee = perf === null ? 0 : Number(((avail * perf * qual) / 10000).toFixed(2));
+        const oee = perf === null ? null : Number(((avail * perf * qual) / 10000).toFixed(2));
 
         rows.push(
           TelemetryRollupItemSchema.parse({
@@ -174,7 +174,7 @@ export const demoTelemetryRollup = {
             availabilityPct: avail.toFixed(2),
             performancePct: perf === null ? null : perf.toFixed(2),
             qualityPct: qual.toFixed(2),
-            oeePct: oee.toFixed(2),
+            oeePct: oee === null ? null : oee.toFixed(2),
             sampleCount: 41200 - i * 1800,
             provisional: i === 0,
           })

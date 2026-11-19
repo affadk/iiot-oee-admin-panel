@@ -5,20 +5,18 @@ import { parseAbacCondition } from '../iamValidation';
 import type { IamMutationDeps } from '../accessControlTypes';
 
 export interface CreatePolicyPayload {
-  role: string;
-  eft: 'ALLOW' | 'DENY';
-  action: string;
-  resource: string;
+  roleId: string;
+  roleName: string;
+  permissionId: string;
+  effect: 'ALLOW' | 'DENY';
+  resourcePattern: string;
   abacJson: string;
-  reason: string;
 }
 
 export interface UpdatePolicyPayload {
-  eft: 'ALLOW' | 'DENY';
-  action: string;
-  resource: string;
+  effect: 'ALLOW' | 'DENY';
+  resourcePattern: string;
   abacJson: string;
-  reason: string;
 }
 
 /**
@@ -29,7 +27,9 @@ export interface UpdatePolicyPayload {
  * sebagai controlled value); hook ini menyimpan flag buka + target dan
  * menyediakan aksi onSubmit(payload). editPolicyTarget ganda sebagai open
  * flag DAN target mutasi — jangan dipisah. Sukses create hanya
- * membersihkan abacJson/reason (dilakukan modal).
+ * membersihkan abacJson (dilakukan modal). Body tulis kanonis (§3.4):
+ * camelCase, TANPA `reason`; action TIDAK bisa diubah (ikatan permission —
+ * PUT hanya subjectMatch/resourcePattern/effect/abacCondition/enabled).
  */
 export const usePolicies = ({ deps }: { deps: IamMutationDeps }) => {
   const { afterMutation, reportError, isSubmitting, setIsSubmitting, setFeedback } = deps;
@@ -48,16 +48,14 @@ export const usePolicies = ({ deps }: { deps: IamMutationDeps }) => {
     setIsSubmitting(true);
     try {
       await apiClient.createIamPolicy({
-        role: payload.role,
-        eft: payload.eft,
-        action: payload.action.trim(),
-        resource_pattern: payload.resource.trim(),
-        abac_condition: parsed.value,
-        is_active: true,
-        reason: payload.reason.trim() || undefined,
+        roleId: payload.roleId,
+        permissionId: payload.permissionId,
+        resourcePattern: payload.resourcePattern.trim(),
+        effect: payload.effect,
+        abacCondition: parsed.value,
       });
       setIsPolicyModalOpen(false);
-      await afterMutation(`Policy ${payload.eft} untuk ${payload.role} berhasil ditambahkan.`);
+      await afterMutation(`Policy ${payload.effect} untuk ${payload.roleName} berhasil ditambahkan.`);
       return true;
     } catch (err: unknown) {
       reportError(err, 'Gagal membuat aturan hak akses.');
@@ -78,11 +76,9 @@ export const usePolicies = ({ deps }: { deps: IamMutationDeps }) => {
     setIsSubmitting(true);
     try {
       await apiClient.updateIamPolicy(target.id, {
-        eft: payload.eft,
-        action: payload.action.trim(),
-        resource_pattern: payload.resource.trim(),
-        abac_condition: parsed.value,
-        reason: payload.reason.trim() || undefined,
+        effect: payload.effect,
+        resourcePattern: payload.resourcePattern.trim(),
+        abacCondition: parsed.value,
       });
       setEditPolicyTarget(null);
       await afterMutation(`Policy ${target.id} berhasil diperbarui.`);
@@ -99,8 +95,8 @@ export const usePolicies = ({ deps }: { deps: IamMutationDeps }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await apiClient.updateIamPolicy(pol.id, { is_active: !pol.is_active });
-      await afterMutation(`Status policy ${pol.id} diubah menjadi ${!pol.is_active ? 'ACTIVE' : 'DISABLED'}.`);
+      await apiClient.updateIamPolicy(pol.id, { enabled: !pol.enabled });
+      await afterMutation(`Status policy ${pol.id} diubah menjadi ${!pol.enabled ? 'ACTIVE' : 'DISABLED'}.`);
     } catch (err: unknown) {
       reportError(err, 'Gagal mengubah status policy.', pol.id);
     } finally {

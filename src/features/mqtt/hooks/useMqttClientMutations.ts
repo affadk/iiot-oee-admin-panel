@@ -3,10 +3,9 @@ import { apiClient } from '../../../services/api/client';
 import type { MqttClient } from '../../../types/mqtt';
 import type { DynSecFeedback } from './useDynamicSecurityData';
 
-/** Payload diskriminan create client: mode deviceId+access ATAU roles eksplisit. */
-export type CreateMqttClientPayload =
-  | { username: string; password?: string; deviceId: string; access: 'publish' | 'subscribe' | 'readwrite' }
-  | { username: string; password?: string; roles: string[] };
+/** Payload create client: HANYA mode roles eksplisit (E20 P20.2 — mode
+ * deviceId+access dihapus; provisioning perangkat lewat Devices → Provision). */
+export type CreateMqttClientPayload = { username: string; password?: string; roles: string[] };
 
 interface UseMqttClientMutationsArgs {
   loadAll: () => Promise<void>;

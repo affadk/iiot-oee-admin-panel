@@ -51,6 +51,10 @@ export const httpOperators = {
           role: data.role,
           password: data.password,
           ...(data.line_id ? { lineId: data.line_id.trim() } : {}),
+          // E20 P20.5 (FAT-157, R7): kirim `isActive` bila diberikan
+          // (§H.3, opsional, default server `true`) — sebelumnya tipe
+          // punya tapi body tidak mengirimnya (operator selalu aktif).
+          ...(data.is_active !== undefined ? { isActive: data.is_active } : {}),
         },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,

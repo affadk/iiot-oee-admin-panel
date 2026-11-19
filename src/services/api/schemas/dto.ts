@@ -79,10 +79,29 @@ export const WorkOrderResolveSchema = z.object({
   }),
 });
 
-export const UserRoleSchema = z.enum(['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE']);
+/**
+ * Role adalah string bebas (API doc §H/§3.4, E20 P20.3) — bukan enum.
+ * Nilai dikenal: ADMIN, SUPERVISOR, OPERATOR, MAINTENANCE; default UNASSIGNED.
+ */
+export const UserRoleSchema = z.string();
 
 export const AuthMeCapabilityDecisionSchema = z.enum(['allow', 'deny', 'unknown']);
 
+export const AuthMeCapabilityEntrySchema = z.object({
+  key: z.string(),
+  domain: z.string().optional(),
+  surface: z.string().optional(),
+  decision: AuthMeCapabilityDecisionSchema,
+  mode: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+/**
+ * Bentuk NORMALISASI GET /auth/me (dihasilkan mapAuthMe — toleran terhadap
+ * tiga bentuk dokumen: flat §L, nested §3.4, ringkas §6B; D-2). Capability
+ * boleh berbentuk record ATAU array (array memakai `decision`, bukan `state`).
+ * `primaryRole` tanpa default 'OPERATOR' — absen = undefined (UNASSIGNED).
+ */
 export const AuthMeResponseSchema = z
   .object({
     operator: z.object({
@@ -90,8 +109,11 @@ export const AuthMeResponseSchema = z
       name: z.string(),
       role: UserRoleSchema,
       line_id: z.string().optional(),
+      isActive: z.boolean().optional(),
+      isProtected: z.boolean().optional(),
+      mustChangePassword: z.boolean().optional(),
     }),
-    primaryRole: UserRoleSchema,
+    primaryRole: UserRoleSchema.optional(),
     effectiveRoles: z.array(
       z.object({
         roleName: z.string(),
@@ -110,16 +132,46 @@ export const AuthMeResponseSchema = z
           state: AuthMeCapabilityDecisionSchema,
         })
       ),
+      z.array(AuthMeCapabilityEntrySchema),
     ]),
+    capabilityDetails: z.record(z.string(), AuthMeCapabilityEntrySchema).optional(),
+    attributes: z.record(z.string(), z.unknown()).optional(),
+    access: z
+      .object({
+        mode: z.string().optional(),
+        channel: z.string().optional(),
+        mutations_allowed: z.boolean().optional(),
+      })
+      .optional(),
   })
   .transform((parsed) => {
+    const decisionOf = (item: { decision?: 'allow' | 'deny' | 'unknown'; state?: 'allow' | 'deny' | 'unknown' }) =>
+      item.decision ?? item.state ?? 'unknown';
     const normalizedCapabilities: Record<string, 'allow' | 'deny' | 'unknown'> = Array.isArray(parsed.capabilities)
-      ? Object.fromEntries(parsed.capabilities.map((item) => [item.key, item.state]))
+      ? Object.fromEntries(parsed.capabilities.map((item) => [item.key, decisionOf(item)]))
       : parsed.capabilities;
+    const capabilityDetails: Record<string, z.infer<typeof AuthMeCapabilityEntrySchema>> | undefined = Array.isArray(
+      parsed.capabilities
+    )
+      ? Object.fromEntries(
+          parsed.capabilities.map((item) => [
+            item.key,
+            {
+              key: item.key,
+              domain: (item as { domain?: string }).domain,
+              surface: (item as { surface?: string }).surface,
+              decision: decisionOf(item),
+              mode: (item as { mode?: string }).mode,
+              reason: (item as { reason?: string }).reason,
+            },
+          ])
+        )
+      : parsed.capabilityDetails;
 
     return {
       ...parsed,
       capabilities: normalizedCapabilities,
+      capabilityDetails,
     };
   });
 
@@ -132,6 +184,8 @@ export const LoginResponseSchema = z.object({
     username: z.string(),
     role: UserRoleSchema,
     line_id: z.string().optional(),
+    // Spec 043 (§L): flag gerbang ganti-password-wajib.
+    must_change_password: z.boolean().optional(),
   }),
 });
 
@@ -139,20 +193,24 @@ export const RefreshResponseSchema = z.object({
   success: z.boolean(),
   token: z.string().min(1),
   expires_in: NumericCoercionSchema,
+  // Spec 043 (§L): authzVersion hasil baca ulang identitas dari database.
+  authzVersion: NumericCoercionSchema.optional(),
 });
 
+/** Baris policy kanonis (§3.4, spec 042) — camelCase, TANPA `reason`. */
 export const IamPolicyRuleSchema = z.object({
   id: z.string(),
-  role: z.string(),
-  subject_match: z.string().optional(),
-  role_id: z.string().optional(),
-  permission_id: z.string().optional(),
+  roleId: z.string(),
+  roleName: z.string(),
+  subjectMatch: z.string(),
+  permissionId: z.string().optional(),
   action: z.string(),
-  resource_pattern: z.string(),
-  eft: z.enum(['ALLOW', 'DENY']),
-  abac_condition: z.union([z.string(), z.record(z.string(), z.unknown()), z.null()]).optional(),
-  is_active: z.boolean(),
-  reason: z.string().optional(),
+  resourceType: z.string(),
+  resourcePattern: z.string(),
+  effect: z.enum(['ALLOW', 'DENY']),
+  abacCondition: z.union([z.record(z.string(), z.unknown()), z.null()]).optional(),
+  enabled: z.boolean(),
+  createdAt: z.string(),
 });
 
 export const ScopeLevelSchema = z.enum(['ORGANIZATION', 'SITE', 'AREA', 'LINE', 'MACHINE', 'DEVICE']);
@@ -160,17 +218,15 @@ export const ScopeLevelSchema = z.enum(['ORGANIZATION', 'SITE', 'AREA', 'LINE', 
 export const IamRoleSchema = z.object({
   id: z.string(),
   name: z.string().min(2).max(64),
-  privilege_level: z.number().int().min(1).max(100),
   is_system: z.boolean(),
   description: z.string(),
   created_at: z.string(),
-  policy_count: z.number().int().nonnegative().optional(),
 });
 
 export const IamPermissionSchema = z.object({
   id: z.string(),
   action: z.string().min(1).max(64),
-  resource_type: z.string().min(1).max(64),
+  resourceType: z.string().min(1).max(64),
   description: z.string(),
 });
 
@@ -207,14 +263,17 @@ export const BoundDeviceSummarySchema = z.object({
 export const BoundMachineSummarySchema = z.object({
   machine_id: z.string().min(1),
   name: z.string().min(1),
-  modbus_slave_id: z.number().int().min(1).max(247),
+  modbus_slave_id: z.number().int().min(1).max(247).optional(),
 });
+
+export const DeviceEnrollmentStateSchema = z.enum(['PROVISIONED', 'ACTIVE', 'REVOKED']);
 
 export const EdgeDeviceSchema = z.object({
   device_id: z.string().regex(/^STM32-[A-Za-z0-9_-]+$/),
   model: z.string().optional(),
   serial_number: z.string().optional(),
-  mac_address: z.string().regex(/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/),
+  // §E: MAC boleh kosong saat provisioning ("" sampai teramati via /hello).
+  mac_address: z.union([z.literal(''), z.string().regex(/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/)]),
   ip_address: z.string().nullable(),
   firmware_version: z.string().nullable(),
   online: z.boolean(),
@@ -222,6 +281,9 @@ export const EdgeDeviceSchema = z.object({
   bound_machine_id: z.string().nullable(),
   bound_machine_name: z.string().nullable().optional(),
   boundMachine: BoundMachineSummarySchema.nullable().optional(),
+  enrollmentState: DeviceEnrollmentStateSchema.optional(),
+  provisionedAt: z.string().nullable().optional(),
+  credentialRotatedAt: z.string().nullable().optional(),
   created_at: z.string(),
 });
 
@@ -366,10 +428,10 @@ export const TelemetryRollupItemSchema = z.object({
   rejectCount: NumericCoercionSchema,
   operatingSec: NumericCoercionSchema,
   runSec: NumericCoercionSchema,
-  availabilityPct: z.union([z.string(), z.number()]),
+  availabilityPct: z.union([z.string(), z.number(), z.null()]),
   performancePct: z.union([z.string(), z.number(), z.null()]),
-  qualityPct: z.union([z.string(), z.number()]),
-  oeePct: z.union([z.string(), z.number()]),
+  qualityPct: z.union([z.string(), z.number(), z.null()]),
+  oeePct: z.union([z.string(), z.number(), z.null()]),
   sampleCount: z.number().int().nonnegative(),
   provisional: z.boolean(),
   groupKey: z.string(),
@@ -382,10 +444,10 @@ export const TelemetryAggregatePointSchema = z.object({
   rejectCount: NumericCoercionSchema,
   operatingSec: NumericCoercionSchema,
   runSec: NumericCoercionSchema,
-  availabilityPct: z.union([z.string(), z.number()]),
+  availabilityPct: z.union([z.string(), z.number(), z.null()]),
   performancePct: z.union([z.string(), z.number(), z.null()]),
-  qualityPct: z.union([z.string(), z.number()]),
-  oeePct: z.union([z.string(), z.number()]),
+  qualityPct: z.union([z.string(), z.number(), z.null()]),
+  oeePct: z.union([z.string(), z.number(), z.null()]),
   sampleCount: z.number().int().nonnegative(),
   provisional: z.boolean(),
 });

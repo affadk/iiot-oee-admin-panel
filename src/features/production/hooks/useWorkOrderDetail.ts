@@ -21,12 +21,21 @@ export function useWorkOrderDetail() {
     setResolveError(null);
   };
 
-  const previewResolve = async (wo: WorkOrder) => {
+  const previewResolve = async (wo: WorkOrder, deviceId?: string) => {
     if (isResolving) return;
     setIsResolving(true);
     setResolveError(null);
+    // E20 P20.5 (FAT-157): `device_id` REQUIRED (§C.3) — tanpa device
+    // terikat, resolve tidak bisa dikirim; tampilkan error yang jelas.
+    if (!deviceId) {
+      setResolveError(
+        'Resolve membutuhkan device_id — pilih perangkat yang terikat ke mesin ini sebelum memeriksa kesiapan parameter.'
+      );
+      setIsResolving(false);
+      return;
+    }
     try {
-      const res = await apiClient.resolveWorkOrder(wo.wo_id);
+      const res = await apiClient.resolveWorkOrder(wo.wo_id, deviceId);
       setResolveResult(res);
     } catch (err: unknown) {
       const msg =

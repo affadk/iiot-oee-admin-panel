@@ -73,7 +73,7 @@ export const TelemetryHistoryPage: React.FC = () => {
     selectedShift && filters.shiftDate
       ? formatShiftFilterLabel(selectedShift, filters.shiftDate)
       : formatPeriodLabel(filters.from, filters.to);
-  const canExport = useCapability('export.telemetry', selectedDevice);
+  const canExport = useCapability('telemetry.refresh', selectedDevice);
 
   const handleFilterChange = (patch: Partial<HistoryFilters>) => {
     setCursorStack([undefined]);

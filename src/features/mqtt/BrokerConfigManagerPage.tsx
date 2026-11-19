@@ -86,8 +86,10 @@ export const BrokerConfigManagerPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {syncStatus && (
-            <Badge variant={syncStatus.sync_state === 'IN_SYNC' ? 'success' : 'warning'}>
-              {syncStatus.sync_state} · {syncStatus.active_version}
+            // E20 P20.5 (FAT-157): badge dari bentuk dokumen §3.3b
+            // (`status` + `activeVersionId`), bukan `sync_state`/`active_version`.
+            <Badge variant={syncStatus.status === 'IN_SYNC' ? 'success' : 'warning'}>
+              {syncStatus.status} · {syncStatus.activeVersionId || '—'}
             </Badge>
           )}
           <Button size="sm" variant="secondary" onClick={loadConfigState}>

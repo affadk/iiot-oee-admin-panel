@@ -40,19 +40,29 @@ export interface MqttGroup {
   roles: string[];
 }
 
+/**
+ * E20 P20.5 (FAT-157): bentuk `GET /api/v1/mqtt/overview` (API doc §3.3a).
+ * Status dynsec kanonis `"READY"` (bukan CONNECTED/DISCONNECTED); count
+ * `null` berarti "tidak tersedia", bukan 0 (FR-035-51).
+ */
 export interface BrokerOverviewInfo {
   dynamicSecurity: {
+    available: boolean;
     enabled: boolean;
-    status: 'CONNECTED' | 'DISCONNECTED';
-    clientsCount: number;
-    rolesCount: number;
-    groupsCount: number;
+    status: 'READY';
+    clientsCount: number | null;
+    rolesCount: number | null;
+    groupsCount: number | null;
+    lastError: string | null;
+    measuredAt: string | null;
   };
   configuration: {
     status: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED' | 'UNAVAILABLE';
     activeVersionId: string | null;
     lastAppliedAt: string | null;
     mutationLocked: boolean;
+    lastOperation: string | null;
+    measuredAt: string | null;
   };
 }
 
@@ -80,9 +90,13 @@ export interface BrokerTlsProfile {
 export interface BrokerBridge {
   id: string;
   name: string;
+  enabled?: boolean;
   remote_address: string;
   remote_port: number;
-  remote_client_id: string;
+  /** Null bila tanpa sumber nyata (§3.3b) — bukan string kosong. */
+  remote_client_id: string | null;
+  remote_username?: string;
+  has_password?: boolean;
   protocol_version: 'mqttv311' | 'mqttv5';
   topics: Array<{
     pattern: string;
@@ -91,16 +105,23 @@ export interface BrokerBridge {
     local_prefix?: string;
     remote_prefix?: string;
   }>;
-  status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  /** Null bila tanpa sumber nyata (§3.3b). */
+  status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' | null;
   tls_enabled: boolean;
 }
 
+/**
+ * E20 P20.5 (FAT-157): model panel `GET /mqtt/configuration` (§3.3b).
+ * Field tanpa sumber nyata = `null` (bukan default fabrikasi);
+ * `tls_profiles` selalu `[]` (TLS melekat pada listener/bridge);
+ * `unmanaged[]` = kunci konfigurasi di luar kendali panel.
+ */
 export interface BrokerConfigSchema {
   version: string;
   general: {
     per_listener_settings: boolean;
     allow_anonymous: boolean;
-    autosave_interval_seconds: number;
+    autosave_interval_seconds: number | null;
     persistence: boolean;
     persistence_location: string;
     log_dest: string[];
@@ -108,15 +129,34 @@ export interface BrokerConfigSchema {
     connection_messages: boolean;
   };
   limits: {
-    max_connections: number;
-    max_packet_size_bytes: number;
+    max_connections: number | null;
+    max_packet_size_bytes: number | null;
     max_queued_messages: number;
-    max_queued_bytes: number;
+    max_queued_bytes: number | null;
     max_inflight_messages: number;
   };
   listeners: BrokerListener[];
   tls_profiles: BrokerTlsProfile[];
   bridges: BrokerBridge[];
+  unmanaged?: string[];
+}
+
+/**
+ * E20 P20.5 (FAT-157): `GET /mqtt/configuration/status` (§3.3b) — bentuk
+ * dokumen (runtime + mutation lock + operasi terakhir), BUKAN asumsi panel
+ * `active_version`/`sync_state`.
+ */
+export interface BrokerConfigStatus {
+  status: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED' | 'UNAVAILABLE';
+  activeVersionId: string | null;
+  lastAppliedAt: string | null;
+  mutationLocked: boolean;
+  lastOperation: string | null;
+  measuredAt: string | null;
+  runtime?: {
+    mode?: string | null;
+    apply?: { available?: boolean };
+  };
 }
 
 export interface BrokerConfigVersion {
@@ -126,7 +166,10 @@ export interface BrokerConfigVersion {
   applied_by: string;
   summary: string;
   operation_type: 'RELOAD' | 'RESTART' | 'NO_OPERATION';
-  status: 'STAGED' | 'APPLIED' | 'ACTIVE' | 'ROLLED_BACK';
+  /** Status versi panel: hanya STAGED/ACTIVE/ROLLED_BACK (§3.3b). */
+  status: 'STAGED' | 'ACTIVE' | 'ROLLED_BACK';
+  /** Nilai domain asli bila status panel memetakannya (mis. 'APPLIED' lama). */
+  domainStatus?: string | null;
   config: BrokerConfigSchema;
 }
 
@@ -138,7 +181,11 @@ export interface BrokerOperationStep {
 
 export interface BrokerOperation {
   operation_id: string;
-  type: 'STAGE' | 'APPLY' | 'ROLLBACK' | 'DISCARD';
+  /**
+   * E20 P20.5 (FAT-157): `operation_type` kanonis (§3.3b) —
+   * NO_OPERATION/RELOAD/RESTART; `null` untuk aksi RECOVERY.
+   */
+  type: 'NO_OPERATION' | 'RELOAD' | 'RESTART' | null;
   version_id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
   reason?: string;

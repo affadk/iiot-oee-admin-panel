@@ -34,7 +34,51 @@ function rawHourly(overrides: Record<string, unknown> = {}): Record<string, unkn
 test('mapHourly mempertahankan targetPerHour null (kapasitas unknown)', () => {
   const pt = mapHourly(rawHourly({ targetPerHour: null, performancePct: null }));
   assert.equal(pt.targetPerHour, null);
-  assert.equal(pt.performance, 0);
+  // E20 P20.5 (FAT-157, D-8): `*Pct` null dipertahankan null — bukan 0.
+  assert.equal(pt.performance, null);
+});
+
+test('mapHourly mempertahankan *Pct null untuk oee/availability/quality (D-8)', () => {
+  const pt = mapHourly(rawHourly({ oeePct: null, availabilityPct: null, qualityPct: null }));
+  assert.equal(pt.oee, null);
+  assert.equal(pt.availability, null);
+  assert.equal(pt.quality, null);
+});
+
+test('mapHourly mem-parse *Pct string-numeric dan mempertahankan null saat absen', () => {
+  const pt = mapHourly(rawHourly({ oeePct: '92.50' }));
+  assert.equal(pt.oee, 92.5);
+  const pt2 = mapHourly({ bucket: '07:00' });
+  assert.equal(pt2.oee, null);
+  assert.equal(pt2.availability, null);
+  assert.equal(pt2.performance, null);
+  assert.equal(pt2.quality, null);
+});
+
+test('mapHourly memetakan deviceId/machineId/woId', () => {
+  const pt = mapHourly(rawHourly({ deviceId: 'STM32-OEE-01', machineId: 'CNC-MILLING-01', woId: 'WO-2026-101' }));
+  assert.equal(pt.deviceId, 'STM32-OEE-01');
+  assert.equal(pt.machineId, 'CNC-MILLING-01');
+  assert.equal(pt.woId, 'WO-2026-101');
+  const pt2 = mapHourly(rawHourly());
+  assert.equal(pt2.deviceId, null);
+  assert.equal(pt2.machineId, null);
+  assert.equal(pt2.woId, null);
+});
+
+test('mapShiftSummary membaca hourly[] bila include_hourly=true', () => {
+  const summary = mapShiftSummary({
+    shift_name: 'Shift 1',
+    machine_id: 'CNC-MILLING-01',
+    oee: 86.6,
+    availability: 92.4,
+    performance: 95.4,
+    quality: 98.2,
+    hourly: [rawHourly({ bucket: '2026-11-11T07:00:00+07:00' })],
+  });
+  assert.equal(summary.hourly?.length, 1);
+  assert.equal(summary.hourly?.[0].bucket, '2026-11-11T07:00:00+07:00');
+  assert.equal(mapShiftSummary({ shift_name: 'Shift 1' }).hourly, undefined);
 });
 
 test('mapHourly mempertahankan targetPerHour snake_case null', () => {

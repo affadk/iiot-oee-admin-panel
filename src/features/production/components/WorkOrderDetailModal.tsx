@@ -15,7 +15,7 @@ interface WorkOrderDetailModalProps {
   resolveResult: WorkOrderResolveResult | null;
   resolveError: string | null;
   isResolving: boolean;
-  onPreviewResolve: (wo: WorkOrder) => void;
+  onPreviewResolve: (wo: WorkOrder, deviceId?: string) => void;
   onClose: () => void;
 }
 
@@ -47,7 +47,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => onPreviewResolve(displayedWo)}
+              onClick={() => onPreviewResolve(displayedWo, selectedDeviceId ?? undefined)}
               isLoading={isResolving}
             >
               <Cpu className="w-3.5 h-3.5" />
@@ -97,16 +97,19 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 {displayedWo.target_qty ?? displayedWo.target_quantity} pcs
               </span>
             </div>
+            {/* E20 P20.5 (FAT-157): `completed_quantity`/`rejected_quantity`
+                DIHAPUS dari kontrak WO (§C) — kartu diganti `dispatched_at` /
+                `acked_at`; output/reject dibaca dari telemetri/OEE. */}
             <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
-              <span className="text-slate-400 block">Good Output</span>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                {displayedWo.completed_quantity} pcs
+              <span className="text-slate-400 block">Dispatched</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {displayedWo.dispatched_at ? new Date(displayedWo.dispatched_at).toLocaleString() : '—'}
               </span>
             </div>
             <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
-              <span className="text-slate-400 block">Rejects</span>
-              <span className="text-sm font-bold text-red-600 dark:text-red-400">
-                {displayedWo.rejected_quantity} pcs
+              <span className="text-slate-400 block">Acked</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {displayedWo.acked_at ? new Date(displayedWo.acked_at).toLocaleString() : '—'}
               </span>
             </div>
           </div>
@@ -185,9 +188,11 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
           <div className="flex items-center gap-2 text-[11px] text-slate-500 font-tabular">
             <Clock className="w-3.5 h-3.5" />
             <span>
-              Planned Start: {new Date(displayedWo.planned_start).toLocaleString()}
-              {displayedWo.actual_end
-                ? ` · Ended: ${new Date(displayedWo.actual_end).toLocaleString()}`
+              {/* E20 P20.5 (FAT-157): `planned_start` null bila tak ada
+                  (tanpa fallback) — tampil '—'; `actual_end_at` kanonis. */}
+              Planned Start: {displayedWo.planned_start ? new Date(displayedWo.planned_start).toLocaleString() : '—'}
+              {displayedWo.actual_end_at
+                ? ` · Ended: ${new Date(displayedWo.actual_end_at).toLocaleString()}`
                 : ''}
             </span>
           </div>

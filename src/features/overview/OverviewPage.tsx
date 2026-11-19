@@ -375,23 +375,17 @@ export const OverviewPage: React.FC = () => {
             return (
               <div key={ev.id} className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
-                  <Badge
-                    variant={
-                      ev.severity === 'CRITICAL' ? 'danger' : ev.severity === 'WARN' ? 'warning' : 'info'
-                    }
-                  >
-                    {ev.severity}
-                  </Badge>
+                  <Badge variant="info">{ev.event_type}</Badge>
                   <div>
                     <span className="font-semibold text-slate-900 dark:text-slate-100 mr-2">
                       {devLbl.label}
                     </span>
-                    <span className="text-slate-600 dark:text-slate-300">{ev.message}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{ev.description}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-tabular text-slate-400 shrink-0">
-                  <span>{ev.event_type}</span>
-                  <span>{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                  <span>{ev.acknowledged ? 'Ack' : 'Pending Ack'}</span>
+                  <span>{ev.recorded_at ? new Date(ev.recorded_at).toLocaleTimeString() : '—'}</span>
                 </div>
               </div>
             );

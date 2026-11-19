@@ -53,7 +53,7 @@ export const demoTelemetryHistory = {
   async exportTelemetryData(query: TelemetryExportQuery, signal?: AbortSignal): Promise<ExportResult> {
     checkAbort(signal);
     const endpoint = buildTelemetryExportEndpoint(query);
-    assertCapability('export.telemetry', ['ADMIN', 'SUPERVISOR'], {
+    assertCapability('telemetry.refresh', ['ADMIN', 'SUPERVISOR'], {
       requireLan: false,
       resourceId: query.device_id,
     });
@@ -103,7 +103,7 @@ export const demoTelemetryHistory = {
   async exportTelemetryHourlyData(query: TelemetryExportQuery, signal?: AbortSignal): Promise<ExportResult> {
     checkAbort(signal);
     const endpoint = buildTelemetryHourlyExportEndpoint(query);
-    assertCapability('export.telemetry', ['ADMIN', 'SUPERVISOR'], {
+    assertCapability('telemetry.refresh', ['ADMIN', 'SUPERVISOR'], {
       requireLan: false,
       resourceId: query.device_id,
     });

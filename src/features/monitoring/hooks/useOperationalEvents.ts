@@ -14,16 +14,12 @@ import {
 export interface UseOperationalEventsParams {
   filters: HistoryFilters;
   deviceFilter: string;
-  machineFilter: string;
-  eventTypeFilter: string;
   onFilterChange: (patch: Partial<HistoryFilters>) => void;
 }
 
 export function useOperationalEvents({
   filters,
   deviceFilter,
-  machineFilter,
-  eventTypeFilter,
   onFilterChange,
 }: UseOperationalEventsParams) {
   const { reportForbidden } = useAuth();
@@ -69,9 +65,8 @@ export function useOperationalEvents({
         apiClient.exportOperationalEventsData(
           {
             device_id: deviceFilter,
-            machine_id:
-              deviceFilter === 'ALL' && machineFilter !== 'ALL' ? machineFilter : undefined,
-            event_type: eventTypeFilter === 'ALL' ? undefined : eventTypeFilter,
+            // E20 P20.4 (FAT-156, D-12): ekspor global hanya mendaftarkan
+            // from/to/format/limit — tanpa machine_id/event_type.
             from: filters.from,
             to: filters.to,
             format,
@@ -83,7 +78,7 @@ export function useOperationalEvents({
       triggerBrowserDownload(result.filename, result.content, result.mimeType);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('export.telemetry', deviceFilter, err.message);
+        reportForbidden('telemetry.refresh', deviceFilter, err.message);
       }
       const status =
         err instanceof ApiError

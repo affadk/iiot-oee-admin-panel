@@ -46,8 +46,10 @@ export const demoTelemetryReconciliation = {
     request: ReconciliationRefreshRequest = {}
   ): Promise<{ success: boolean; message: string }> {
     assertCapability('telemetry.reconciliation.refresh', ['ADMIN', 'SUPERVISOR']);
-    const fromVal = request.from ?? request.startWindow;
-    const toVal = request.to ?? request.endWindow;
+    // E20 P20.5 (FAT-157): body kanonis `{from, to}` (§K.6) — bukan
+    // `{startWindow, endWindow}`.
+    const fromVal = request.from;
+    const toVal = request.to;
     if (fromVal && toVal) {
       const fromMs = Date.parse(fromVal);
       const toMs = Date.parse(toVal);

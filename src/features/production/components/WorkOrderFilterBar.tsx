@@ -47,6 +47,7 @@ export const WorkOrderFilterBar: React.FC<WorkOrderFilterBarProps> = ({
         <option value="ALL">Semua Status</option>
         <option value="PENDING">PENDING</option>
         <option value="ACTIVE">ACTIVE</option>
+        <option value="PENDING_CLOSE">PENDING_CLOSE</option>
         <option value="COMPLETED">COMPLETED</option>
         <option value="ABORTED">ABORTED</option>
       </select>

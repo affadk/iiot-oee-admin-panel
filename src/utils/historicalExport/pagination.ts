@@ -81,7 +81,11 @@ export function paginateWithCursor<T>(
       next_cursor: nextCursor,
       has_more: hasMore,
       truncated: hasMore,
-      total_count: sorted.length,
+      // E20 P20.4 (FAT-156, item 10): envelope `meta.count` = jumlah baris
+      // HALAMAN ini, bukan total dataset (API doc §I FR-034-30..34 — tidak
+      // ada query COUNT(*) total). Dulu `sorted.length` (total yang cocok)
+      // sehingga UI menampilkannya sebagai "total dataset".
+      total_count: pageItems.length,
     },
   };
 }

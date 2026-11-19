@@ -39,7 +39,9 @@ export const BrokerConfigEditorTab: React.FC<BrokerConfigEditorTabProps> = ({
           <Input
             label="Autosave Interval (detik, min 60)"
             type="number"
-            value={draftConfig.general.autosave_interval_seconds}
+            // E20 P20.5 (FAT-157): `null` = tanpa sumber — tampil kosong,
+            // bukan 300 (default fabrikasi dihapus).
+            value={draftConfig.general.autosave_interval_seconds ?? ''}
             disabled={!canManage.canInteract}
             onChange={(e) => updateGeneral({ autosave_interval_seconds: Number(e.target.value) })}
           />
@@ -59,7 +61,9 @@ export const BrokerConfigEditorTab: React.FC<BrokerConfigEditorTabProps> = ({
           <Input
             label="Max Connections (10–50.000)"
             type="number"
-            value={draftConfig.limits.max_connections}
+            // E20 P20.5 (FAT-157): `null` = tanpa sumber — tampil kosong,
+            // bukan 1000 (default fabrikasi dihapus).
+            value={draftConfig.limits.max_connections ?? ''}
             disabled={!canManage.canInteract}
             onChange={(e) => updateLimits({ max_connections: Number(e.target.value) })}
           />

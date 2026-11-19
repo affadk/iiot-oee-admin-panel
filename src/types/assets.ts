@@ -12,7 +12,8 @@ export interface BoundDeviceSummary {
 export interface BoundMachineSummary {
   machine_id: string;
   name: string;
-  modbus_slave_id: number;
+  /** Modbus slave id — hanya tersedia bila panel yang memperkaya (demo/seed); server §E hanya kirim machineId + machineName. */
+  modbus_slave_id?: number;
 }
 
 export interface Machine {
@@ -31,13 +32,16 @@ export interface MachineStatusHistoryItem {
   id: number | string;
   deviceId: string | null;
   machineId: string;
-  state: MachineFsmState | 'OFFLINE';
+  state: MachineFsmState;
   startedAt: string;
   endedAt: string | null;
   durationSec: number;
   triggerSource: string;
   isActive: boolean;
 }
+
+/** Siklus enrollment §E (spec 015): PROVISIONED → ACTIVE (saat /status ONLINE pertama) → REVOKED. */
+export type DeviceEnrollmentState = 'PROVISIONED' | 'ACTIVE' | 'REVOKED';
 
 export interface EdgeDevice {
   device_id: string;
@@ -51,7 +55,29 @@ export interface EdgeDevice {
   bound_machine_id: string | null;
   bound_machine_name?: string | null;
   boundMachine?: BoundMachineSummary | null;
+  /** §E: status enrollment; perangkat legacy tanpa field ini dianggap ACTIVE oleh mapper. */
+  enrollmentState?: DeviceEnrollmentState;
+  provisionedAt?: string | null;
+  credentialRotatedAt?: string | null;
   created_at: string;
+}
+
+/** Kredensial broker sekali tampil (§E.3a/3c) — TIDAK PERNAH disimpan/di-log; hanya diteruskan ke modal sekali-tampil. */
+export interface DeviceCredential {
+  username: string;
+  password: string;
+  clientId: string;
+  topicPrefix: string;
+}
+
+export interface ProvisionDeviceResult {
+  device: EdgeDevice;
+  credential: DeviceCredential;
+}
+
+export interface RotateDeviceCredentialsResult {
+  credential: DeviceCredential;
+  forced: boolean;
 }
 
 export interface DeviceHealth {

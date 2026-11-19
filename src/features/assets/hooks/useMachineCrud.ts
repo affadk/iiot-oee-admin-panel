@@ -58,7 +58,9 @@ export function useMachineCrud({
       setFeedback({ type: 'success', msg: `Mesin ${created.machine_id} (${created.name}) berhasil dibuat.` });
     } catch (err: any) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('machine.manage', input.machineId, err.message);
+        // E20 P20.5 (FAT-157, pembaruan 09:23): create memakai kunci
+        // `machine.create` (authorize("create","machine")).
+        reportForbidden('machine.create', input.machineId, err.message);
       }
       if (err instanceof ApiError && err.httpStatus === 409) {
         await loadData(null, false);

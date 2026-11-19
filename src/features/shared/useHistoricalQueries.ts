@@ -137,7 +137,7 @@ export function useOperationalEventsQuery(
   deviceIdOrGlobal: string,
   filters: HistoryFilters,
   cursor?: string,
-  extras?: { severity?: string; acknowledged?: boolean },
+  extras?: { acknowledged?: boolean },
   enabled = true
 ) {
   return useQuery({
@@ -148,9 +148,7 @@ export function useOperationalEventsQuery(
       apiClient.getOperationalEventsPage(
         {
           device_id: deviceIdOrGlobal === 'ALL' ? undefined : deviceIdOrGlobal,
-          machine_id: deviceIdOrGlobal === 'ALL' ? filters.machineId : undefined,
           event_type: filters.eventType,
-          severity: extras?.severity && extras.severity !== 'ALL' ? extras.severity : undefined,
           acknowledged: extras?.acknowledged,
           from: filters.from,
           to: filters.to,
@@ -178,6 +176,8 @@ export function useSystemAuditQuery(
           from: filters.from,
           to: filters.to,
           event_type: filters.eventType,
+          // E20 P20.4 (FAT-156, R10/O10): `machine_id` hanya ke /system/audit.
+          machine_id: filters.machineId,
           limit: filters.limit,
           cursor,
         },
@@ -227,7 +227,7 @@ export function useCombinedHistoryQuery(
     staleTime: HISTORY_DATA_STALE_TIME_MS,
     enabled,
     queryFn: async ({ signal }) => {
-      const [workOrders, rollup, activeDowntimes, operationalEvents] = await Promise.all([
+      const [workOrders, rollup, activeDowntimes, opEventsPage] = await Promise.all([
         apiClient.getWorkOrdersPage(
           {
             wo_id: filters.woId,
@@ -259,7 +259,6 @@ export function useCombinedHistoryQuery(
         apiClient.getOperationalEventsPage(
           {
             device_id: filters.deviceId,
-            machine_id: filters.machineId,
             from: filters.from,
             to: filters.to,
             limit: 50,
@@ -268,6 +267,12 @@ export function useCombinedHistoryQuery(
           signal
         ),
       ]);
+      // E20 P20.4 (FAT-156, D-12): `machine_id` tidak terdaftar di
+      // `GET /operational-events` — filter per mesin dilakukan sisi klien
+      // atas baris halaman (bentuk halaman dipertahankan).
+      const operationalEvents = filters.machineId
+        ? { ...opEventsPage, data: opEventsPage.data.filter((e) => e.machine_id === filters.machineId) }
+        : opEventsPage;
       return { workOrders, rollup, activeDowntimes, operationalEvents };
     },
   });

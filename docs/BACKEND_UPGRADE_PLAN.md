@@ -12,6 +12,13 @@
 
 *v1.1 (17 Nov 2026 sore): sinkronisasi pasca-E14/E15 — decision log Fase 0 15/15, registry 132 operasi, tests 335/335, Linear 129 issue, referensi AUDIT.md §14–§18.*
 
+> **Catatan 19 Nov 2026 (E20/P20.7):** `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`
+> diarsipkan ke `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`. Sumber kebenaran
+> kini API docs terupdate (`~/workspace/user/files/pasted-text.txt`) — diff
+> panel vs api_docs di `docs/API_SYNC_DIFF.md`, diff yang perlu ditinjau
+> kembali di `docs/API_SYNC_REVIEW.md`. Keputusan Fase 0 (K-01–K-15) kini
+> terkonfirmasi api_docs; K-11 digantikan `POST /devices/provision` (spec 015).
+
 ---
 
 ## 1. Tentang dokumen ini

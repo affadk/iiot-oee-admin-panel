@@ -63,7 +63,7 @@ export const HistoricalExportToolbar: React.FC<HistoricalExportToolbarProps> = (
   scopeLabel,
   cooldownSeconds = 0,
 }) => {
-  const exportCap = useCapability('export.telemetry', resourceId);
+  const exportCap = useCapability('telemetry.refresh', resourceId);
   const canExport = exportCap.canInteract;
   const exportBlockedReason = exportCap.reason ?? 'Ekspor membutuhkan izin refresh:telemetry';
   const isBlocked = !canExport || isExporting || cooldownSeconds > 0;

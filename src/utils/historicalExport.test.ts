@@ -9,6 +9,7 @@ import {
   buildDowntimeHistoryEndpoint,
   buildOperationalEventsEndpoint,
   buildOperationalEventsExportEndpoint,
+  buildSystemAuditExportEndpoint,
   buildTelemetryExportEndpoint,
   buildTelemetryHistoryEndpoint,
   buildTelemetryHourlyExportEndpoint,
@@ -117,12 +118,17 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
   });
   assert.match(dtExp, /^\/api\/v1\/downtime-events\/STM32-OEE-01\/export\?/);
 
-  const opGlobal = buildOperationalEventsEndpoint({ device_id: 'ALL', machine_id: 'CNC-MILLING-01' });
-  assert.match(opGlobal, /^\/api\/v1\/operational-events\/\?/);
-  assert.match(opGlobal, /machine_id=CNC-MILLING-01/);
+  // E20 P20.4 (FAT-156, O4/O13/R9, D-12): tanpa trailing slash; `acknowledged`
+  // dikirim; `machine_id` TIDAK dikirim ke endpoint global (hanya /system/audit).
+  const opGlobal = buildOperationalEventsEndpoint({ device_id: 'ALL', acknowledged: false });
+  assert.match(opGlobal, /^\/api\/v1\/operational-events\?/);
+  assert.match(opGlobal, /acknowledged=false/);
+  assert.doesNotMatch(opGlobal, /machine_id/);
+  assert.doesNotMatch(opGlobal, /severity/);
 
-  const opPerDevice = buildOperationalEventsEndpoint({ device_id: 'STM32-OEE-02', event_type: 'ALARM' });
+  const opPerDevice = buildOperationalEventsEndpoint({ device_id: 'STM32-OEE-02', event_type: 'DEVICE_OFFLINE', acknowledged: true });
   assert.match(opPerDevice, /^\/api\/v1\/operational-events\/STM32-OEE-02\?/);
+  assert.match(opPerDevice, /acknowledged=true/);
 
   const opGlobalExp = buildOperationalEventsExportEndpoint({
     device_id: 'ALL',
@@ -131,6 +137,23 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
     format: 'csv',
   });
   assert.match(opGlobalExp, /^\/api\/v1\/operational-events\/export\?/);
+  // E20 P20.4 (FAT-156, D-12): ekspor global hanya from/to/format/limit.
+  assert.doesNotMatch(opGlobalExp, /machine_id/);
+  assert.doesNotMatch(opGlobalExp, /event_type/);
+
+  // E20 P20.4 (FAT-156, O9): ekspor system-audit memakai filter daftar.
+  const auditExp = buildSystemAuditExportEndpoint({
+    from: '2026-11-01T00:00:00Z',
+    to: '2026-11-12T00:00:00Z',
+    event_type: 'WORK_ORDER_CANCELLED',
+    machine_id: 'CNC-MILLING-01',
+    format: 'ndjson',
+    limit: 100,
+  });
+  assert.match(auditExp, /^\/api\/v1\/system\/audit\/export\?/);
+  assert.match(auditExp, /event_type=WORK_ORDER_CANCELLED/);
+  assert.match(auditExp, /machine_id=CNC-MILLING-01/);
+  assert.match(auditExp, /format=ndjson/);
 
   const opDevExp = buildOperationalEventsExportEndpoint({
     device_id: 'STM32-OEE-03',
@@ -314,12 +337,61 @@ test('apiClient export contracts enforce 90-day retention, RBAC 403, and read-on
     );
   }
 
+  // 3b. Dynamic ALLOW: OPERATOR tanpa baseline export, diberi policy
+  // refresh:telemetry via role kustom → export diizinkan dan tercatat
+  // sebagai ALLOW dengan aksi kunci capability `telemetry.refresh`.
+  // (Demo hanya mencatat ALLOW untuk grant policy dinamis; export
+  // baseline ADMIN/SUPERVISOR tidak dicatat sebagai ALLOW.)
+  apiClient.setNetworkMode('LAN');
+  apiClient.setUserRole('ADMIN');
+  apiClient.setSessionActive(true);
+  store.currentUserId = 'ADM-001';
+  store.currentUserRole = 'ADMIN';
+  store.isAuthenticated = true;
+  store.tokenAuthzVersion = store.iamInfo.authzVersion;
+  const allowRole = await apiClient.createIamRole({
+    name: 'EXPORT_ALLOW',
+    description: 'Role uji dynamic allow export',
+  });
+  await apiClient.addIamRolePermission(allowRole.id, 'perm-06', {
+    resourcePattern: 'telemetry:*',
+    effect: 'ALLOW',
+  });
+  await apiClient.assignIamUserRole({
+    operatorId: 'OP-115',
+    roleName: 'EXPORT_ALLOW',
+    scopeType: 'ORGANIZATION',
+  });
+  try {
+    await apiClient.login('OP-115', 'AnyPass123');
+    const opExport = await apiClient.exportTelemetryData({
+      device_id: 'STM32-OEE-01',
+      from: validFrom,
+      to,
+      format: 'json',
+    });
+    assert.ok(opExport.rowCount > 0);
+  } finally {
+    store.currentUserId = 'ADM-001';
+    store.currentUserName = 'Alexandria Vance';
+    store.currentUserRole = 'ADMIN';
+    store.currentUserLineId = 'ORG-ALL';
+    store.isAuthenticated = true;
+    store.tokenAuthzVersion = store.iamInfo.authzVersion;
+    await apiClient.revokeIamUserRole({
+      operatorId: 'OP-115',
+      roleName: 'EXPORT_ALLOW',
+      scopeType: 'ORGANIZATION',
+    });
+    await apiClient.removeIamRolePermission(allowRole.id, 'perm-06');
+    await apiClient.deleteIamRole(allowRole.id);
+  }
+
   // 4. Authz decision audit recorded export ALLOW/DENY decisions
-  assert.ok(store.iamAuditDecisions.some((d) => d.action === 'refresh:telemetry' && d.decision === 'ALLOW'));
+  // (aksi tercatat memakai kunci capability `telemetry.refresh`).
+  assert.ok(store.iamAuditDecisions.some((d) => d.action === 'telemetry.refresh' && d.decision === 'ALLOW'));
   assert.ok(
-    store.iamAuditDecisions.some(
-      (d) => (d.action === 'export.telemetry' || d.action === 'refresh:telemetry') && d.decision === 'DENY'
-    )
+    store.iamAuditDecisions.some((d) => d.action === 'telemetry.refresh' && d.decision === 'DENY')
   );
 
   // Restore defaults

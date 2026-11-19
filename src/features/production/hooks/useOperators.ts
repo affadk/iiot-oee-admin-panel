@@ -4,7 +4,6 @@ import { Operator } from '../../../types/production';
 import { IamAssignment, IamRole } from '../../../types/iam';
 import { ApiError, UserRole } from '../../../types/auth';
 import { useAuth, useCapability } from '../../../context/AuthContext';
-import { canManageTargetRole } from '../../../utils/capabilities';
 
 export const ALL_ROLES: UserRole[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'];
 
@@ -27,7 +26,8 @@ export function useOperators({ detailOperatorId }: UseOperatorsOptions) {
   const { currentUser, reportForbidden, checkCapability, refreshCapabilities } = useAuth();
   const canRead = useCapability('operator.read');
   const canCreate = useCapability('operator.create');
-  const canManageIam = useCapability('access_control.manage');
+  // Daftar role otoritatif dibaca via GET /access-control/roles (digate read).
+  const canManageIam = useCapability('access_control.read');
 
   const [operators, setOperators] = useState<Operator[]>([]);
   const [iamRoles, setIamRoles] = useState<IamRole[]>([]);
@@ -78,7 +78,12 @@ export function useOperators({ detailOperatorId }: UseOperatorsOptions) {
     void loadOperators();
   }, [loadOperators]);
 
-  const assignableRoles = ALL_ROLES.filter((r) => canManageTargetRole(currentUser.role, r));
+  // Role string bebas (§H): daftar otoritatif dari GET /access-control/roles;
+  // fallback 4 preset bila list kosong (mis. tanpa hak baca IAM).
+  const assignableRoles = useMemo(
+    () => (iamRoles.length > 0 ? iamRoles.map((r) => r.name) : [...ALL_ROLES]),
+    [iamRoles],
+  );
 
   const filteredOperators = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

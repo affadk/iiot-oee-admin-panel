@@ -21,15 +21,25 @@ export interface ShiftSummary {
   good_parts: number;
   defect_parts: number;
   target_per_hour?: number | null;
+  /**
+   * E20 P20.5 (FAT-157): rantai `hourly[]` respons §Q.1 — hanya ada bila
+   * `include_hourly=true` diminta. Sebelumnya mapper membuangnya.
+   */
+  hourly?: HourlyOeePoint[];
 }
 
 export interface HourlyOeePoint {
   hour: string;
   bucket?: string;
-  oee: number;
-  availability: number;
-  performance: number;
-  quality: number;
+  /**
+   * E20 P20.5 (FAT-157): `*Pct` nullable (API doc §K 1163, §7J) — bucket
+   * tanpa sampel / kapasitas unknown bernilai `null`, BUKAN 0. D-8: oee
+   * null saat performance null (bukan 0).
+   */
+  oee: number | null;
+  availability: number | null;
+  performance: number | null;
+  quality: number | null;
   parts_produced: number;
   defect_count: number;
   good_count?: number;
@@ -44,6 +54,10 @@ export interface HourlyOeePoint {
   state?: MachineFsmState | null;
   planned?: boolean;
   provisional?: boolean;
+  /** E20 P20.5 (FAT-157): identitas baris §Q.2 — sebelumnya dibuang mapper. */
+  deviceId?: string | null;
+  machineId?: string | null;
+  woId?: string | null;
 }
 
 /**
@@ -64,6 +78,11 @@ export interface TelemetryRangeOptions {
   limit?: number;
   date?: string;
   shift?: string;
+  /**
+   * E20 P20.5 (FAT-157): `include_hourly=true` meminta rantai `hourly[]`
+   * pada shift-summary (API doc §Q.1).
+   */
+  include_hourly?: boolean;
 }
 
 export interface TelemetryAggregatePoint {
@@ -73,10 +92,11 @@ export interface TelemetryAggregatePoint {
   rejectCount: number;
   operatingSec: number;
   runSec: number;
-  availabilityPct: string | number;
+  /** E20 P20.5 (FAT-157): `*Pct` string-numeric nullable (§7J) — bukan 0. */
+  availabilityPct: string | number | null;
   performancePct: string | number | null;
-  qualityPct: string | number;
-  oeePct: string | number;
+  qualityPct: string | number | null;
+  oeePct: string | number | null;
   sampleCount: number;
   provisional: boolean;
 }
@@ -172,10 +192,11 @@ export interface TelemetryRollupItem {
   rejectCount: number;
   operatingSec: number;
   runSec: number;
-  availabilityPct: string | number;
+  /** E20 P20.5 (FAT-157): `*Pct` string-numeric nullable (§K 1163) — bukan 0. */
+  availabilityPct: string | number | null;
   performancePct: string | number | null;
-  qualityPct: string | number;
-  oeePct: string | number;
+  qualityPct: string | number | null;
+  oeePct: string | number | null;
   sampleCount: number;
   provisional: boolean;
 }
@@ -194,6 +215,6 @@ export interface ReconciliationJob {
 export interface ReconciliationRefreshRequest {
   from?: string;
   to?: string;
-  startWindow?: string;
-  endWindow?: string;
+  // E20 P20.5 (FAT-157): body kanonis `{from, to}` (API doc §K.6) —
+  // alias lama `startWindow`/`endWindow` DIHAPUS (satu alur kanonis).
 }

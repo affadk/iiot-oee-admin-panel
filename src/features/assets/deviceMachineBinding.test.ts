@@ -87,14 +87,14 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     assert.equal(created.bound_machine_id, null);
     assert.equal(created.boundMachine, null);
 
-    // A4: Duplicate deviceId -> 409
+    // A4: Duplicate deviceId -> 409 DEVICE_ALREADY_REGISTERED (E20 P20.2 D10)
     await assert.rejects(
       () =>
         apiClient.registerDevice({
           device_id: 'STM32-TEST-90',
           mac_address: 'AA:BB:CC:11:22:99',
         }),
-      (err: any) => err.httpStatus === 409 && err.code === 'CONFLICT'
+      (err: any) => err.httpStatus === 409 && err.code === 'DEVICE_ALREADY_REGISTERED'
     );
 
     // A5: Duplicate MAC across ':' vs '-' -> 409
@@ -125,10 +125,10 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
       (err: any) => err.httpStatus === 400 && err.code === 'VALIDATION_ERROR'
     );
 
-    // A8: DELETE bound device whose machine has ACTIVE WO -> 409 MACHINE_HAS_ACTIVE_WO
+    // A8: DELETE bound device whose machine has ACTIVE WO -> 409 CONFLICT (E20 P20.2 D10)
     await assert.rejects(
       () => apiClient.deleteDevice('STM32-OEE-01'),
-      (err: any) => err.httpStatus === 409 && err.code === 'MACHINE_HAS_ACTIVE_WO' && err.activeWoId === 'WO-2026-101'
+      (err: any) => err.httpStatus === 409 && err.code === 'CONFLICT' && err.activeWoId === 'WO-2026-101'
     );
 
     // A9: DELETE device preserves historical downtimes & operationalEvents with device_id = null
@@ -150,17 +150,22 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     });
     store.operationalEvents.unshift({
       id: 'opev-hist-test-90',
+      recorded_at: '2026-11-10T08:04:00Z',
       device_id: 'STM32-TEST-90',
       machine_id: null,
-      machine_name: 'Unbound Test Machine',
-      event_type: 'DISCONNECT',
-      severity: 'INFO',
-      message: 'Historical reconnect',
+      machine_name: null,
+      wo_id: null,
+      event_type: 'DEVICE_OFFLINE',
+      trigger_source: 'DEVICE',
+      event_code: null,
+      snapshot_total_count: null,
+      snapshot_run_sec: null,
+      description: 'Historical reconnect',
       acknowledged: true,
       acknowledged_by: 'ADM-001',
       acknowledged_at: '2026-11-10T08:05:00Z',
       ack_note: 'ok',
-      timestamp: '2026-11-10T08:04:00Z',
+      created_at: '2026-11-10T08:04:00Z',
     });
 
     const delRes = await apiClient.deleteDevice('STM32-TEST-90');
@@ -330,12 +335,10 @@ test('Test B — Machine Management Workflow (CREATE default slave=1, optional d
       operator_name: 'Budi Santoso',
       shift_name: 'Shift 1',
       target_quantity: 100,
-      completed_quantity: 100,
-      rejected_quantity: 2,
       status: 'COMPLETED',
       planned_start: '2026-11-13T08:00:00Z',
-      actual_start: '2026-11-13T08:00:00Z',
-      actual_end: '2026-11-13T16:00:00Z',
+      actual_start_at: '2026-11-13T08:00:00Z',
+      actual_end_at: '2026-11-13T16:00:00Z',
     });
 
     const delOk = await apiClient.deleteMachine('CNC-ATOMIC-02');
@@ -377,7 +380,7 @@ test('Test C — Device-Machine Binding (1:1 Invariant, BIND, UNBIND, Audit, Ope
 
       // Audit Log + Operational Event + WS emitted
       assert.equal(store.auditLogs.length, prevAuditCount + 1);
-      assert.equal(store.auditLogs[0].action, 'MACHINE_BOUND');
+      assert.equal(store.auditLogs[0].event_type, 'MACHINE_BOUND');
       assert.equal(store.operationalEvents.length, prevOpEventCount + 1);
       assert.equal(store.operationalEvents[0].event_type, 'MACHINE_BOUND');
       assert.ok(wsEvents.some((e) => e.type === 'MACHINE_BOUND' && (e as any).payload.device_id === 'STM32-OEE-05'));
@@ -409,7 +412,7 @@ test('Test C — Device-Machine Binding (1:1 Invariant, BIND, UNBIND, Audit, Ope
       assert.equal(unboundResult.boundDevice, null);
       const dev05Freed = await apiClient.getDeviceById('STM32-OEE-05');
       assert.equal(dev05Freed.bound_machine_id, null);
-      assert.equal(store.auditLogs[0].action, 'MACHINE_UNBOUND');
+      assert.equal(store.auditLogs[0].event_type, 'MACHINE_UNBOUND');
       assert.equal(store.operationalEvents[0].event_type, 'MACHINE_UNBOUND');
       assert.ok(wsEvents.some((e) => e.type === 'MACHINE_UNBOUND' && (e as any).payload.machine_id === 'CNC-GRIND-05'));
 

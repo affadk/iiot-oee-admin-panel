@@ -76,7 +76,8 @@ test('Demo aggregate: perangkat kapasitas unknown (STM32-OEE-05) — performance
   });
   assert.equal(agg.rows.length, 24);
   assert.ok(agg.rows.every((r) => r.performancePct === null));
-  assert.ok(agg.rows.every((r) => r.totalCount === 0 && r.oeePct === 0));
+  // E20 P20.5 (FAT-157, D-8): `oeePct` null (bukan 0) saat kapasitas unknown.
+  assert.ok(agg.rows.every((r) => r.totalCount === 0 && r.oeePct === null));
   assert.equal(agg.total_parts, 0);
   assert.equal(agg.avg_performance, 0);
 });

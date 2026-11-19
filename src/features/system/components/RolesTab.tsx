@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Edit3, Eye, Key, Lock, Plus, Trash2, X } from 'lucide-react';
 import type { IamAssignment, IamPermission, IamPolicyRule, IamRole } from '../../../types/iam';
-import { CUSTOM_ROLE_MAX_LEVEL } from '../../../utils/capabilities';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 
@@ -73,12 +72,12 @@ export const RolesTab: React.FC<RolesTabProps> = ({
         </Button>
       </div>
       <p className="text-xs text-slate-500">
-        Role sistem (ADMIN, SUPERVISOR, OPERATOR, MAINTENANCE) dilindungi dan tidak dapat diubah atau dihapus. Custom role dibatasi maksimal level {CUSTOM_ROLE_MAX_LEVEL} dan hanya efektif dalam mode <code className="font-mono">enforce</code>.
+        Hanya role ADMIN yang immutable dan tidak dapat diubah atau dihapus. SUPERVISOR, OPERATOR, dan MAINTENANCE adalah preset opsional — bisa diubah atau dihapus bila tidak dipakai. Custom role hanya efektif dalam mode <code className="font-mono">enforce</code>.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredRoles.map((r) => {
-          const boundRules = policies.filter((p) => p.role_id === r.id && Boolean(p.permission_id));
+          const boundRules = policies.filter((p) => p.roleId === r.id && Boolean(p.permissionId));
           const assignedUserCount = assignments.filter(
             (a) => a.role_id === r.id || a.role_name === r.name
           ).length;
@@ -91,7 +90,6 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{r.name}</span>
-                    <Badge variant={r.is_system ? 'info' : 'neutral'}>Level {r.privilege_level}</Badge>
                     {r.is_system && (
                       <Badge variant="warning">
                         <span className="inline-flex items-center gap-1">
@@ -115,7 +113,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                     <Eye className="w-3.5 h-3.5" />
                     <span>Detail</span>
                   </Button>
-                  {!r.is_system && (
+                  {!r.is_system && r.name.trim().toUpperCase() !== 'ADMIN' && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -130,7 +128,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                     <Key className="w-3.5 h-3.5" />
                     <span>Assign Perm</span>
                   </Button>
-                  {!r.is_system && (
+                  {!r.is_system && r.name.trim().toUpperCase() !== 'ADMIN' && (
                     <Button
                       size="sm"
                       variant="danger"
@@ -150,13 +148,13 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {boundRules.map((br) => {
-                      const permObj = permissions.find((p) => p.id === br.permission_id);
+                      const permObj = permissions.find((p) => p.id === br.permissionId);
                       const permLabel = permObj
-                        ? `${permObj.action}:${permObj.resource_type}`
-                        : `${br.action} (${br.resource_pattern})`;
-                      const isDeny = br.eft === 'DENY';
+                        ? `${permObj.action}:${permObj.resourceType}`
+                        : `${br.action} (${br.resourcePattern})`;
+                      const isDeny = br.effect === 'DENY';
                       const hasCustomScope =
-                        permObj && br.resource_pattern !== `${permObj.resource_type}:*`;
+                        permObj && br.resourcePattern !== `${permObj.resourceType}:*`;
                       return (
                         <span
                           key={br.id}
@@ -173,19 +171,19 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                                 : 'text-emerald-700 dark:text-emerald-300'
                             }`}
                           >
-                            {br.eft}
+                            {br.effect}
                           </span>
                           <span>{permLabel}</span>
                           {hasCustomScope && (
                             <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                              ({br.resource_pattern})
+                              ({br.resourcePattern})
                             </span>
                           )}
-                          {r.name !== 'ADMIN' && br.permission_id && (
+                          {r.name !== 'ADMIN' && br.permissionId && (
                             <button
                               type="button"
                               aria-label={`Lepas permission ${permLabel} dari ${r.name}`}
-                              onClick={() => onUnbind(r, br.permission_id!, permLabel)}
+                              onClick={() => onUnbind(r, br.permissionId!, permLabel)}
                               className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
                             >
                               <X className="w-3 h-3" />

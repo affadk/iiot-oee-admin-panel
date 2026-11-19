@@ -1,5 +1,3 @@
-import { CUSTOM_ROLE_MAX_LEVEL } from '../../utils/capabilities';
-
 export type AbacParseResult =
   | { ok: true; value: Record<string, unknown> | null }
   | { ok: false; error: string };
@@ -26,23 +24,12 @@ export function parseAbacCondition(json: string): AbacParseResult {
 }
 
 /**
- * Validasi level + deskripsi custom role. Menggantikan 2 salinan di
- * handleCreateRole / handleUpdateRole. Pesan level berbeda per varian dan
- * dipertahankan verbatim: create memakai "Level custom role wajib bilangan
- * bulat …", update memakai "Privilege level custom role wajib …".
+ * Validasi deskripsi custom role (E20 P20.3: validasi level DIHAPUS —
+ * `privilege_level` tidak ada lagi). Menggantikan 2 salinan di
+ * handleCreateRole / handleUpdateRole.
  */
-export function validateRoleLevelDesc(
-  level: number,
-  desc: string,
-  variant: 'create' | 'update' = 'create',
-): Record<string, string> {
+export function validateRoleDesc(desc: string): Record<string, string> {
   const errors: Record<string, string> = {};
-  if (!Number.isInteger(Number(level)) || Number(level) > CUSTOM_ROLE_MAX_LEVEL || Number(level) < 1) {
-    errors.privilege_level =
-      variant === 'create'
-        ? `Level custom role wajib bilangan bulat 1–${CUSTOM_ROLE_MAX_LEVEL}.`
-        : `Privilege level custom role wajib 1–${CUSTOM_ROLE_MAX_LEVEL}.`;
-  }
   if (desc.trim().length < 3 || desc.trim().length > 256) {
     errors.description = 'Deskripsi wajib 3–256 karakter.';
   }

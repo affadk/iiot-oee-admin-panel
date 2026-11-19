@@ -9,8 +9,23 @@ import { checkAbort, assertCapability, throwValidationIssues } from './helpers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { Operator } from '../../../types/production';
 import { UserRole, ApiError } from '../../../types/auth';
-import { canManageTargetRole, validateOperatorInput } from '../../../utils/capabilities';
+import { validateOperatorInput } from '../../../utils/capabilities';
 import { OperatorSchema } from '../schemas';
+
+/**
+ * §H: larangan ADMIN ganda — role ADMIN hanya untuk akun root ADM-001.
+ * Hierarki level DIHAPUS (E20 P20.3); otorisasi via guard policy + peran
+ * efektif, bukan perbandingan level.
+ */
+function assertAdminSingletonTarget(operatorId: string, role: string): void {
+  if (role === 'ADMIN' && operatorId !== 'ADM-001') {
+    throw new ApiError({
+      code: 'ADMIN_SINGLETON_DENIED',
+      message: "Role ADMIN is reserved for the root account 'ADM-001'.",
+      httpStatus: 403,
+    });
+  }
+}
 
 export const demoOperators = {
   // =========================================================================
@@ -43,15 +58,7 @@ export const demoOperators = {
     is_active?: boolean;
   }): Promise<Operator> {
     assertCapability('operator.create', ['ADMIN', 'SUPERVISOR'], { resourceId: data.operator_id });
-    if (!canManageTargetRole(store.currentUserRole, data.role)) {
-      const err = new ApiError({
-        code: 'PRIVILEGE_ESCALATION_DENIED',
-        message: `Peran ${store.currentUserRole} tidak berhak membuat akun dengan peran ${data.role}.`,
-        httpStatus: 403,
-      });
-      store.hooks.onForbidden?.('operator.create', data.operator_id, err.message);
-      throw err;
-    }
+    assertAdminSingletonTarget(data.operator_id, data.role);
 
     const errors = validateOperatorInput({
       operatorId: data.operator_id,
@@ -78,7 +85,7 @@ export const demoOperators = {
       operator_id: id,
       name: data.name.trim(),
       role: data.role,
-      line_id: data.line_id?.trim() || 'LINE-01',
+      line_id: data.line_id?.trim() || '',
       is_active: data.is_active ?? true,
       created_at: new Date().toISOString(),
     });
@@ -105,13 +112,8 @@ export const demoOperators = {
         httpStatus: 403,
       });
     }
-    if (patch.role && !canManageTargetRole(store.currentUserRole, patch.role)) {
-      throw new ApiError({
-        code: 'PRIVILEGE_ESCALATION_DENIED',
-        message: `Peran ${store.currentUserRole} tidak berhak mengubah peran akun menjadi ${patch.role}.`,
-        httpStatus: 403,
-      });
-    }
+    // §H: perubahan label dicek terhadap ADMIN_SINGLETON_DENIED, bukan hierarki.
+    if (patch.role) assertAdminSingletonTarget(operatorId, patch.role);
     const errors = validateOperatorInput({
       operatorName: patch.name ?? op.name,
       lineId: patch.line_id ?? op.line_id,
@@ -123,7 +125,7 @@ export const demoOperators = {
     const roleChanged = patch.role !== undefined && patch.role !== op.role;
     if (patch.name !== undefined) op.name = patch.name.trim();
     if (patch.role !== undefined) op.role = patch.role;
-    if (patch.line_id !== undefined) op.line_id = patch.line_id.trim() || 'LINE-01';
+    if (patch.line_id !== undefined) op.line_id = patch.line_id.trim();
 
     if (roleChanged) {
       store.iamInfo.authzVersion += 1;
@@ -198,20 +200,12 @@ export const demoOperators = {
     if (!op) {
       throw new ApiError({ code: 'OPERATOR_NOT_FOUND', message: 'Operator tidak ditemukan.', httpStatus: 404 });
     }
-    if (!canManageTargetRole(store.currentUserRole, op.role)) {
-      const err = new ApiError({
-        code: 'PRIVILEGE_ESCALATION_DENIED',
-        message: `Peran ${store.currentUserRole} tidak dapat mengubah status akun ${op.role}.`,
-        httpStatus: 403,
-      });
-      store.hooks.onForbidden?.('operator.status.update', operatorId, err.message);
-      throw err;
-    }
+    // §H: ADM-001 nonaktif → 400 PROTECTED_ACCOUNT (bukan 403).
     if ((op.is_protected || op.operator_id === 'ADM-001') && !isActive) {
       throw new ApiError({
         code: 'PROTECTED_ACCOUNT',
         message: `Akun dilindungi (${op.operator_id}) tidak dapat dinonaktifkan.`,
-        httpStatus: 403,
+        httpStatus: 400,
       });
     }
 

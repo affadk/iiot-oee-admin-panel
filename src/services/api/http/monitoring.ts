@@ -6,13 +6,13 @@
  */
 import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, reqJson, reqList, reqExport, checkAbortHttp } from './transport';
 import { mapLiveState, mapDowntime, mapOperationalEvent, mapAuditLog, mapTelemetryHistory, mapHourly, mapRollup, mapAggregate } from './mappers';
-import { num, pick } from './primitives';
+import { num, str, bool, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, buildTelemetryRollupEndpoint } from '../../../utils/historicalExport';
-import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
-import { HourlyOeePoint, TelemetryAggregateResult, TelemetryHistoryRecord, TelemetryRangeOptions, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
+import { buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, buildSystemAuditExportEndpoint, buildTelemetryExportEndpoint, buildTelemetryHistoryEndpoint, buildTelemetryHourlyExportEndpoint, buildTelemetryRollupEndpoint } from '../../../utils/historicalExport';
+import { LiveStateRecord, DowntimeEvent, DowntimeReasonResult, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
+import { HourlyOeePoint, TelemetryAggregatePoint, TelemetryAggregateResult, TelemetryHistoryRecord, TelemetryRangeOptions, TelemetryRollupItem, TelemetryRollupQuery } from '../../../types/analytics';
 import { AuditLogItem } from '../../../types/system';
-import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery, TelemetryExportQuery, TelemetryHistoryQuery } from '../../../types/historical';
+import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery, SystemAuditExportQuery, TelemetryExportQuery, TelemetryHistoryQuery } from '../../../types/historical';
 
 export const httpMonitoring = {
   // -- Live State ------------------------------------------------------------
@@ -62,7 +62,7 @@ export const httpMonitoring = {
     assertAuthenticatedHttp();
     const endpoint = buildDowntimeExportEndpoint(query);
     return reqExport(
-      { path: endpoint, signal, endpointKey: 'DOWNTIME_DEVICE_EXPORT', capability: 'export.telemetry', resourceId: query.device_id },
+      { path: endpoint, signal, endpointKey: 'DOWNTIME_DEVICE_EXPORT', capability: 'telemetry.refresh', resourceId: query.device_id },
       query.format,
       `downtime_${query.device_id}.csv`,
     );
@@ -73,7 +73,7 @@ export const httpMonitoring = {
     category: DowntimeCategory,
     reason: string,
     notes?: string,
-  ): Promise<DowntimeEvent> {
+  ): Promise<DowntimeReasonResult> {
     assertAuthenticatedHttp();
     assertLanForMutation();
     const raw = await reqJson<Record<string, unknown>>({
@@ -83,10 +83,21 @@ export const httpMonitoring = {
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'DOWNTIME_REASON',
-      capability: 'downtime.reason.label',
+      capability: 'downtime_event.label',
       resourceId: id,
     });
-    return mapDowntime({ ...raw, id: pick(raw.eventId, raw.event_id, id), category, operatorReason: reason });
+    // E20 P20.5 (FAT-157): respons kanonis §J.3 —
+    // `{success, eventId, deviceId, operatorReason, isOverwrite, operator}`
+    // — BUKAN `DowntimeEvent` penuh. Pemanggil membangun event terbarunya
+    // dari hasil ini (lihat DowntimeReasonModal).
+    return {
+      success: bool(raw.success, true),
+      eventId: str(pick(raw.eventId, raw.event_id, id)),
+      deviceId: (pick(raw.deviceId, raw.device_id) as string | null) ?? null,
+      operatorReason: str(pick(raw.operatorReason, raw.operator_reason, reason)),
+      isOverwrite: bool(pick(raw.isOverwrite, raw.is_overwrite), false),
+      operator: (pick(raw.operator) as string | null) ?? null,
+    };
   },
 
   // -- Operational Events & System Audit --------------------------------------
@@ -124,7 +135,7 @@ export const httpMonitoring = {
     assertAuthenticatedHttp();
     const endpoint = buildOperationalEventsExportEndpoint(query);
     return reqExport(
-      { path: endpoint, signal, endpointKey: 'OPERATIONAL_EVENTS_EXPORT', capability: 'export.telemetry', resourceId: query.device_id },
+      { path: endpoint, signal, endpointKey: 'OPERATIONAL_EVENTS_EXPORT', capability: 'telemetry.refresh', resourceId: query.device_id },
       query.format,
       'operational-events.csv',
     );
@@ -143,18 +154,13 @@ export const httpMonitoring = {
       capability: 'operational_event.ack',
       resourceId: id,
     });
-    return mapOperationalEvent({
-      ...raw,
-      id: pick(raw.id, id),
-      acknowledged: true,
-      acknowledgedAt: pick(raw.acknowledgedAt, raw.acknowledged_at),
-      acknowledgedBy: pick(raw.acknowledgedBy, raw.acknowledged_by),
-      ackNote: pick(raw.ackNote, raw.ack_note, note),
-    });
+    // E20 P20.4 (FAT-156): `acknowledged` diturunkan mapper dari
+    // `acknowledgedAt` respons (FR-034-01) — jangan set manual di sini.
+    return mapOperationalEvent({ ...raw, id: pick(raw.id, id) });
   },
 
   async getSystemAuditPage(
-    query: { from?: string; to?: string; event_type?: string; limit?: number; cursor?: string | null } = {},
+    query: { from?: string; to?: string; event_type?: string; machine_id?: string; limit?: number; cursor?: string | null } = {},
     signal?: AbortSignal,
   ): Promise<CursorPageResponse<AuditLogItem>> {
     checkAbortHttp(signal);
@@ -168,14 +174,37 @@ export const httpMonitoring = {
           ...(query.from ? { from: query.from } : {}),
           ...(query.to ? { to: query.to } : {}),
           ...(query.event_type ? { event_type: query.event_type } : {}),
+          // E20 P20.4 (FAT-156, R10/O10): `machine_id` hanya dikirim ke
+          // /system/audit (D-12) — bukan ke endpoint global op-events.
+          ...(query.machine_id ? { machine_id: query.machine_id } : {}),
           ...(query.cursor ? { cursor: query.cursor } : {}),
         },
         signal,
         endpointKey: 'SYSTEM_AUDIT',
-        capability: 'audit.system.read',
+        capability: 'access_control.read',
       },
       mapAuditLog,
       query.limit ?? 50,
+    );
+  },
+
+  /**
+   * E20 P20.4 (FAT-156, O9): GET /system/audit/export (API doc §I) —
+   * csv/ndjson/json (default csv), limit 1..100000 default 10000, retensi
+   * 90 hari → 400 RETENTION_EXCEEDED, rate limit 5/min, guard
+   * `access_control.read` (D-13). Filter sama dengan daftar.
+   */
+  async exportSystemAuditData(
+    query: SystemAuditExportQuery,
+    signal?: AbortSignal,
+  ): Promise<ExportResult> {
+    checkAbortHttp(signal);
+    assertAuthenticatedHttp();
+    const endpoint = buildSystemAuditExportEndpoint(query);
+    return reqExport(
+      { path: endpoint, signal, endpointKey: 'SYSTEM_AUDIT_EXPORT', capability: 'access_control.read' },
+      query.format,
+      'system_audit.csv',
     );
   },
 
@@ -194,7 +223,7 @@ export const httpMonitoring = {
     options?: TelemetryRangeOptions
   ): Promise<HourlyOeePoint[]> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
     return reqList(
       {
         path: ADMIN_ENDPOINTS.TELEMETRY_HOURLY.buildPath(deviceId),
@@ -224,7 +253,7 @@ export const httpMonitoring = {
     options?: TelemetryRangeOptions
   ): Promise<TelemetryAggregateResult> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
     const rows = await reqList(
       {
         path: ADMIN_ENDPOINTS.TELEMETRY_AGGREGATE.buildPath(deviceId),
@@ -244,21 +273,23 @@ export const httpMonitoring = {
     ).then((p) => p.data);
     // E12 T12.2 (F-5 / FAT-51): kembalikan SELURUH rows (bukan rows[0]).
     // Ringkasan dihitung dari deret: rata-rata komponen OEE per bucket,
-    // total parts + sampel = jumlah seluruh bucket. Performance null
-    // (kapasitas unknown) dikeluarkan dari rata-rata; bila semua null → 0.
+    // total parts + sampel = jumlah seluruh bucket.
+    // E20 P20.5 (FAT-157): bucket `*Pct` null (kapasitas unknown) DIKELUARKAN
+    // dari rata-rata — seperti performance sebelumnya; bila semua null → 0.
     const mean1 = (vals: number[]): number =>
       vals.length === 0 ? 0 : Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
-    const performanceVals = rows
-      .map((r) => r.performancePct)
-      .filter((v): v is string | number => v !== null)
-      .map((v) => num(v, 0));
+    const pctVals = (pickPct: (r: TelemetryAggregatePoint) => string | number | null): number[] =>
+      rows
+        .map(pickPct)
+        .filter((v): v is string | number => v !== null)
+        .map((v) => num(v, 0));
     return {
       device_id: deviceId,
       bucket,
-      avg_oee: mean1(rows.map((r) => num(r.oeePct, 0))),
-      avg_availability: mean1(rows.map((r) => num(r.availabilityPct, 0))),
-      avg_performance: mean1(performanceVals),
-      avg_quality: mean1(rows.map((r) => num(r.qualityPct, 0))),
+      avg_oee: mean1(pctVals((r) => r.oeePct)),
+      avg_availability: mean1(pctVals((r) => r.availabilityPct)),
+      avg_performance: mean1(pctVals((r) => r.performancePct)),
+      avg_quality: mean1(pctVals((r) => r.qualityPct)),
       total_parts: rows.reduce((a, r) => a + r.totalCount, 0),
       sample_count: rows.reduce((a, r) => a + r.sampleCount, 0),
       rows,
@@ -270,7 +301,7 @@ export const httpMonitoring = {
     signal?: AbortSignal
   ): Promise<CursorPageResponse<TelemetryRollupItem>> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
     const endpoint = buildTelemetryRollupEndpoint(query);
     // E12 T12.18 (U-4 / FAT-65): limit default dokumen 500 (API doc §K.3c,
     // `limit` 1..2000 default 500) — dipakai bila pemanggil tidak mengirim
@@ -283,7 +314,7 @@ export const httpMonitoring = {
     assertAuthenticatedHttp();
     const endpoint = buildTelemetryExportEndpoint(query);
     return reqExport(
-      { path: endpoint, signal, endpointKey: 'TELEMETRY_EXPORT', capability: 'export.telemetry', resourceId: query.device_id },
+      { path: endpoint, signal, endpointKey: 'TELEMETRY_EXPORT', capability: 'telemetry.refresh', resourceId: query.device_id },
       query.format,
       `telemetry_${query.device_id}.csv`,
     );
@@ -294,7 +325,7 @@ export const httpMonitoring = {
     assertAuthenticatedHttp();
     const endpoint = buildTelemetryHourlyExportEndpoint(query);
     return reqExport(
-      { path: endpoint, signal, endpointKey: 'TELEMETRY_HOURLY_EXPORT', capability: 'export.telemetry', resourceId: query.device_id },
+      { path: endpoint, signal, endpointKey: 'TELEMETRY_HOURLY_EXPORT', capability: 'telemetry.refresh', resourceId: query.device_id },
       query.format,
       `telemetry_hourly_${query.device_id}.csv`,
     );
@@ -305,7 +336,7 @@ export const httpMonitoring = {
     signal?: AbortSignal
   ): Promise<CursorPageResponse<TelemetryHistoryRecord>> {
     checkAbortHttp(signal);
-    assertAuthenticatedHttp();
+    // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
     const endpoint = buildTelemetryHistoryEndpoint(query);
     return reqList(
       { path: endpoint, signal, endpointKey: 'TELEMETRY_HISTORY', capability: 'telemetry.read', resourceId: query.device_id },

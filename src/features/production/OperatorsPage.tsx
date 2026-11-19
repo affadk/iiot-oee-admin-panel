@@ -176,6 +176,7 @@ export const OperatorsPage: React.FC = () => {
 
       <OperatorEditModal
         operator={editTarget}
+        assignableRoles={ops.assignableRoles}
         onClose={() => setEditTarget(null)}
         onSubmit={crud.updateOperator}
       />

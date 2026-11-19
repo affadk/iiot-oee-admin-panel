@@ -13,6 +13,10 @@ import { Product, Operator, ProductionLine, Shift, ShiftSchedule } from '../../.
 export function mapDevice(raw: unknown): EdgeDevice {
   const r = (raw ?? {}) as Record<string, unknown>;
   const bound = (r.boundMachine ?? r.bound_machine ?? null) as Record<string, unknown> | null;
+  // D7: server §E kirim boundMachine {machineId, machineName} — BUKAN ringkasan
+  // device dan BUKAN {machine_id, name, modbus_slave_id}. Bentuk lama melempar
+  // mustParse untuk setiap device terikat di Real mode.
+  const enrollment = pick(r.enrollmentState, r.enrollment_state) as string | undefined;
   return mustParse(EdgeDeviceSchema, {
     device_id: str(pick(r.deviceId, r.device_id)),
     model: str(pick(r.model), undefined) || undefined,
@@ -26,13 +30,16 @@ export function mapDevice(raw: unknown): EdgeDevice {
     bound_machine_name: (pick(bound?.machineName, bound?.name) as string | null) ?? null,
     boundMachine: bound
       ? {
-          device_id: str(pick(bound.deviceId, bound.device_id, r.deviceId, r.device_id)),
-          mac_address: str(pick(bound.macAddress, bound.mac_address, r.macAddress, r.mac_address)),
-          ip_address: (pick(bound.ipAddress, bound.ip_address) as string | null) ?? null,
-          firmware_version: (pick(bound.firmwareVersion, bound.firmware_version) as string | null) ?? null,
-          online: bool(pick(bound.isOnline, bound.online), false),
+          machine_id: str(pick(bound.machineId, bound.machine_id)),
+          name: str(pick(bound.machineName, bound.name)),
         }
       : null,
+    enrollmentState:
+      enrollment === 'PROVISIONED' || enrollment === 'ACTIVE' || enrollment === 'REVOKED'
+        ? enrollment
+        : 'ACTIVE',
+    provisionedAt: (pick(r.provisionedAt, r.provisioned_at) as string | null) ?? null,
+    credentialRotatedAt: (pick(r.credentialRotatedAt, r.credential_rotated_at) as string | null) ?? null,
     created_at: iso(pick(r.createdAt, r.created_at)),
   }, 'perangkat');
 }
@@ -73,11 +80,13 @@ export function mapProduct(raw: unknown): Product {
 
 export function mapOperator(raw: unknown): Operator {
   const r = (raw ?? {}) as Record<string, unknown>;
+  // Role string bebas (§H, E20 P20.3): default UNASSIGNED (bukan OPERATOR);
+  // line_id apa adanya (bukan default 'LINE-01').
   return mustParse(OperatorSchema, {
     operator_id: str(pick(r.operatorId, r.operator_id)),
     name: str(pick(r.operatorName, r.name)),
-    role: str(pick(r.role), 'OPERATOR'),
-    line_id: str(pick(r.lineId, r.line_id), 'LINE-01'),
+    role: str(pick(r.role), 'UNASSIGNED'),
+    line_id: str(pick(r.lineId, r.line_id), ''),
     is_active: bool(pick(r.isActive, r.is_active), true),
     is_protected: bool(pick(r.isProtected, r.is_protected), false),
     created_at: iso(pick(r.createdAt, r.created_at)),

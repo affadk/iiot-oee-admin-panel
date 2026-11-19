@@ -9,7 +9,7 @@ import { checkAbort, assertAuthenticated, assertLanAccess, CAPABILITY_CASBIN_MAP
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { Operator } from '../../../types/production';
 import { LoginResponse, AuthMeResponse, ApiError } from '../../../types/auth';
-import { CAPABILITY_SPECS, CapabilityKey, buildAuthMeCapabilities, matchAbacCondition, policyMatchesRole } from '../../../utils/capabilities';
+import { CAPABILITY_SPECS, CapabilityKey, buildAuthMeCapabilities, matchAbacCondition, policyMatchesSubject } from '../../../utils/capabilities';
 import { AuthMeResponseSchema, LoginResponseSchema, RefreshResponseSchema } from '../schemas';
 import { resolveAuthTtlFallbackSec } from '../mode';
 
@@ -19,7 +19,7 @@ export const demoAuth = {
   // =========================================================================
   async login(operator_id: string, password?: string, station_id?: string): Promise<LoginResponse> {
     if (store.networkAccessMode === 'REMOTE_TUNNEL') {
-      assertLanAccess('dashboard.read', 'auth/login');
+      assertLanAccess(undefined, 'auth/login');
     }
     store.recordEndpoint('AUTH_LOGIN', ADMIN_ENDPOINTS.AUTH_LOGIN.buildPath());
     const op = store.operators.find((o) => o.operator_id === operator_id.trim());
@@ -39,7 +39,8 @@ export const demoAuth = {
           httpStatus: 401,
         });
       }
-    } else if (password !== undefined && password.trim().length < 4) {
+    } else if (password !== undefined && password.trim().length < 8) {
+      // §L: password login minimal 8 karakter (fallback min 4 DIHAPUS, E20 P20.3).
       throw new ApiError({
         code: 'UNAUTHORIZED',
         message: 'ID atau password salah.',
@@ -69,13 +70,16 @@ export const demoAuth = {
         username: op.name,
         role: op.role,
         line_id: op.line_id,
+        // Spec 043 (§L): flag gerbang ganti-password-wajib.
+        must_change_password: store.operatorMustChangePassword.has(op.operator_id),
       },
     });
   },
 
   async refreshSession(): Promise<{ token: string; expires_in: number; authz_version: number }> {
-    assertAuthenticated();
-    assertLanAccess('dashboard.read', 'auth/refresh');
+    // Refresh TIDAK diblokir gerbang rotasi (§L) — token baru tetap diterbitkan.
+    assertAuthenticated({ skipRotationGate: true });
+    assertLanAccess(undefined, 'auth/refresh');
     store.recordEndpoint('AUTH_REFRESH', ADMIN_ENDPOINTS.AUTH_REFRESH.buildPath());
     store.tokenAuthzVersion = store.iamInfo.authzVersion;
     store.authToken = `mem_jwt_refresh_${Date.now()}`;
@@ -92,8 +96,9 @@ export const demoAuth = {
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    assertAuthenticated();
-    assertLanAccess('dashboard.read', 'auth/password/change');
+    // Ganti password TIDAK diblokir gerbang rotasi — justru jalurnya (§L).
+    assertAuthenticated({ skipRotationGate: true });
+    assertLanAccess(undefined, 'auth/password/change');
     store.recordEndpoint('AUTH_CHANGE_PASSWORD', ADMIN_ENDPOINTS.AUTH_CHANGE_PASSWORD.buildPath());
     if (!currentPassword || currentPassword.trim().length === 0) {
       throwValidationIssues('Password saat ini wajib diisi.', { current_password: 'Wajib diisi.' });
@@ -112,13 +117,16 @@ export const demoAuth = {
       });
     }
     store.operatorPasswords.set(store.currentUserId, newPassword);
+    // Sukses ganti password menutup gerbang rotasi (spec 043).
+    store.operatorMustChangePassword.delete(store.currentUserId);
     store.addAudit('PASSWORD_CHANGED', 'OPERATOR', store.currentUserId, 'Operator mengganti password sendiri via LAN');
     return { success: true, message: 'Password berhasil diperbarui.' };
   },
 
   async getAuthMe(signal?: AbortSignal): Promise<AuthMeResponse> {
     checkAbort(signal);
-    assertAuthenticated();
+    // GET /auth/me tetap 200 saat gerbang rotasi aktif (§L).
+    assertAuthenticated({ skipRotationGate: true });
     store.recordEndpoint('AUTH_ME', ADMIN_ENDPOINTS.AUTH_ME.buildPath());
 
     const roleAssignments = store.iamAssignments.filter((a) => a.operator_id === store.currentUserId);
@@ -149,23 +157,23 @@ export const demoAuth = {
         ([capKey, mapped]) => {
           const matchingPolicies = store.iamPolicies.filter(
             (p) =>
-              p.is_active &&
-              policyMatchesRole(p.role, effectiveRoleNames) &&
-              matchesMappedPolicy(p.action, p.resource_pattern, mapped)
+              p.enabled &&
+              [...effectiveRoleNames].some((r) => policyMatchesSubject(p.subjectMatch, { role: r, operatorId: store.currentUserId })) &&
+              matchesMappedPolicy(p.action, p.resourcePattern, mapped)
           );
-          const matchingDeny = matchingPolicies.find((p) => p.eft === 'DENY');
+          const matchingDeny = matchingPolicies.find((p) => p.effect === 'DENY');
           if (matchingDeny) {
-            capabilities[capKey] = matchingDeny.abac_condition ? 'unknown' : 'deny';
+            capabilities[capKey] = matchingDeny.abacCondition ? 'unknown' : 'deny';
             return;
           }
           if (capabilities[capKey] === 'deny') {
             const matchingAllow = matchingPolicies.find((p) => {
-              if (p.eft !== 'ALLOW') return false;
-              const abac = matchAbacCondition(p.abac_condition, abacEnv);
+              if (p.effect !== 'ALLOW') return false;
+              const abac = matchAbacCondition(p.abacCondition, abacEnv);
               return !abac.malformed && abac.matched;
             });
             if (matchingAllow) {
-              const hasAbacOrScope = Boolean(matchingAllow.abac_condition) || CAPABILITY_SPECS[capKey].attributeDependent;
+              const hasAbacOrScope = Boolean(matchingAllow.abacCondition) || CAPABILITY_SPECS[capKey].attributeDependent;
               capabilities[capKey] = hasAbacOrScope ? 'unknown' : 'allow';
             }
           }
@@ -173,18 +181,27 @@ export const demoAuth = {
       );
     }
 
+    const currentOperator = store.operators.find((o) => o.operator_id === store.currentUserId);
     return AuthMeResponseSchema.parse({
       operator: {
         operator_id: store.currentUserId,
         name: store.currentUserName,
         role: store.currentUserRole,
         line_id: store.currentUserLineId,
+        isActive: currentOperator?.is_active,
+        isProtected: currentOperator?.is_protected,
+        mustChangePassword: store.operatorMustChangePassword.has(store.currentUserId),
       },
       primaryRole: store.currentUserRole,
       effectiveRoles,
       authzVersion: store.iamInfo.authzVersion,
       mode: store.iamInfo.mode,
       capabilities,
+      attributes: {
+        'subject.line_id': store.currentUserLineId,
+        'subject.role': store.currentUserRole,
+        'subject.operator_id': store.currentUserId,
+      },
     });
   }
 };

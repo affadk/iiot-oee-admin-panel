@@ -69,9 +69,15 @@ export const InspectorTab: React.FC<InspectorTabProps> = ({
                 {effectivePerms.operatorId}
               </span>
               <span className="ml-2 text-slate-500">Primary: {effectivePerms.primaryRole}</span>
+              <span className="ml-2 text-slate-500">
+                {effectivePerms.isActive ? 'Aktif' : 'Nonaktif'}
+                {effectivePerms.isProtected ? ' · Dilindungi' : ''}
+                {' · '}authz v{effectivePerms.authzVersion}
+                {effectivePerms.effectiveInMode ? ` · ${effectivePerms.effectiveInMode}` : ''}
+              </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {effectivePerms.effectiveRoles.map((er, i) => (
+              {effectivePerms.roles.map((er, i) => (
                 <Badge key={i} variant="info">
                   {er.roleName} ({er.scopeType}{er.scopeId ? `: ${er.scopeId}` : ''})
                 </Badge>
@@ -95,7 +101,10 @@ export const InspectorTab: React.FC<InspectorTabProps> = ({
                       {perm.action} → {perm.resourcePattern}
                     </span>
                   </div>
-                  <span className="text-slate-500">Sumber Peran: {perm.sourceRole}</span>
+                  <span className="text-slate-500">
+                    Sumber Peran: {perm.sourceRole}
+                    {perm.abacCondition ? ` · ABAC: ${JSON.stringify(perm.abacCondition)}` : ''}
+                  </span>
                 </div>
               ))
             )}

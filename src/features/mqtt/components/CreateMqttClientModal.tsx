@@ -18,11 +18,8 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
   roles,
   onSubmit,
 }) => {
-  const [createMode, setCreateMode] = useState<'device' | 'roles'>('device');
   const [cUsername, setCUsername] = useState('');
   const [cPassword, setCPassword] = useState('');
-  const [cDeviceId, setCDeviceId] = useState('STM32-OEE-06');
-  const [cAccess, setCAccess] = useState<'publish' | 'subscribe' | 'readwrite'>('publish');
   const [cRoles, setCRoles] = useState<string[]>(['edge_publisher']);
   const [cPasswordError, setCPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,23 +33,18 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
       setCPasswordError('Kata sandi wajib diisi, minimal 8 karakter (maksimal 128).');
       return;
     }
+    if (cRoles.length === 0) {
+      setCPasswordError('');
+      return;
+    }
     setCPasswordError('');
     setIsSubmitting(true);
     try {
-      const payload: CreateMqttClientPayload =
-        createMode === 'device'
-          ? {
-              username: cUsername.trim(),
-              password: pw,
-              deviceId: cDeviceId.trim(),
-              access: cAccess,
-            }
-          : {
-              username: cUsername.trim(),
-              password: pw,
-              roles: cRoles,
-            };
-      const ok = await onSubmit(payload);
+      const ok = await onSubmit({
+        username: cUsername.trim(),
+        password: pw,
+        roles: cRoles,
+      });
       if (ok) {
         onClose();
         // Sama seperti versi lama: hanya username + password yang dibersihkan.
@@ -68,7 +60,7 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="Buat Akun Akses Perangkat MQTT Baru"
+      title="Buat Akun Akses MQTT Baru"
       subtitle="Kata sandi wajib diisi (minimal 8 karakter) — password dikembalikan sekali dan hanya tampil satu kali."
       footer={
         <div className="flex gap-2">
@@ -84,6 +76,10 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
         }}
         className="space-y-4"
       >
+        <div className="p-2.5 rounded border border-sky-300 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200">
+          Provisioning perangkat (broker identity + registry) bukan di sini — gunakan menu Devices → Provision Device.
+          Modal ini hanya membuat client MQTT dengan roles eksplisit.
+        </div>
         <Input
           label="MQTT Username"
           value={cUsername}
@@ -102,61 +98,26 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
           maxLength={128}
         />
         {cPasswordError ? <p className="text-xs text-red-600 dark:text-red-400">{cPasswordError}</p> : null}
-        <div className="flex gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setCreateMode('device')}
-            className={`px-3 py-1.5 rounded border font-semibold cursor-pointer ${
-              createMode === 'device' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-300 dark:border-slate-700'
-            }`}
-          >
-            Mode: Device ID + Access
-          </button>
-          <button
-            type="button"
-            onClick={() => setCreateMode('roles')}
-            className={`px-3 py-1.5 rounded border font-semibold cursor-pointer ${
-              createMode === 'roles' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-300 dark:border-slate-700'
-            }`}
-          >
-            Mode: Pilih Roles Eksplisit
-          </button>
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold">Roles (Min. 1)</label>
+          {roles.map((r) => (
+            <label key={r.rolename} className="flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cRoles.includes(r.rolename)}
+                onChange={(e) =>
+                  setCRoles((prev) =>
+                    e.target.checked ? [...prev, r.rolename] : prev.filter((x) => x !== r.rolename)
+                  )
+                }
+              />
+              <span className="font-mono">{r.rolename}</span>
+            </label>
+          ))}
+          {cRoles.length === 0 ? (
+            <p className="text-xs text-red-600 dark:text-red-400">Minimal 1 role wajib dipilih.</p>
+          ) : null}
         </div>
-        {createMode === 'device' ? (
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Device ID" value={cDeviceId} onChange={(e) => setCDeviceId(e.target.value)} required />
-            <div>
-              <label className="block text-xs font-semibold mb-1">Access Scope</label>
-              <select
-                value={cAccess}
-                onChange={(e) => setCAccess(e.target.value as 'publish' | 'subscribe' | 'readwrite')}
-                className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-              >
-                <option value="publish">publish</option>
-                <option value="subscribe">subscribe</option>
-                <option value="readwrite">readwrite</option>
-              </select>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold">Roles (Min. 1)</label>
-            {roles.map((r) => (
-              <label key={r.rolename} className="flex items-center gap-2 text-xs cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={cRoles.includes(r.rolename)}
-                  onChange={(e) =>
-                    setCRoles((prev) =>
-                      e.target.checked ? [...prev, r.rolename] : prev.filter((x) => x !== r.rolename)
-                    )
-                  }
-                />
-                <span className="font-mono">{r.rolename}</span>
-              </label>
-            ))}
-          </div>
-        )}
       </form>
     </Modal>
   );

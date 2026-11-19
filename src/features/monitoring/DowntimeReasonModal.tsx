@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DowntimeCategory, DowntimeEvent } from '../../types/monitoring';
+import { DowntimeCategory, DowntimeEvent, DowntimeReasonResult } from '../../types/monitoring';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { apiClient } from '../../services/api/client';
@@ -12,7 +12,11 @@ import { AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 interface DowntimeReasonModalProps {
   event: DowntimeEvent | null;
   onClose: () => void;
-  onSuccess: (updated: DowntimeEvent) => void;
+  // E20 P20.5 (FAT-157): classify mengembalikan `DowntimeReasonResult`
+  // (§J.3: {success, eventId, deviceId, operatorReason, isOverwrite,
+  // operator}) — BUKAN DowntimeEvent penuh. Pemanggil memuat ulang
+  // daftar (invalidateQueries) untuk event terbarunya.
+  onSuccess: (result: DowntimeReasonResult) => void;
 }
 
 const CATEGORIES: { value: DowntimeCategory; label: string }[] = [
@@ -34,7 +38,7 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
   onSuccess,
 }) => {
   const { reportForbidden } = useAuth();
-  const canLabel = useCapability('downtime.reason.label', event?.id);
+  const canLabel = useCapability('downtime_event.label', event?.id);
 
   const [category, setCategory] = useState<DowntimeCategory>('EQUIPMENT_FAILURE');
   const [reason, setReason] = useState('');
@@ -75,17 +79,17 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const updated = await apiClient.classifyDowntimeReason(
+      const result = await apiClient.classifyDowntimeReason(
         event.id,
         category,
         reason.trim(),
         notes.trim() || undefined
       );
-      onSuccess(updated);
+      onSuccess(result);
       onClose();
     } catch (err: any) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('downtime.reason.label', event.id, err.message);
+        reportForbidden('downtime_event.label', event.id, err.message);
       }
       setErrorMsg(err?.message || 'Gagal mengklasifikasi alasan downtime.');
     } finally {

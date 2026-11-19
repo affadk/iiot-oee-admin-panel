@@ -43,12 +43,9 @@ MQTT_DYNSEC_CLIENTS_CREATE: {
     buildPath: () => '/api/v1/mqtt/dynamic-security/clients',
   },
 
-MQTT_DYNSEC_CLIENTS_PROVISION: {
-    key: 'MQTT_DYNSEC_CLIENTS_PROVISION',
-    method: 'POST',
-    template: '/api/v1/mqtt/dynamic-security/clients/provision',
-    buildPath: () => '/api/v1/mqtt/dynamic-security/clients/provision',
-  },
+  // E20 P20.2 (X1/R23, K-11): MQTT_DYNSEC_CLIENTS_PROVISION DIHAPUS — digantikan
+  // POST /api/v1/devices/provision (§E.3a). Jangan kembalikan rute ini; §M yang
+  // masih mendokumentasikannya adalah sisa lama (D-11).
 
 MQTT_DYNSEC_CLIENTS_DELETE: {
     key: 'MQTT_DYNSEC_CLIENTS_DELETE',

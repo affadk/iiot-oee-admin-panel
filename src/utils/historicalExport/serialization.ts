@@ -172,20 +172,39 @@ export function formatDowntimeExportRows(events: DowntimeEvent[]): Record<string
   });
 }
 
+/**
+ * E20 P20.4 (FAT-156): baris ekspor = kolom `OperationalEventItem` FR-034-01
+ * (API doc §I) — `recorded_at` + `description`, tanpa `severity` (tidak ada
+ * di dokumen) dan tanpa `timestamp`/`message` lama.
+ */
 export function formatOperationalEventExportRows(events: OperationalEvent[]): Record<string, unknown>[] {
   return events.map((ev) => ({
     id: ev.id,
+    recorded_at: ev.recorded_at,
     device_id: ev.device_id ?? '[deleted]',
-    machine_name: ev.machine_name,
+    machine_id: ev.machine_id ?? '',
+    machine_name: ev.machine_name ?? '',
+    wo_id: ev.wo_id ?? '',
     event_type: ev.event_type,
-    severity: ev.severity,
-    message: ev.message,
+    trigger_source: ev.trigger_source ?? '',
+    event_code: ev.event_code ?? '',
+    snapshot_total_count: ev.snapshot_total_count ?? '',
+    snapshot_run_sec: ev.snapshot_run_sec ?? '',
+    description: ev.description,
     acknowledged: ev.acknowledged,
     acknowledged_by: ev.acknowledged_by ?? '',
     acknowledged_at: ev.acknowledged_at ?? '',
     ack_note: ev.ack_note ?? '',
-    timestamp: ev.timestamp,
+    created_at: ev.created_at,
   }));
+}
+
+/**
+ * E20 P20.4 (FAT-156, O9): ekspor system-audit memakai baris yang sama —
+ * `/system/audit` mengembalikan `OperationalEventItem[]` (API doc §I).
+ */
+export function formatSystemAuditExportRows(events: OperationalEvent[]): Record<string, unknown>[] {
+  return formatOperationalEventExportRows(events);
 }
 
 /**

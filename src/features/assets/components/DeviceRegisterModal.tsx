@@ -75,20 +75,25 @@ export const DeviceRegisterModal: React.FC<DeviceRegisterModalProps> = ({ isOpen
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Registrasi Edge Controller STM32 Baru"
-      subtitle="ID Perangkat harus diawali 'STM32-' (contoh: STM32-OEE-06) dengan alamat MAC EUI-48 yang unik."
+      title="Registrasi Edge Controller STM32 Baru (Legacy)"
+      subtitle="Registrasi manual legacy tanpa kredensial broker — gunakan Provision untuk alur lengkap. ID Perangkat harus diawali 'STM32-' (contoh: STM32-OEE-06) dengan alamat MAC EUI-48 yang unik."
       footer={
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Batal
           </Button>
           <Button onClick={() => void handleSubmit()} isLoading={isSubmitting}>
-            Daftarkan Perangkat
+            Daftarkan Perangkat (Legacy)
           </Button>
         </div>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="p-2.5 rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200">
+          <span className="font-bold">Legacy</span> — registrasi manual ini hanya menulis registry tanpa identitas
+          broker. Gunakan <span className="font-semibold">Provision Device</span> untuk alur lengkap (broker identity +
+          registry + kredensial sekali tampil).
+        </div>
         {submitError && (
           <div role="alert" className="p-2.5 rounded border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 text-xs text-red-800 dark:text-red-200">
             {submitError}

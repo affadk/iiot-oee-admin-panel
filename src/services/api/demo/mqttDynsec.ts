@@ -19,19 +19,27 @@ export const demoMqttDynsec = {
     assertCapability('mqtt.overview.read', ['ADMIN'], { requireLan: false });
     store.recordEndpoint('MQTT_OVERVIEW', ADMIN_ENDPOINTS.MQTT_OVERVIEW.buildPath());
     const activeVer = store.configVersions.find((v) => v.status === 'ACTIVE');
+    // E20 P20.5 (FAT-157): bentuk §3.3a — status dynsec `"READY"`;
+    // count = jumlah seed demo (bukan null — demo punya datanya);
+    // petakan `available`/`lastError`/`measuredAt`/`lastOperation`.
     return {
       dynamicSecurity: {
+        available: true,
         enabled: true,
-        status: 'CONNECTED',
+        status: 'READY',
         clientsCount: store.mqttClients.length,
         rolesCount: store.mqttRoles.length,
         groupsCount: store.mqttGroups.length,
+        lastError: null,
+        measuredAt: new Date().toISOString(),
       },
       configuration: {
         status: 'IN_SYNC',
         activeVersionId: activeVer?.version_id ?? null,
         lastAppliedAt: activeVer?.applied_at ?? null,
         mutationLocked: false,
+        lastOperation: null,
+        measuredAt: new Date().toISOString(),
       },
     };
   },
@@ -75,19 +83,12 @@ export const demoMqttDynsec = {
     textdescription?: string;
     roles?: string[];
     groups?: string[];
-    deviceId?: string;
-    access?: 'publish' | 'subscribe' | 'readwrite';
   }): Promise<{ client: MqttClient; generatedPassword?: string }> {
     assertCapability('mqtt.dynsec.manage', ['ADMIN'], { resourceId: payload.username });
-    // K-11 (b): cabang deviceId+access dicatat sebagai PROVISION, sama
-    // seperti routing HTTP.
-    const isProvision = !(payload.roles && payload.roles.length > 0) && !!payload.deviceId;
-    store.recordEndpoint(
-      isProvision ? 'MQTT_DYNSEC_CLIENTS_PROVISION' : 'MQTT_DYNSEC_CLIENTS_CREATE',
-      isProvision
-        ? ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_PROVISION.buildPath()
-        : ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath(),
-    );
+    // E20 P20.2 (X1/X2, D-11): cabang deviceId+access (isProvision) DIHAPUS.
+    // Provisioning perangkat HANYA lewat POST /api/v1/devices/provision
+    // (demoDevices.provisionDevice); endpoint ini hanya mode roles.
+    store.recordEndpoint('MQTT_DYNSEC_CLIENTS_CREATE', ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_CREATE.buildPath());
 
     if (store.mqttClients.some((c) => c.username === payload.username.trim())) {
       throw new ApiError({
@@ -97,15 +98,10 @@ export const demoMqttDynsec = {
       });
     }
 
-    const derivedRoles =
-      payload.roles && payload.roles.length > 0
-        ? payload.roles
-        : payload.deviceId
-        ? [payload.access === 'subscribe' ? 'telemetry_listener' : 'edge_publisher']
-        : [];
+    const derivedRoles = payload.roles && payload.roles.length > 0 ? payload.roles : [];
 
     if (derivedRoles.length === 0) {
-      throwValidationIssues('Minimal satu role MQTT atau mode deviceId+access wajib dipilih (default-deny).', {
+      throwValidationIssues('Minimal satu role MQTT wajib dipilih (default-deny).', {
         roles: 'Minimal 1 role wajib dipilih.',
       });
     }
@@ -117,8 +113,8 @@ export const demoMqttDynsec = {
 
     const newClient: MqttClient = {
       username: payload.username.trim(),
-      clientid: payload.clientid?.trim() || payload.deviceId?.trim() || undefined,
-      textname: payload.textname?.trim() || (payload.deviceId ? `Edge ${payload.deviceId}` : undefined),
+      clientid: payload.clientid?.trim() || undefined,
+      textname: payload.textname?.trim() || undefined,
       textdescription: payload.textdescription?.trim() || undefined,
       enabled: true,
       roles: derivedRoles,

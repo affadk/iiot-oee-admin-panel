@@ -18,6 +18,7 @@ import { httpTelemetry } from './http/telemetry';
 import { httpIam } from './http/iam';
 import { httpMqttDynsec } from './http/mqttDynsec';
 import { httpMqttConfig } from './http/mqttConfig';
+import { httpSystem } from './http/system';
 
 export * from './http/mappers';
 
@@ -36,4 +37,5 @@ export const httpApiClient = {
   ...httpIam,
   ...httpMqttDynsec,
   ...httpMqttConfig,
+  ...httpSystem,
 };

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { TelemetryAggregatePoint } from '../../../types/analytics';
-import { parseServerMetric } from '../../../utils/oeeCalculations';
+import { parseServerMetric, formatNullablePct } from '../../../utils/oeeCalculations';
 
 /**
  * Format label bucket agregat (ISO) ke tanggal + jam Asia/Jakarta.
@@ -49,7 +49,7 @@ export function useTelemetryAggregateColumns() {
         header: 'OEE %',
         cell: ({ row }) => (
           <span className="font-tabular text-xs font-bold text-slate-900 dark:text-slate-100">
-            {parseServerMetric(row.original.oeePct).toFixed(1)}%
+            {formatNullablePct(row.original.oeePct)}
           </span>
         ),
       },
@@ -58,11 +58,11 @@ export function useTelemetryAggregateColumns() {
         header: 'A / P / Q',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-600 dark:text-slate-300">
-            {parseServerMetric(row.original.availabilityPct).toFixed(1)}% /{' '}
+            {formatNullablePct(row.original.availabilityPct)} /{' '}
             {row.original.performancePct === null
               ? '—'
               : `${parseServerMetric(row.original.performancePct).toFixed(1)}%`}{' '}
-            / {parseServerMetric(row.original.qualityPct).toFixed(1)}%
+            / {formatNullablePct(row.original.qualityPct)}
           </span>
         ),
       },

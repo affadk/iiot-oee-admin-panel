@@ -26,17 +26,17 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
   const [permSearchQuery, setPermSearchQuery] = useState('');
 
   const domainTypes = useMemo(
-    () => Array.from(new Set(permissions.map((p) => p.resource_type))).sort(),
+    () => Array.from(new Set(permissions.map((p) => p.resourceType))).sort(),
     [permissions],
   );
 
   const filteredPermissions = useMemo(() => {
     const q = permSearchQuery.trim().toLowerCase();
     return permissions.filter((p) => {
-      if (permDomainFilter !== 'ALL' && p.resource_type !== permDomainFilter) return false;
+      if (permDomainFilter !== 'ALL' && p.resourceType !== permDomainFilter) return false;
       if (!q) return true;
       return (
-        `${p.action}:${p.resource_type}`.toLowerCase().includes(q) ||
+        `${p.action}:${p.resourceType}`.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q)
       );
     });
@@ -46,10 +46,10 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
     <div className="space-y-4">
       <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 text-xs text-sky-900 dark:text-sky-200 space-y-1">
         <div className="font-semibold">
-          Katalog Permission Sistem (Fixed Master Data · Read-Only)
+          Katalog Permission Sistem
         </div>
         <p>
-          Daftar permission di bawah adalah master data tetap yang didefinisikan oleh guard API backend (<code className="font-mono">action:resource_type</code>). Penambahan, pengubahan, maupun penghapusan item katalog dilarang. Gunakan tombol <strong>Assign ke Role</strong> untuk menetapkan izin ke peran tertentu.
+          Daftar permission di bawah didefinisikan oleh guard API backend (<code className="font-mono">action:resourceType</code>). Permission baru bisa ditambahkan bila pasangannya punya rute penjaga (guard <code className="font-mono">INERT_PERMISSION</code>); duplikat ditolak (<code className="font-mono">PERMISSION_EXISTS</code>). Gunakan tombol <strong>Assign ke Role</strong> untuk menetapkan izin ke peran tertentu.
         </p>
       </div>
 
@@ -84,15 +84,15 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredPermissions.map((p) => {
-          const reserved = isReservedPermission(p.action, p.resource_type);
+          const reserved = isReservedPermission(p.action, p.resourceType);
           const directBindings = policies.filter(
             (pol) =>
-              pol.is_active &&
-              (pol.permission_id === p.id ||
+              pol.enabled &&
+              (pol.permissionId === p.id ||
                 (pol.action === p.action &&
-                  (pol.resource_pattern === `${p.resource_type}:*` ||
-                    pol.resource_pattern.startsWith(`${p.resource_type}:`))) ||
-                pol.action === `${p.action}:${p.resource_type}`)
+                  (pol.resourcePattern === `${p.resourceType}:*` ||
+                    pol.resourcePattern.startsWith(`${p.resourceType}:`))) ||
+                pol.action === `${p.action}:${p.resourceType}`)
           );
           return (
             <div
@@ -102,7 +102,7 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
               <div className="space-y-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                    {p.action}:{p.resource_type}
+                    {p.action}:{p.resourceType}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     <Badge variant="neutral">Sistem</Badge>
@@ -124,12 +124,12 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
                     <span
                       key={pol.id}
                       className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${
-                        pol.eft === 'DENY'
+                        pol.effect === 'DENY'
                           ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300'
                           : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
                       }`}
                     >
-                      {pol.eft} {pol.role}
+                      {pol.effect} {pol.roleName}
                     </span>
                   ))}
                 </div>

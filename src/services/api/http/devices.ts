@@ -7,10 +7,31 @@
 import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, reqJson, reqAllPages, checkAbortHttp } from './transport';
 import { mapDevice, mapDeviceHealth } from './mappers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { EdgeDevice, DeviceHealth } from '../../../types/assets';
+import { EdgeDevice, DeviceHealth, DeviceCredential, ProvisionDeviceResult, RotateDeviceCredentialsResult } from '../../../types/assets';
+import { invalidResponse } from './primitives';
+
+/**
+ * E20 P20.2 (§E.3a/3c): kredensial sekali tampil dari respons provision/rotasi.
+ * Diparse di sini dan diteruskan apa adanya ke modal sekali-tampil — TIDAK
+ * disimpan di store/state persisten dan TIDAK di-log.
+ */
+function parseDeviceCredential(raw: unknown): DeviceCredential {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const c = (r.credential ?? {}) as Record<string, unknown>;
+  const credential: DeviceCredential = {
+    username: typeof c.username === 'string' ? c.username : '',
+    password: typeof c.password === 'string' ? c.password : '',
+    clientId: typeof c.clientId === 'string' ? c.clientId : '',
+    topicPrefix: typeof c.topicPrefix === 'string' ? c.topicPrefix : '',
+  };
+  if (!credential.username || !credential.password) {
+    throw invalidResponse('Respons provision/rotasi tidak memuat kredensial sekali tampil.');
+  }
+  return credential;
+}
 
 export const httpDevices = {
-  // -- Devices (6 ops; command HMI-only — tidak ada di sini) ---------------
+  // -- Devices (9 ops; command HMI-only — tidak ada di sini) ---------------
   async getDevices(signal?: AbortSignal): Promise<EdgeDevice[]> {
     checkAbortHttp(signal);
     return reqAllPages(ADMIN_ENDPOINTS.DEVICES_LIST.buildPath(), mapDevice, signal, 'DEVICES_LIST');
@@ -60,6 +81,85 @@ export const httpDevices = {
       },
       mapDevice,
     );
+  },
+
+  /**
+   * E20 P20.2 (§E.3a, spec 015): alur kanonis menambah perangkat — satu aksi
+   * membuat identitas broker + baris registry PROVISIONED; password dibuat
+   * backend dan hanya dikembalikan sekali. Guard 409: DEVICE_ALREADY_REGISTERED
+   * / DEVICE_ID_HAS_HISTORY / MACHINE_ALREADY_BOUND / MQTT_CLIENT_EXISTS;
+   * 500 PROVISION_ROLLED_BACK; 502 MQTT_PROVISION_FAILED; 503 MQTT_UNAVAILABLE.
+   */
+  async provisionDevice(data: {
+    deviceId: string;
+    machineId?: string;
+    model?: string;
+  }): Promise<ProvisionDeviceResult> {
+    assertAuthenticatedHttp();
+    assertLanForMutation();
+    const raw = await reqJson<Record<string, unknown>>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.DEVICES_PROVISION.buildPath(),
+      body: {
+        deviceId: data.deviceId.trim(),
+        ...(data.machineId ? { machineId: data.machineId.trim() } : {}),
+        ...(data.model ? { model: data.model.trim() } : {}),
+      },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'DEVICES_PROVISION',
+      capability: 'device.manage',
+      resourceId: data.deviceId,
+    });
+    return { device: mapDevice(raw), credential: parseDeviceCredential(raw) };
+  },
+
+  /**
+   * E20 P20.2 (§E.3b): cabut kredensial — selalu diizinkan, termasuk saat WO
+   * ACTIVE. Body {reason} 1..200 wajib. 409 DEVICE_ALREADY_REVOKED.
+   */
+  async revokeDevice(deviceId: string, reason: string): Promise<EdgeDevice> {
+    assertAuthenticatedHttp();
+    assertLanForMutation();
+    const raw = await reqJson<Record<string, unknown>>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.DEVICES_REVOKE.buildPath(deviceId),
+      body: { reason },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'DEVICES_REVOKE',
+      capability: 'device.manage',
+      resourceId: deviceId,
+    });
+    const deviceRaw = (raw as Record<string, unknown>).device ?? raw;
+    return mapDevice(deviceRaw);
+  },
+
+  /**
+   * E20 P20.2 (§E.3c): rotasi kredensial — password baru sekali tampil.
+   * Guard produksi: device online + WO ACTIVE tanpa force:true → 409
+   * DEVICE_IN_PRODUCTION; device REVOKED → 409 DEVICE_REVOKED.
+   */
+  async rotateDeviceCredentials(
+    deviceId: string,
+    input: { force: boolean; reason: string },
+  ): Promise<RotateDeviceCredentialsResult> {
+    assertAuthenticatedHttp();
+    assertLanForMutation();
+    const raw = await reqJson<Record<string, unknown>>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.DEVICES_CREDENTIALS.buildPath(deviceId),
+      body: { force: input.force, reason: input.reason },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'DEVICES_CREDENTIALS',
+      capability: 'device.manage',
+      resourceId: deviceId,
+    });
+    return {
+      credential: parseDeviceCredential(raw),
+      forced: (raw as Record<string, unknown>).forced === true,
+    };
   },
 
   async updateDevice(

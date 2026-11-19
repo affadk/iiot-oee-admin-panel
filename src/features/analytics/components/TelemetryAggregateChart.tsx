@@ -15,7 +15,13 @@ export interface TelemetryAggregateChartProps {
  */
 export const TelemetryAggregateChart: React.FC<TelemetryAggregateChartProps> = ({ rows }) => {
   if (rows.length === 0) return null;
-  const maxOee = Math.max(0, ...rows.map((r) => parseServerMetric(r.oeePct)));
+  // E20 P20.5 (FAT-157): `oeePct` null (kapasitas unknown) DIKELUARKAN dari
+  // maks dan dirender sebagai celah (bukan batang 0%).
+  const knownOee = rows
+    .map((r) => r.oeePct)
+    .filter((v): v is string | number => v !== null)
+    .map((v) => parseServerMetric(v));
+  const maxOee = Math.max(0, ...knownOee);
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between">
@@ -32,16 +38,22 @@ export const TelemetryAggregateChart: React.FC<TelemetryAggregateChartProps> = (
         aria-label={`Grafik batang OEE per bucket, ${rows.length} bucket`}
       >
         {rows.map((r) => {
-          const oee = parseServerMetric(r.oeePct);
+          const oee = r.oeePct === null ? null : parseServerMetric(r.oeePct);
+          if (oee === null) {
+            return (
+              <div
+                key={r.bucket}
+                title={`${formatAggregateBucket(r.bucket)} — OEE — (kapasitas unknown)${r.provisional ? ' (Provisional)' : ''}`}
+                className="flex-1 min-w-[2px] rounded-t border border-dashed border-slate-300 dark:border-slate-600"
+                style={{ height: '100%' }}
+              />
+            );
+          }
           return (
             <div
               key={r.bucket}
-              title={`${formatAggregateBucket(r.bucket)} — OEE ${oee.toFixed(1)}%${
-                r.provisional ? ' (Provisional)' : ''
-              }`}
-              className={`flex-1 min-w-[2px] rounded-t ${
-                r.provisional ? 'bg-amber-400 dark:bg-amber-500' : 'bg-sky-500 dark:bg-sky-400'
-              }`}
+              title={`${formatAggregateBucket(r.bucket)} — OEE ${oee.toFixed(1)}%${r.provisional ? ' (Provisional)' : ''}`}
+              className={`flex-1 min-w-[2px] rounded-t ${r.provisional ? 'bg-amber-400 dark:bg-amber-500' : 'bg-sky-500 dark:bg-sky-400'}`}
               style={{ height: `${Math.min(100, Math.max(2, oee))}%` }}
             />
           );

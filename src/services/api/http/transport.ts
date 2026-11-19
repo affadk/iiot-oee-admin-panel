@@ -36,7 +36,7 @@
  * mode Demo ↔ Real tidak mengubah UI apa pun.
  */
 
-import { num, str, iso, pick, splitList, pageMeta } from './primitives';
+import { num, str, bool, iso, pick, splitList, pageMeta } from './primitives';
 import { AdminEndpointKey } from '../endpoints';
 import { resolveOriginBaseUrl, resolveRequestTimeoutMs, resolveExportTimeoutMs, resolveMutationTimeoutMs, resolveHttpRetryMaxAttempts, resolveEffectiveAccess } from '../mode';
 import { mapHttpErrorToApiError, isRetryableHttpStatus } from '../schemas';
@@ -49,6 +49,8 @@ import { CapabilityKey } from '../../../utils/capabilities';
 export interface AuthClientHooks {
   onUnauthorized?: (reason?: string) => void;
   onForbidden?: (capability: CapabilityKey, resourceId?: string, reason?: string) => void;
+  /** Spec 043 (§L): gerbang ganti-password-wajib — 403 PASSWORD_ROTATION_REQUIRED. */
+  onPasswordRotationRequired?: () => void;
 }
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -93,14 +95,21 @@ export function mapWorkOrder(raw: unknown): WorkOrder {
     shift_name: str(pick(r.shift_name, r.shiftName, r.shift_code, r.shiftCode), ''),
     target_quantity: num(pick(r.target_qty, r.targetQty, r.target_quantity), 0),
     target_qty: num(pick(r.target_qty, r.targetQty), 0),
-    completed_quantity: num(pick(r.completed_quantity, r.completedQuantity), 0),
-    rejected_quantity: num(pick(r.rejected_quantity, r.rejectedQuantity), 0),
     status: (pick(r.status) as WorkOrder['status']) ?? 'PENDING',
-    planned_start: iso(pick(r.planned_start, r.start_time, r.startTime, r.created_at, r.createdAt)),
+    // E20 P20.5 (FAT-157): `planned_start` null bila tak ada — JANGAN
+    // fallback ke `start_time` lalu `created_at`.
+    planned_start: (pick(r.planned_start, r.plannedStart) as string | null) ?? null,
     start_time: (pick(r.start_time, r.startTime) as string | null) ?? null,
     end_time: (pick(r.end_time, r.endTime) as string | null) ?? null,
-    actual_start: (pick(r.actual_start, r.actualStart) as string | null) ?? null,
-    actual_end: (pick(r.actual_end, r.actualEnd) as string | null) ?? null,
+    // E20 P20.5 (FAT-157): nama kanonis §C — `actual_start_at` /
+    // `actual_end_at`; alias lama `actual_start`/`actual_end` tetap
+    // dibaca sebagai fallback (server lama), tapi tidak ditulis kembali.
+    actual_start_at: (pick(r.actual_start_at, r.actualStartAt, r.actual_start, r.actualStart) as string | null) ?? null,
+    actual_end_at: (pick(r.actual_end_at, r.actualEndAt, r.actual_end, r.actualEnd) as string | null) ?? null,
+    dispatched_at: (pick(r.dispatched_at, r.dispatchedAt) as string | null) ?? null,
+    acked_at: (pick(r.acked_at, r.ackedAt) as string | null) ?? null,
+    provisional: bool(pick(r.provisional), false),
+    count_uncertain: bool(pick(r.count_uncertain, r.countUncertain), false),
     notes: str(pick(r.notes), undefined) || undefined,
     cancel_reason: str(pick(r.cancel_reason, r.reason), undefined) || undefined,
   };
@@ -211,7 +220,18 @@ export async function fetchRaw(opts: ReqOpts): Promise<RawResult> {
           await sleep(200 * Math.pow(2, attempt) + Math.floor(Math.random() * 100));
           continue;
         }
-        throw mapHttpErrorToApiError(status, json ?? undefined);
+        // §L: login 429 membawa `Retry-After: <sisa detik>` — satu-satunya
+        // sumber kebenaran throttle (panel tanpa lockout paralel).
+        const retryAfterRaw = res.headers.get('Retry-After');
+        const retryAfterSec =
+          retryAfterRaw !== null && retryAfterRaw.trim() !== '' && Number.isFinite(Number(retryAfterRaw))
+            ? Math.max(0, Math.floor(Number(retryAfterRaw)))
+            : undefined;
+        const mapped = mapHttpErrorToApiError(status, json ?? undefined, retryAfterSec);
+        if (mapped.code === 'PASSWORD_ROTATION_REQUIRED') {
+          hooks.onPasswordRotationRequired?.();
+        }
+        throw mapped;
       }
       return { status: res.status, text, json, headers: res.headers };
     } catch (err) {
@@ -244,8 +264,22 @@ export async function reqJson<T>(opts: ReqOpts, parse?: (raw: unknown) => T): Pr
     return parse ? parse(data) : (data as T);
   } catch (err) {
     if (err instanceof ApiError) {
-      if (err.httpStatus === 401) hooks.onUnauthorized?.(err.message);
-      if (err.httpStatus === 403) hooks.onForbidden?.(opts.capability ?? 'dashboard.read', opts.resourceId, err.message);
+      if (err.httpStatus === 401) {
+        // §L: bedakan 401 AUTHZ_STALE (subjek stale → login ulang) dan 401
+        // SUBJECT_INACTIVE (akun nonaktif) dari 401 umum — pesannya jelas.
+        const reason =
+          err.code === 'AUTHZ_STALE'
+            ? 'Hak akses akun berubah (AUTHZ_STALE). Silakan login ulang.'
+            : err.code === 'SUBJECT_INACTIVE'
+              ? 'Akun operator nonaktif (SUBJECT_INACTIVE). Silakan hubungi administrator.'
+              : err.message;
+        hooks.onUnauthorized?.(reason);
+      }
+      // 403 hanya diturunkan ke capability bila panggilan membawa kunci
+      // capability; tanpa kunci, tidak ada yang bisa diturunkan.
+      if (err.httpStatus === 403 && opts.capability) {
+        hooks.onForbidden?.(opts.capability, opts.resourceId, err.message);
+      }
     }
     throw err;
   }
@@ -322,6 +356,11 @@ export function setHttpToken(token: string | null): void {
   httpToken = token;
 }
 
+/** Setter authzVersion token — diisi dari `authzVersion` respons refresh (§L). */
+export function setTokenAuthzVersion(version: number): void {
+  tokenAuthzVersion = version;
+}
+
 /** Method inti httpApiClient (sesi, mode jaringan, peran) — menutup state modul ini. */
 export const httpCore = {
   setAuthHooks(h: AuthClientHooks) {
@@ -356,7 +395,7 @@ export const httpCore = {
   },
 
   setTokenAuthzVersion(version: number) {
-    tokenAuthzVersion = version;
+    setTokenAuthzVersion(version);
   },
 
   setIamMode(mode: 'shadow' | 'enforce' | 'partial') {

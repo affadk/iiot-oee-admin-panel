@@ -7,15 +7,25 @@
 import { store } from './store';
 import { checkAbort, assertCapability, throwValidationIssues, enrichAndValidateDevice } from './helpers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { EdgeDevice, DeviceHealth } from '../../../types/assets';
+import { EdgeDevice, DeviceHealth, DeviceCredential, ProvisionDeviceResult, RotateDeviceCredentialsResult } from '../../../types/assets';
 import { ApiError } from '../../../types/auth';
 import { normalizeMacAddress, validateDeviceInput } from '../../../utils/capabilities';
 import { DeviceHealthSchema } from '../schemas';
 import { telemetrySocket } from '../../ws/telemetrySocket';
 
+/** Password demo 32 char A-Za-z0-9-_ (meniru §E.3a: dibuat backend, sekali tampil). */
+const DEVICE_CREDENTIAL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function generateDeviceCredential(deviceId: string): DeviceCredential {
+  let password = '';
+  for (let i = 0; i < 32; i += 1) {
+    password += DEVICE_CREDENTIAL_ALPHABET[Math.floor(Math.random() * DEVICE_CREDENTIAL_ALPHABET.length)];
+  }
+  return { username: deviceId, password, clientId: deviceId, topicPrefix: 'oee/device' };
+}
+
 export const demoDevices = {
   // =========================================================================
-  // DEVICES (6 ops)
+  // DEVICES (9 ops)
   // =========================================================================
   async getDevices(signal?: AbortSignal): Promise<EdgeDevice[]> {
     checkAbort(signal);
@@ -41,7 +51,16 @@ export const demoDevices = {
     checkAbort(signal);
     store.recordEndpoint('DEVICES_HEALTH', ADMIN_ENDPOINTS.DEVICES_HEALTH.buildPath(deviceId));
     const dev = store.devices.find((d) => d.device_id === deviceId);
-    if (!dev || !dev.online) {
+    if (!dev) {
+      // §E: 404 DEVICE_NOT_FOUND bila perangkat tidak terdaftar.
+      throw new ApiError({
+        code: 'DEVICE_NOT_FOUND',
+        message: `Perangkat "${deviceId}" tidak ditemukan.`,
+        httpStatus: 404,
+      });
+    }
+    if (!dev.online) {
+      // Cache miss / offline: ageSec 999999 + field nol — jangan fabrikasi data (§E).
       return DeviceHealthSchema.parse({
         device_id: deviceId,
         timestamp: null,
@@ -101,12 +120,12 @@ export const demoDevices = {
 
       if (store.devices.some((d) => d.device_id === normalizedDeviceId)) {
         throw new ApiError({
-          code: 'CONFLICT',
+          code: 'DEVICE_ALREADY_REGISTERED',
           message: `Device ID "${normalizedDeviceId}" sudah terdaftar.`,
           httpStatus: 409,
         });
       }
-      if (store.devices.some((d) => normalizeMacAddress(d.mac_address) === canonicalMac)) {
+      if (store.devices.some((d) => d.mac_address !== '' && normalizeMacAddress(d.mac_address) === canonicalMac)) {
         throw new ApiError({
           code: 'CONFLICT',
           message: `MAC Address "${data.mac_address}" (${canonicalMac}) sudah digunakan perangkat lain.`,
@@ -125,6 +144,9 @@ export const demoDevices = {
         last_seen: null,
         bound_machine_id: null,
         bound_machine_name: null,
+        enrollmentState: 'ACTIVE',
+        provisionedAt: null,
+        credentialRotatedAt: null,
         created_at: new Date().toISOString(),
       };
       store.devices.push(newDevice);
@@ -133,6 +155,222 @@ export const demoDevices = {
       });
       return enrichAndValidateDevice(newDevice);
     });
+  },
+
+  /**
+   * E20 P20.2 (§E.3a, spec 015): provision kanonis — satu aksi membuat identitas
+   * broker (role device-<deviceId> + client) dan baris registry PROVISIONED.
+   * Password dibuat demo (32 char A-Za-z0-9-_) dan hanya dikembalikan sekali
+   * dalam hasil — pemanggil WAJIB menampilkannya sekali dan tidak menyimpannya.
+   */
+  async provisionDevice(data: {
+    deviceId: string;
+    machineId?: string;
+    model?: string;
+  }): Promise<ProvisionDeviceResult> {
+    assertCapability('device.manage', ['ADMIN'], { resourceId: data.deviceId });
+    const deviceId = data.deviceId.trim();
+    if (!/^STM32-[A-Za-z0-9_-]{1,31}$/.test(deviceId)) {
+      throw new ApiError({
+        code: 'INVALID_DEVICE_ID',
+        message: `Device ID "${data.deviceId}" tidak valid (pola ^STM32-[A-Za-z0-9_-]{1,31}$).`,
+        httpStatus: 400,
+      });
+    }
+    store.recordEndpoint('DEVICES_PROVISION', ADMIN_ENDPOINTS.DEVICES_PROVISION.buildPath());
+
+    const credential = generateDeviceCredential(deviceId);
+    const now = new Date().toISOString();
+    const device = await store.runAssetTransaction(() => {
+      if (store.devices.some((d) => d.device_id === deviceId)) {
+        throw new ApiError({
+          code: 'DEVICE_ALREADY_REGISTERED',
+          message: `Device ID "${deviceId}" sudah terdaftar.`,
+          httpStatus: 409,
+        });
+      }
+      if (store.deviceHistoryIds.has(deviceId)) {
+        throw new ApiError({
+          code: 'DEVICE_ID_HAS_HISTORY',
+          message: `Device ID "${deviceId}" pernah memiliki histori telemetri dan tidak dapat dipakai ulang untuk perangkat baru.`,
+          httpStatus: 409,
+        });
+      }
+      const machineId = data.machineId?.trim() || null;
+      let machine: (typeof store.machines)[number] | undefined;
+      if (machineId) {
+        machine = store.machines.find((m) => m.machine_id === machineId);
+        if (!machine) {
+          throw new ApiError({
+            code: 'MACHINE_NOT_FOUND',
+            message: `Mesin "${machineId}" tidak ditemukan.`,
+            httpStatus: 404,
+          });
+        }
+        if (machine.bound_device_id) {
+          throw new ApiError({
+            code: 'MACHINE_ALREADY_BOUND',
+            message: `Mesin "${machineId}" sudah terikat ke perangkat "${machine.bound_device_id}".`,
+            httpStatus: 409,
+          });
+        }
+      }
+      if (store.mqttClients.some((c) => c.username === deviceId)) {
+        throw new ApiError({
+          code: 'MQTT_CLIENT_EXISTS',
+          message: `Identitas broker "${deviceId}" sudah ada.`,
+          httpStatus: 409,
+        });
+      }
+
+      const newDevice: EdgeDevice = {
+        device_id: deviceId,
+        model: data.model?.trim() || 'STM32H723-W5500',
+        serial_number: deviceId,
+        mac_address: '',
+        ip_address: null,
+        firmware_version: null,
+        online: false,
+        last_seen: null,
+        bound_machine_id: machineId,
+        bound_machine_name: machine ? machine.name : null,
+        enrollmentState: 'PROVISIONED',
+        provisionedAt: now,
+        credentialRotatedAt: null,
+        created_at: now,
+      };
+      store.devices.push(newDevice);
+      store.mqttClients.push({
+        username: deviceId,
+        clientid: deviceId,
+        textname: `Edge ${deviceId}`,
+        enabled: true,
+        roles: [`device-${deviceId}`],
+        groups: [],
+        created_at: now,
+      });
+      if (machine) {
+        machine.bound_device_id = deviceId;
+        machine.updated_at = now;
+      }
+      store.addAudit('PROVISION_DEVICE', 'DEVICE', deviceId, `Provisioned edge device ${deviceId} (broker identity + registry)`, {
+        device_id: deviceId,
+        machine_id: machineId,
+        machine_name: machine?.name ?? 'Unbound',
+      });
+      return enrichAndValidateDevice(newDevice);
+    });
+
+    telemetrySocket.emitLifecycleEvent('DEVICE_EVENT', {
+      action: 'CREATED',
+      device_id: deviceId,
+      machine_id: device.bound_machine_id,
+    });
+    return { device, credential };
+  },
+
+  /**
+   * E20 P20.2 (§E.3b): cabut kredensial — selalu diizinkan, termasuk saat WO
+   * ACTIVE. Baris registry + histori dipertahankan; identitas broker dihapus.
+   */
+  async revokeDevice(deviceId: string, reason: string): Promise<EdgeDevice> {
+    assertCapability('device.manage', ['ADMIN'], { resourceId: deviceId });
+    const cleanReason = reason.trim();
+    if (cleanReason.length < 1 || cleanReason.length > 200) {
+      throwValidationIssues('Alasan pencabutan wajib 1..200 karakter.', {
+        reason: 'Alasan wajib diisi (1..200 karakter).',
+      });
+    }
+    store.recordEndpoint('DEVICES_REVOKE', ADMIN_ENDPOINTS.DEVICES_REVOKE.buildPath(deviceId));
+    const device = await store.runAssetTransaction(() => {
+      const dev = store.devices.find((d) => d.device_id === deviceId);
+      if (!dev) {
+        throw new ApiError({
+          code: 'DEVICE_NOT_FOUND',
+          message: `Perangkat "${deviceId}" tidak ditemukan.`,
+          httpStatus: 404,
+        });
+      }
+      if (dev.enrollmentState === 'REVOKED') {
+        throw new ApiError({
+          code: 'DEVICE_ALREADY_REVOKED',
+          message: `Perangkat "${deviceId}" sudah dicabut sebelumnya.`,
+          httpStatus: 409,
+        });
+      }
+      dev.enrollmentState = 'REVOKED';
+      store.mqttClients = store.mqttClients.filter((c) => c.username !== deviceId);
+      store.addAudit('REVOKE_DEVICE', 'DEVICE', deviceId, `Revoked device ${deviceId}: ${cleanReason}`, {
+        device_id: deviceId,
+        machine_id: dev.bound_machine_id,
+        machine_name: dev.bound_machine_name ?? 'Unbound',
+      });
+      return enrichAndValidateDevice(dev);
+    });
+    telemetrySocket.emitLifecycleEvent('DEVICE_EVENT', {
+      action: 'REVOKED',
+      device_id: deviceId,
+      machine_id: device.bound_machine_id,
+    });
+    return device;
+  },
+
+  /**
+   * E20 P20.2 (§E.3c): rotasi kredensial — password baru sekali tampil.
+   * Guard produksi: device online + WO ACTIVE pada mesin terikat tanpa
+   * force:true → 409 DEVICE_IN_PRODUCTION.
+   */
+  async rotateDeviceCredentials(
+    deviceId: string,
+    input: { force: boolean; reason: string },
+  ): Promise<RotateDeviceCredentialsResult> {
+    assertCapability('device.manage', ['ADMIN'], { resourceId: deviceId });
+    const cleanReason = input.reason.trim();
+    if (cleanReason.length < 1 || cleanReason.length > 200) {
+      throwValidationIssues('Alasan rotasi wajib 1..200 karakter.', {
+        reason: 'Alasan wajib diisi (1..200 karakter).',
+      });
+    }
+    store.recordEndpoint('DEVICES_CREDENTIALS', ADMIN_ENDPOINTS.DEVICES_CREDENTIALS.buildPath(deviceId));
+    const credential = generateDeviceCredential(deviceId);
+    const now = new Date().toISOString();
+    await store.runAssetTransaction(() => {
+      const dev = store.devices.find((d) => d.device_id === deviceId);
+      if (!dev) {
+        throw new ApiError({
+          code: 'DEVICE_NOT_FOUND',
+          message: `Perangkat "${deviceId}" tidak ditemukan.`,
+          httpStatus: 404,
+        });
+      }
+      if (dev.enrollmentState === 'REVOKED') {
+        throw new ApiError({
+          code: 'DEVICE_REVOKED',
+          message: `Perangkat "${deviceId}" sudah dicabut; kredensial tidak dapat dirotasi.`,
+          httpStatus: 409,
+        });
+      }
+      if (dev.online && dev.bound_machine_id && !input.force) {
+        const activeWo = store.workOrders.find(
+          (w) => w.machine_id === dev.bound_machine_id && w.status === 'ACTIVE',
+        );
+        if (activeWo) {
+          throw new ApiError({
+            code: 'DEVICE_IN_PRODUCTION',
+            message: `Perangkat "${deviceId}" sedang produksi (WO ${activeWo.wo_id} ACTIVE); rotasi butuh force:true.`,
+            httpStatus: 409,
+            activeWoId: activeWo.wo_id,
+          });
+        }
+      }
+      dev.credentialRotatedAt = now;
+      store.addAudit('ROTATE_DEVICE_CREDENTIALS', 'DEVICE', deviceId, `Rotated credentials for ${deviceId}${input.force ? ' (forced)' : ''}`, {
+        device_id: deviceId,
+        machine_id: dev.bound_machine_id,
+        machine_name: dev.bound_machine_name ?? 'Unbound',
+      });
+    });
+    return { credential, forced: input.force };
   },
 
   async updateDevice(
@@ -203,7 +441,7 @@ export const demoDevices = {
         );
         if (activeWo) {
           throw new ApiError({
-            code: 'MACHINE_HAS_ACTIVE_WO',
+            code: 'CONFLICT',
             message: `Tidak dapat menghapus perangkat: mesin terikat memiliki Work Order ${activeWo.status} (${activeWo.wo_id}).`,
             httpStatus: 409,
             activeWoId: activeWo.wo_id,
@@ -225,6 +463,8 @@ export const demoDevices = {
       });
       // device_live_state is per-device live snapshot (ON DELETE CASCADE)
       store.liveStates = store.liveStates.filter((ls) => ls.device_id !== deviceId);
+      // E20 P20.2 (§E.3a): id yang dihapus masuk histori — provision ulang id ini ditolak.
+      store.deviceHistoryIds.add(deviceId);
       store.devices = store.devices.filter((d) => d.device_id !== deviceId);
       store.addAudit('DELETE_DEVICE', 'DEVICE', deviceId, `Deleted edge device ${deviceId} (telemetry history preserved)`);
       return {

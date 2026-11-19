@@ -9,8 +9,6 @@ import {
   DEMO_PRESET_PASSWORD,
   isDemoPresetLoginEnabled,
   resolveDefaultStationId,
-  resolveLoginCooldownSec,
-  resolveLoginMaxAttempts,
 } from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -24,60 +22,63 @@ export const LoginPage: React.FC = () => {
   // di env real (VITE_API_MODE=real) tidak ada prefill, tidak ada tombol
   // preset — login wajib isi Operator ID + password sendiri.
   const presetsEnabled = isDemoPresetLoginEnabled();
-  const loginCooldownSec = resolveLoginCooldownSec();
-  const loginMaxAttempts = resolveLoginMaxAttempts();
 
   const [operatorId, setOperatorId] = useState(presetsEnabled ? 'ADM-001' : '');
   const [password, setPassword] = useState(presetsEnabled ? DEMO_PRESET_PASSWORD : '');
   const [stationId, setStationId] = useState(resolveDefaultStationId());
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [cooldownSec, setCooldownSec] = useState(0);
+  // Hitung mundur throttle SERVER (header Retry-After respons 429, §L).
+  // BUKAN lockout lokal — server 5/60s satu-satunya throttle (E20 P20.3).
+  const [retryAfterSec, setRetryAfterSec] = useState(0);
 
   useEffect(() => {
-    if (cooldownSec <= 0) return;
+    if (retryAfterSec <= 0) return;
     const timer = setInterval(() => {
-      setCooldownSec((c) => Math.max(0, c - 1));
+      setRetryAfterSec((c) => Math.max(0, c - 1));
     }, 1000);
     return () => clearInterval(timer);
-  }, [cooldownSec]);
+  }, [retryAfterSec]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cooldownSec > 0) return;
+    if (retryAfterSec > 0) return;
     setErrorMsg(null);
     setIsLoading(true);
 
     try {
       clearSessionExpiredReason();
-      await login(operatorId.trim(), password, stationId.trim() || undefined);
-      setFailedAttempts(0);
-      navigate('/admin', { replace: true });
-    } catch (err: any) {
+      const res = await login(operatorId.trim(), password, stationId.trim() || undefined);
+      // Spec 043 (§L): flag gerbang dari respons login → layar wajib ganti password.
+      if (res.operator.must_change_password === true) {
+        navigate('/force-change-password', { replace: true });
+      } else {
+        navigate('/admin', { replace: true });
+      }
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         if (err.httpStatus === 403) {
-          // Mode observasi / Remote Tunnel — tidak menambah counter lockout 401
+          // Mode observasi / Remote Tunnel
           setErrorMsg(
             'Login tidak dapat dilakukan melalui jaringan jarak jauh. Silakan hubungkan ke jaringan lokal pabrik untuk masuk.'
           );
           return;
         }
         if (err.httpStatus === 429) {
-          setCooldownSec(loginCooldownSec);
-          setErrorMsg(`Terlalu banyak percobaan login. Tunggu ${loginCooldownSec} detik sebelum mencoba kembali.`);
+          // Sisa waktu dari server (Retry-After); tanpa nilai server, jangan
+          // tebak — tampilkan pesan umum tanpa hitung mundur.
+          const seconds = err.retryAfterSec ?? 0;
+          setRetryAfterSec(seconds);
+          setErrorMsg(
+            seconds > 0
+              ? `Terlalu banyak percobaan login. Tunggu ${seconds} detik sebelum mencoba kembali.`
+              : 'Terlalu banyak percobaan login. Silakan coba lagi sebentar lagi.'
+          );
           return;
         }
       }
 
-      const nextAttempts = failedAttempts + 1;
-      setFailedAttempts(nextAttempts);
-      if (nextAttempts >= loginMaxAttempts) {
-        setCooldownSec(loginCooldownSec);
-        setErrorMsg(`Terlalu banyak percobaan login gagal. Silakan tunggu ${loginCooldownSec} detik.`);
-      } else {
-        setErrorMsg(err?.message || 'Autentikasi gagal. Periksa Operator ID dan password Anda.');
-      }
+      setErrorMsg(err instanceof Error ? err.message : 'Autentikasi gagal. Periksa Operator ID dan password Anda.');
     } finally {
       setIsLoading(false);
     }
@@ -170,12 +171,12 @@ export const LoginPage: React.FC = () => {
               type="submit"
               className="w-full"
               isLoading={isLoading}
-              disabled={cooldownSec > 0 || isReadOnly}
+              disabled={retryAfterSec > 0 || isReadOnly}
             >
               <Lock className="w-4 h-4" />
               <span>
-                {cooldownSec > 0
-                  ? `Tunggu ${cooldownSec}s...`
+                {retryAfterSec > 0
+                  ? `Tunggu ${retryAfterSec}s...`
                   : isReadOnly
                   ? 'Login Mutasi Nonaktif (Remote Tunnel)'
                   : 'Masuk ke Admin Panel'}

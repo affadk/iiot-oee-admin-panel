@@ -4,12 +4,39 @@
  * Dipisah dari file god-file pada refactoring R9 (kontrak docs/DIRECTORY_STRUCTURE.md).
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
-import { MUTATION_TIMEOUT_MS, calledKeys, assertLanForMutation, assertAuthenticatedHttp, fetchRaw, reqJson, reqList, checkAbortHttp } from './transport';
+import { MUTATION_TIMEOUT_MS, calledKeys, assertLanForMutation, assertAuthenticatedHttp, fetchRaw, reqJson, reqList, checkAbortHttp, sleep } from './transport';
 import { mapBrokerConfigVersion, mapBrokerOperation } from './mappers';
 import { num, str, bool, iso, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { ApiError } from '../../../types/auth';
-import { BrokerConfigSchema, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
+import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
+
+/** Angka bila berupa number berhingga, `null` bila null/absen (§3.3b). */
+const numOrNull = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null;
+
+/** Polling operasi sampai terminal (SUCCEEDED/FAILED) — maks 30 × 500 md. */
+async function pollBrokerOperationUntilTerminal(
+  operationId: string,
+  signal?: AbortSignal,
+): Promise<BrokerOperation> {
+  let last: BrokerOperation | null = null;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    checkAbortHttp(signal);
+    const op = await httpMqttConfig.getBrokerConfigOperation(operationId, signal);
+    if (op) {
+      last = op;
+      if (op.status === 'SUCCEEDED' || op.status === 'FAILED') return op;
+    }
+    await sleep(500);
+  }
+  if (last) return last;
+  throw new ApiError({
+    code: 'MQTT_RESPONSE_TIMEOUT',
+    message: `Operasi konfigurasi ${operationId} tidak mencapai status terminal setelah polling.`,
+    httpStatus: 504,
+  });
+}
 
 export const httpMqttConfig = {
   async getBrokerConfig(signal?: AbortSignal): Promise<BrokerConfigSchema> {
@@ -26,7 +53,9 @@ export const httpMqttConfig = {
           general: {
             per_listener_settings: bool(general.per_listener_settings, false),
             allow_anonymous: bool(general.allow_anonymous, false),
-            autosave_interval_seconds: num(general.autosave_interval_seconds, 300),
+            // E20 P20.5 (FAT-157): field tanpa sumber = `null` — HAPUS
+            // default fabrikasi (autosave 300; §3.3b).
+            autosave_interval_seconds: numOrNull(general.autosave_interval_seconds),
             persistence: bool(general.persistence, true),
             persistence_location: str(general.persistence_location, ''),
             log_dest: (general.log_dest as string[]) ?? [],
@@ -34,15 +63,22 @@ export const httpMqttConfig = {
             connection_messages: bool(general.connection_messages, true),
           },
           limits: {
-            max_connections: num(limits.max_connections, 1000),
-            max_packet_size_bytes: num(limits.max_packet_size_bytes, 268435456),
+            // E20 P20.5 (FAT-157): HAPUS default fabrikasi `max_connections`
+            // 1000, `max_packet_size_bytes` 268435456, `max_queued_bytes` 0 —
+            // field tanpa sumber = `null` (§3.3b).
+            max_connections: numOrNull(limits.max_connections),
+            max_packet_size_bytes: numOrNull(limits.max_packet_size_bytes),
             max_queued_messages: num(limits.max_queued_messages, 1000),
-            max_queued_bytes: num(limits.max_queued_bytes, 0),
+            max_queued_bytes: numOrNull(limits.max_queued_bytes),
             max_inflight_messages: num(limits.max_inflight_messages, 20),
           },
           listeners: (r.listeners as BrokerConfigSchema['listeners']) ?? [],
-          tls_profiles: (r.tls_profiles as BrokerConfigSchema['tls_profiles']) ?? [],
+          // E20 P20.5 (FAT-157): `tls_profiles` selalu `[]` (§3.3b) —
+          // TLS melekat pada listener/bridge, bukan profil terpisah.
+          tls_profiles: [],
           bridges: (r.bridges as BrokerConfigSchema['bridges']) ?? [],
+          // E20 P20.5 (FAT-157): petakan `unmanaged[]` (§3.3b).
+          unmanaged: Array.isArray(r.unmanaged) ? (r.unmanaged as unknown[]).map((u) => String(u)) : [],
         };
       },
     );
@@ -60,23 +96,32 @@ export const httpMqttConfig = {
     return raw.text;
   },
 
-  async getBrokerConfigStatus(signal?: AbortSignal): Promise<{
-    active_version: string;
-    sync_state: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED';
-    last_applied_at: string;
-    mutation_locked: boolean;
-  }> {
+  /**
+   * E20 P20.5 (FAT-157): `GET /mqtt/configuration/status` — bentuk dokumen
+   * (§3.3b: kapabilitas runtime + mutation lock + operasi terakhir),
+   * BUKAN asumsi panel `active_version`/`sync_state`.
+   */
+  async getBrokerConfigStatus(signal?: AbortSignal): Promise<BrokerConfigStatus> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqJson(
       { path: ADMIN_ENDPOINTS.MQTT_CONFIG_STATUS.buildPath(), signal, endpointKey: 'MQTT_CONFIG_STATUS', capability: 'mqtt.config.read' },
       (raw) => {
         const r = (raw ?? {}) as Record<string, unknown>;
+        const runtime = (r.runtime ?? {}) as Record<string, unknown>;
+        const apply = (runtime.apply ?? {}) as Record<string, unknown>;
+        const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
         return {
-          active_version: str(pick(r.active_version, r.activeVersionId, r.activeVersion), ''),
-          sync_state: (pick(r.sync_state, r.syncState, r.status, 'IN_SYNC') as 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED'),
-          last_applied_at: iso(pick(r.last_applied_at, r.lastAppliedAt)),
-          mutation_locked: bool(pick(r.mutation_locked, r.mutationLocked), false),
+          status: (pick(r.status, 'UNAVAILABLE') as BrokerConfigStatus['status']),
+          activeVersionId: strOrNull(pick(r.activeVersionId, r.active_version, r.activeVersion)),
+          lastAppliedAt: strOrNull(pick(r.lastAppliedAt, r.last_applied_at)),
+          mutationLocked: bool(pick(r.mutationLocked, r.mutation_locked), false),
+          lastOperation: strOrNull(pick(r.lastOperation, r.last_operation)),
+          measuredAt: strOrNull(pick(r.measuredAt, r.measured_at)),
+          runtime: {
+            mode: strOrNull(pick(runtime.mode)),
+            apply: { available: typeof apply.available === 'boolean' ? apply.available : undefined },
+          },
         };
       },
     );
@@ -151,9 +196,17 @@ export const httpMqttConfig = {
     return { success: raw?.success ?? true };
   },
 
+  /**
+   * E20 P20.5 (FAT-157, R21): apply async — harap `202 {operationId,
+   * versionId}` (bukan `{version, operation}`), lalu POLLING
+   * `GET /operations/:operationId` sampai terminal (PENDING/RUNNING →
+   * SUCCEEDED/FAILED). Body `{confirm: true}` (+ reason opsional).
+   * Return `{version, operation}` dipertahankan untuk pemanggil UI.
+   */
   async applyBrokerConfigVersion(
     versionId: string,
     options: { confirm?: boolean; reason?: string } = {},
+    signal?: AbortSignal,
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -166,11 +219,20 @@ export const httpMqttConfig = {
       endpointKey: 'MQTT_CONFIG_VERSION_APPLY',
       capability: 'mqtt.config.manage',
       resourceId: versionId,
+      signal,
     });
-    return {
-      version: mapBrokerConfigVersion(raw.version ?? raw),
-      operation: mapBrokerOperation(raw.operation ?? raw),
-    };
+    const operationId = str(pick(raw.operationId, raw.operation_id));
+    const resolvedVersionId = str(pick(raw.versionId, raw.version_id, versionId));
+    if (!operationId) {
+      throw new ApiError({
+        code: 'INVALID_RESPONSE',
+        message: 'Respons apply konfigurasi tidak memuat operationId.',
+        httpStatus: 200,
+      });
+    }
+    const operation = await pollBrokerOperationUntilTerminal(operationId, signal);
+    const version = await httpMqttConfig.getBrokerConfigVersion(resolvedVersionId, signal);
+    return { version, operation };
   },
 
   async applyBrokerConfig(newConfig: BrokerConfigSchema, summary: string, reason?: string): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
@@ -180,9 +242,16 @@ export const httpMqttConfig = {
     return httpMqttConfig.applyBrokerConfigVersion(staged.version_id, { confirm: true, reason: reason || summary });
   },
 
+  /**
+   * E20 P20.5 (FAT-157, R22): rollback async — sama seperti apply:
+   * `202 {operationId, versionId}` + polling sampai terminal. Rollback
+   * membuat operasi + versi BARU (§3.3b); `versionId` respons adalah versi
+   * hasil rollback itu.
+   */
   async rollbackBrokerConfig(
     versionId: string,
     options: { confirm?: boolean; reason?: string } = {},
+    signal?: AbortSignal,
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -195,11 +264,20 @@ export const httpMqttConfig = {
       endpointKey: 'MQTT_CONFIG_VERSION_ROLLBACK',
       capability: 'mqtt.config.manage',
       resourceId: versionId,
+      signal,
     });
-    return {
-      version: mapBrokerConfigVersion(raw.version ?? raw),
-      operation: mapBrokerOperation(raw.operation ?? raw),
-    };
+    const operationId = str(pick(raw.operationId, raw.operation_id));
+    const resolvedVersionId = str(pick(raw.versionId, raw.version_id, versionId));
+    if (!operationId) {
+      throw new ApiError({
+        code: 'INVALID_RESPONSE',
+        message: 'Respons rollback konfigurasi tidak memuat operationId.',
+        httpStatus: 200,
+      });
+    }
+    const operation = await pollBrokerOperationUntilTerminal(operationId, signal);
+    const version = await httpMqttConfig.getBrokerConfigVersion(resolvedVersionId, signal);
+    return { version, operation };
   },
 
   async getBrokerConfigOperations(limit = 50, signal?: AbortSignal): Promise<BrokerOperation[]> {
@@ -245,21 +323,7 @@ export const httpMqttConfig = {
     ).then((p) => p.data);
   },
 
-  async createBrokerConfigBackup(): Promise<{ success: boolean; versionId?: string; name?: string }> {
-    assertAuthenticatedHttp();
-    assertLanForMutation();
-    const raw = await reqJson<Record<string, unknown>>({
-      method: 'POST',
-      path: ADMIN_ENDPOINTS.MQTT_CONFIG_BACKUPS.buildPath(),
-      timeoutMs: MUTATION_TIMEOUT_MS,
-      retry: false,
-      endpointKey: 'MQTT_CONFIG_BACKUPS',
-      capability: 'mqtt.config.manage',
-    });
-    return {
-      success: bool(raw.success, true),
-      versionId: raw.versionId ? String(raw.versionId) : raw.id ? String(raw.id) : undefined,
-      name: raw.name ? String(raw.name) : undefined,
-    };
-  }
+  // E20 P20.5 (FAT-157, X3/R24): `POST /backups` DIHAPUS — endpoint tidak
+  // ada (§3.3b: 404; backup dibuat otomatis saat apply/rollback).
+  // `GET /backups` (inventaris) tetap ada di atas.
 };

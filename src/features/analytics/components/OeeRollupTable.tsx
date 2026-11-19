@@ -2,7 +2,7 @@ import React from 'react';
 import { TelemetryRollupGroupBy, TelemetryRollupItem } from '../../../types/analytics';
 import { RollupScope } from '../hooks/oeeQueryKeys';
 import { formatRollupPerformance } from '../../shared/historyFilters';
-import { formatDuration, formatDeletedRelationLabel, parseServerMetric } from '../../../utils/oeeCalculations';
+import { formatDuration, formatDeletedRelationLabel, formatNullablePct } from '../../../utils/oeeCalculations';
 import { formatRollupScopeTitle, joinScopeLabel } from '../scopeLabels';
 import { TableStateRow } from './TableStateRow';
 
@@ -127,16 +127,16 @@ export const OeeRollupTable: React.FC<OeeRollupTableProps> = ({
                     </div>
                   </td>
                   <td className="py-2.5 px-4 text-right font-tabular font-bold text-slate-900 dark:text-slate-100">
-                    {parseServerMetric(row.oeePct).toFixed(2)}%
+                    {formatNullablePct(row.oeePct, 2)}
                   </td>
                   <td className="py-2.5 px-4 text-right font-tabular text-slate-700 dark:text-slate-300">
-                    {parseServerMetric(row.availabilityPct).toFixed(2)}%
+                    {formatNullablePct(row.availabilityPct, 2)}
                   </td>
                   <td className="py-2.5 px-4 text-right font-tabular text-slate-700 dark:text-slate-300">
                     {formatRollupPerformance(row.performancePct)}
                   </td>
                   <td className="py-2.5 px-4 text-right font-tabular text-slate-700 dark:text-slate-300">
-                    {parseServerMetric(row.qualityPct).toFixed(2)}%
+                    {formatNullablePct(row.qualityPct, 2)}
                   </td>
                   <td className="py-2.5 px-4 text-right font-tabular">
                     {row.totalCount} / <span className="text-emerald-600 dark:text-emerald-400">{row.goodCount}</span> /{' '}

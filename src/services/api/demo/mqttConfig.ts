@@ -7,7 +7,7 @@
 import { store } from './store';
 import { checkAbort, assertCapability, throwValidationIssues } from './helpers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { BrokerConfigSchema, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
+import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
 import { ApiError } from '../../../types/auth';
 
 export const demoMqttConfig = {
@@ -46,21 +46,23 @@ export const demoMqttConfig = {
     ].join('\n');
   },
 
-  async getBrokerConfigStatus(signal?: AbortSignal): Promise<{
-    active_version: string;
-    sync_state: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED';
-    last_applied_at: string;
-    mutation_locked: boolean;
-  }> {
+  // E20 P20.5 (FAT-157): bentuk dokumen §3.3b (`BrokerConfigStatus`) —
+  // kapabilitas runtime + mutation lock + operasi terakhir; bukan asumsi
+  // lama `active_version`/`sync_state`.
+  async getBrokerConfigStatus(signal?: AbortSignal): Promise<BrokerConfigStatus> {
     checkAbort(signal);
     assertCapability('mqtt.config.read', ['ADMIN', 'SUPERVISOR'], { requireLan: false });
     store.recordEndpoint('MQTT_CONFIG_STATUS', ADMIN_ENDPOINTS.MQTT_CONFIG_STATUS.buildPath());
     const activeVer = store.configVersions.find((v) => v.status === 'ACTIVE');
+    const lastOp = store.brokerOperations[0];
     return {
-      active_version: activeVer?.version_id ?? store.brokerConfig.version,
-      sync_state: 'IN_SYNC',
-      last_applied_at: activeVer?.applied_at ?? '2026-11-08T14:20:00Z',
-      mutation_locked: false,
+      status: 'IN_SYNC',
+      activeVersionId: activeVer?.version_id ?? null,
+      lastAppliedAt: activeVer?.applied_at ?? null,
+      mutationLocked: false,
+      lastOperation: lastOp?.operation_id ?? null,
+      measuredAt: new Date().toISOString(),
+      runtime: { mode: 'managed', apply: { available: true } },
     };
   },
 
@@ -117,10 +119,12 @@ export const demoMqttConfig = {
     store.recordEndpoint('MQTT_CONFIG_STAGE', ADMIN_ENDPOINTS.MQTT_CONFIG_STAGE.buildPath());
 
     const issues: Array<{ field: string; message: string }> = [];
-    if (newConfig.limits.max_connections < 10 || newConfig.limits.max_connections > 50000) {
-      issues.push({ field: 'limits.max_connections', message: 'Max connections wajib antara 10–50.000.' });
-    }
-    if (newConfig.general.autosave_interval_seconds < 60) {
+    // E20 P20.5 (FAT-157): validasi `max_connections` DIHAPUS — field
+    // nullable (§3.3b); `null` = tanpa sumber, bukan pelanggaran.
+    // `autosave_interval_seconds` null dijaga eksplisit: `null < 60`
+    // bernilai true di JS dan akan menolak draft yang sah.
+    const autosave = newConfig.general.autosave_interval_seconds;
+    if (autosave !== null && autosave < 60) {
       issues.push({ field: 'general.autosave_interval_seconds', message: 'Autosave interval minimal 60 detik.' });
     }
     if (newConfig.listeners.length === 0) {
@@ -150,7 +154,8 @@ export const demoMqttConfig = {
     store.configVersions.unshift(staged);
     store.brokerOperations.unshift({
       operation_id: `op-cfg-${Date.now().toString().slice(-5)}`,
-      type: 'STAGE',
+      // E20 P20.5 (FAT-157): staging = NO_OPERATION (belum ada aksi broker).
+      type: 'NO_OPERATION',
       version_id: versionId,
       status: 'SUCCEEDED',
       reason: staged.summary,
@@ -200,7 +205,9 @@ export const demoMqttConfig = {
     }
 
     store.configVersions.forEach((v) => {
-      if (v.status === 'ACTIVE') v.status = 'APPLIED';
+      // E20 P20.5 (FAT-157): status versi kanonis STAGED/ACTIVE/
+      // ROLLED_BACK — versi lama yang digantikan = ROLLED_BACK.
+      if (v.status === 'ACTIVE') v.status = 'ROLLED_BACK';
     });
     target.status = 'ACTIVE';
     target.applied_at = new Date().toISOString();
@@ -209,7 +216,8 @@ export const demoMqttConfig = {
 
     const operation: BrokerOperation = {
       operation_id: `op-apply-${Date.now().toString().slice(-5)}`,
-      type: 'APPLY',
+      // E20 P20.5 (FAT-157): apply = RELOAD (operation_type kanonis).
+      type: 'RELOAD',
       version_id: versionId,
       status: 'SUCCEEDED',
       reason: options.reason?.trim() || target.summary,
@@ -269,7 +277,8 @@ export const demoMqttConfig = {
 
     const operation: BrokerOperation = {
       operation_id: `op-rb-${Date.now().toString().slice(-5)}`,
-      type: 'ROLLBACK',
+      // E20 P20.5 (FAT-157): rollback = RELOAD (operation_type kanonis).
+      type: 'RELOAD',
       version_id: versionId,
       status: 'SUCCEEDED',
       reason: options.reason?.trim() || `Rollback ke versi ${versionId}`,

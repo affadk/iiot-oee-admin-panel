@@ -87,7 +87,9 @@ export const BrokerOverviewPage: React.FC = () => {
                 <Shield className="w-5 h-5 text-sky-500" />
                 <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Dynamic Security Plugin</h2>
               </div>
-              <Badge variant={overview.dynamicSecurity.status === 'CONNECTED' ? 'success' : 'danger'}>
+              {/* E20 P20.5 (FAT-157): status dynsec kanonis §3.3a = "READY"
+                  (bukan CONNECTED/DISCONNECTED); plugin tidak aktif → DISABLED. */}
+              <Badge variant={overview.dynamicSecurity.enabled ? 'success' : 'danger'}>
                 {overview.dynamicSecurity.enabled ? overview.dynamicSecurity.status : 'DISABLED'}
               </Badge>
             </div>
@@ -96,22 +98,36 @@ export const BrokerOverviewPage: React.FC = () => {
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-[11px] text-slate-400 block">Clients</span>
                 <span className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {overview.dynamicSecurity.clientsCount}
+                  {/* E20 P20.5 (FAT-157): count `null` = "tidak tersedia"
+                      (FR-035-51) — tampil '—', bukan 0. */}
+                  {overview.dynamicSecurity.clientsCount ?? '—'}
                 </span>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-[11px] text-slate-400 block">Roles</span>
                 <span className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {overview.dynamicSecurity.rolesCount}
+                  {overview.dynamicSecurity.rolesCount ?? '—'}
                 </span>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-[11px] text-slate-400 block">Groups</span>
                 <span className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {overview.dynamicSecurity.groupsCount}
+                  {overview.dynamicSecurity.groupsCount ?? '—'}
                 </span>
               </div>
             </div>
+
+            {/* E20 P20.5 (FAT-157): `lastError`/`measuredAt` dari §3.3a. */}
+            {overview.dynamicSecurity.lastError && (
+              <div role="alert" className="p-2.5 rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-[11px] text-red-700 dark:text-red-300">
+                Error terakhir: {overview.dynamicSecurity.lastError}
+              </div>
+            )}
+            {overview.dynamicSecurity.measuredAt && (
+              <p className="text-[11px] text-slate-400">
+                Diukur: {new Date(overview.dynamicSecurity.measuredAt).toLocaleString()}
+              </p>
+            )}
 
             <Link
               to="/admin/mqtt/security"
@@ -156,6 +172,21 @@ export const BrokerOverviewPage: React.FC = () => {
                   {overview.configuration.mutationLocked ? 'LOCKED' : 'UNLOCKED'}
                 </span>
               </div>
+              {/* E20 P20.5 (FAT-157): `lastOperation`/`measuredAt` dari §3.3a. */}
+              <div className="flex justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-slate-500">Last Operation</span>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  {overview.configuration.lastOperation || '—'}
+                </span>
+              </div>
+              {overview.configuration.measuredAt && (
+                <div className="flex justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
+                  <span className="text-slate-500">Diukur</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    {new Date(overview.configuration.measuredAt).toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Link

@@ -7,11 +7,11 @@
 import { store } from './store';
 import { checkAbort, assertCapability, throwValidationIssues } from './helpers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
+import { LiveStateRecord, DowntimeEvent, DowntimeReasonResult, OperationalEvent, DowntimeCategory } from '../../../types/monitoring';
 import { AuditLogItem } from '../../../types/system';
 import { ApiError } from '../../../types/auth';
-import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery } from '../../../types/historical';
-import { RETENTION_POLICY_DAYS, assertRetentionWindow, buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, formatDowntimeExportRows, formatOperationalEventExportRows, paginateWithCursor, parseExportMetadataHeaders, serializeExportRecords } from '../../../utils/historicalExport';
+import { CursorPageResponse, DowntimeExportQuery, DowntimeHistoryQuery, ExportResult, OperationalEventsExportQuery, OperationalEventsQuery, SystemAuditExportQuery } from '../../../types/historical';
+import { RETENTION_POLICY_DAYS, assertRetentionWindow, buildDowntimeExportEndpoint, buildDowntimeHistoryEndpoint, buildOperationalEventsEndpoint, buildOperationalEventsExportEndpoint, buildSystemAuditExportEndpoint, formatDowntimeExportRows, formatOperationalEventExportRows, formatSystemAuditExportRows, paginateWithCursor, parseExportMetadataHeaders, serializeExportRecords } from '../../../utils/historicalExport';
 import { normalizeFsmState } from '../../../utils/oeeCalculations';
 
 export const demoMonitoring = {
@@ -75,14 +75,10 @@ export const demoMonitoring = {
       items = items.filter((d) => d.ended_at === null);
     }
     if (query.unlabeled_only) {
-      items = items.filter((d) => {
-        const isGeneric =
-          !d.is_labeled ||
-          !d.reason ||
-          d.reason.toLowerCase().includes('unclassified') ||
-          d.reason.toLowerCase().includes('unplanned');
-        return isGeneric;
-      });
+      // E20 P20.5 (FAT-157): `unlabeled_only` = operatorReason IS NULL
+      // (§J.2) — BUKAN heuristik string 'unclassified'/'unplanned'.
+      // Di demo, `reason` adalah operatorReason.
+      items = items.filter((d) => !d.reason);
     }
     if (query.from) {
       const fromMs = new Date(query.from).getTime();
@@ -103,7 +99,7 @@ export const demoMonitoring = {
   async exportDowntimeData(query: DowntimeExportQuery, signal?: AbortSignal): Promise<ExportResult> {
     checkAbort(signal);
     const endpoint = buildDowntimeExportEndpoint(query);
-    assertCapability('export.telemetry', ['ADMIN', 'SUPERVISOR'], {
+    assertCapability('telemetry.refresh', ['ADMIN', 'SUPERVISOR'], {
       requireLan: false,
       resourceId: query.device_id,
     });
@@ -151,8 +147,8 @@ export const demoMonitoring = {
     category: DowntimeCategory,
     reason: string,
     notes?: string
-  ): Promise<DowntimeEvent> {
-    assertCapability('downtime.reason.label', ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'], {
+  ): Promise<DowntimeReasonResult> {
+    assertCapability('downtime_event.label', ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'], {
       resourceId: id,
     });
     const cleanReason = reason.trim();
@@ -184,7 +180,17 @@ export const demoMonitoring = {
       machine_id: dt.machine_id,
       machine_name: dt.machine_name,
     });
-    return { ...dt };
+    // E20 P20.5 (FAT-157): respons kanonis §J.3 —
+    // `{success, eventId, deviceId, operatorReason, isOverwrite, operator}`
+    // — BUKAN `DowntimeEvent` penuh.
+    return {
+      success: true,
+      eventId: id,
+      deviceId: dt.device_id ?? null,
+      operatorReason: cleanReason,
+      isOverwrite: dt.is_overwrite,
+      operator: store.currentUserName ?? null,
+    };
   },
 
   // Operational Events (Global + Per-Device)
@@ -223,28 +229,25 @@ export const demoMonitoring = {
     if (!isGlobal) {
       items = items.filter((e) => e.device_id === query.device_id);
     }
-    if (query.machine_id && query.machine_id !== 'ALL') {
-      items = items.filter((e) => e.machine_id === query.machine_id);
-    }
+    // E20 P20.4 (FAT-156, D-12): filter lokal demo hanya untuk parameter
+    // terdaftar `GET /operational-events` — tanpa `machine_id` (hanya
+    // /system/audit) dan tanpa `severity` (tidak didukung).
     if (query.event_type && query.event_type !== 'ALL') {
       items = items.filter((e) => e.event_type === query.event_type);
-    }
-    if (query.severity && query.severity !== 'ALL') {
-      items = items.filter((e) => e.severity === query.severity);
     }
     if (query.acknowledged !== undefined) {
       items = items.filter((e) => e.acknowledged === query.acknowledged);
     }
     if (query.from) {
       const fromMs = new Date(query.from).getTime();
-      if (!Number.isNaN(fromMs)) items = items.filter((e) => new Date(e.timestamp).getTime() >= fromMs);
+      if (!Number.isNaN(fromMs)) items = items.filter((e) => new Date(e.recorded_at).getTime() >= fromMs);
     }
     if (query.to) {
       const toMs = new Date(query.to).getTime();
-      if (!Number.isNaN(toMs)) items = items.filter((e) => new Date(e.timestamp).getTime() <= toMs);
+      if (!Number.isNaN(toMs)) items = items.filter((e) => new Date(e.recorded_at).getTime() <= toMs);
     }
 
-    return paginateWithCursor(items, (e) => e.timestamp, {
+    return paginateWithCursor(items, (e) => e.recorded_at, {
       cursor: query.cursor,
       limit: query.limit ?? 50,
       maxLimit: 200,
@@ -258,7 +261,7 @@ export const demoMonitoring = {
     checkAbort(signal);
     const isGlobal = !query.device_id || query.device_id === 'ALL';
     const endpoint = buildOperationalEventsExportEndpoint(query);
-    assertCapability('export.telemetry', ['ADMIN', 'SUPERVISOR'], {
+    assertCapability('telemetry.refresh', ['ADMIN', 'SUPERVISOR'], {
       requireLan: false,
       resourceId: query.device_id,
     });
@@ -277,12 +280,10 @@ export const demoMonitoring = {
     const filtered = store.operationalEvents
       .filter((e) => {
         if (!isGlobal && e.device_id !== query.device_id) return false;
-        if (query.machine_id && query.machine_id !== 'ALL' && e.machine_id !== query.machine_id) return false;
-        if (query.event_type && query.event_type !== 'ALL' && e.event_type !== query.event_type) return false;
-        const ts = new Date(e.timestamp).getTime();
+        const ts = new Date(e.recorded_at).getTime();
         return ts >= fromMs && ts <= toMs;
       })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
 
     const rows = formatOperationalEventExportRows(filtered);
     const { content, mimeType, extension } = serializeExportRecords(rows, query.format);
@@ -312,8 +313,8 @@ export const demoMonitoring = {
     assertCapability('operational_event.ack', ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'MAINTENANCE'], {
       resourceId: id,
     });
-    if (note && note.length > 500) {
-      throwValidationIssues('Catatan ack maksimal 500 karakter.', { note: 'Maksimal 500 karakter.' });
+    if (note && note.length > 1000) {
+      throwValidationIssues('Catatan ack maksimal 1000 karakter.', { note: 'Maksimal 1000 karakter.' });
     }
 
     store.recordEndpoint('OPERATIONAL_EVENTS_ACK', ADMIN_ENDPOINTS.OPERATIONAL_EVENTS_ACK.buildPath(id));
@@ -345,15 +346,16 @@ export const demoMonitoring = {
   // SYSTEM AUDIT (ADMIN + LAN only -> /api/v1/system/audit)
   // =========================================================================
   async getSystemAuditPage(
-    query: { from?: string; to?: string; event_type?: string; limit?: number; cursor?: string | null } = {},
+    query: { from?: string; to?: string; event_type?: string; machine_id?: string; limit?: number; cursor?: string | null } = {},
     signal?: AbortSignal
   ): Promise<CursorPageResponse<AuditLogItem>> {
     checkAbort(signal);
-    assertCapability('audit.system.read', ['ADMIN']);
+    assertCapability('access_control.read', ['ADMIN']);
     const qs = new URLSearchParams({ envelope: 'true' });
     if (query.from) qs.set('from', query.from);
     if (query.to) qs.set('to', query.to);
     if (query.event_type) qs.set('event_type', query.event_type);
+    if (query.machine_id) qs.set('machine_id', query.machine_id);
     if (query.limit) qs.set('limit', String(query.limit));
     if (query.cursor) qs.set('cursor', query.cursor);
     store.recordEndpoint('SYSTEM_AUDIT', `${ADMIN_ENDPOINTS.SYSTEM_AUDIT.buildPath()}?${qs.toString()}`);
@@ -361,13 +363,19 @@ export const demoMonitoring = {
     let items = [...store.auditLogs];
     if (query.from) {
       const fromMs = new Date(query.from).getTime();
-      if (!Number.isNaN(fromMs)) items = items.filter((a) => new Date(a.timestamp).getTime() >= fromMs);
+      if (!Number.isNaN(fromMs)) items = items.filter((a) => new Date(a.recorded_at).getTime() >= fromMs);
     }
     if (query.to) {
       const toMs = new Date(query.to).getTime();
-      if (!Number.isNaN(toMs)) items = items.filter((a) => new Date(a.timestamp).getTime() <= toMs);
+      if (!Number.isNaN(toMs)) items = items.filter((a) => new Date(a.recorded_at).getTime() <= toMs);
     }
-    return paginateWithCursor(items, (a) => a.timestamp, {
+    if (query.event_type && query.event_type !== 'ALL') {
+      items = items.filter((a) => a.event_type === query.event_type);
+    }
+    if (query.machine_id && query.machine_id !== 'ALL') {
+      items = items.filter((a) => a.machine_id === query.machine_id);
+    }
+    return paginateWithCursor(items, (a) => a.recorded_at, {
       cursor: query.cursor,
       limit: query.limit ?? 50,
       maxLimit: 200,
@@ -377,5 +385,54 @@ export const demoMonitoring = {
   async getAuditLogs(signal?: AbortSignal): Promise<AuditLogItem[]> {
     const page = await demoMonitoring.getSystemAuditPage({ limit: 200 }, signal);
     return page.data;
+  },
+
+  /**
+   * E20 P20.4 (FAT-156, O9): GET /system/audit/export (API doc §I) —
+   * csv/ndjson/json (default csv), limit 1..100000 default 10000, retensi
+   * 90 hari → 400 RETENTION_EXCEEDED, rate limit 5/min, guard
+   * `access_control.read` (D-13). Filter sama dengan daftar.
+   */
+  async exportSystemAuditData(
+    query: SystemAuditExportQuery,
+    signal?: AbortSignal
+  ): Promise<ExportResult> {
+    checkAbort(signal);
+    const endpoint = buildSystemAuditExportEndpoint(query);
+    assertCapability('access_control.read', ['ADMIN']);
+    store.assertExportRateLimit('SYSTEM_AUDIT_EXPORT');
+    store.recordEndpoint('SYSTEM_AUDIT_EXPORT', endpoint);
+
+    assertRetentionWindow(query.from, query.to, new Date(), RETENTION_POLICY_DAYS);
+
+    const fromMs = new Date(query.from).getTime();
+    const toMs = new Date(query.to).getTime();
+    const filtered = store.auditLogs
+      .filter((a) => {
+        if (query.event_type && query.event_type !== 'ALL' && a.event_type !== query.event_type) return false;
+        if (query.machine_id && query.machine_id !== 'ALL' && a.machine_id !== query.machine_id) return false;
+        const ts = new Date(a.recorded_at).getTime();
+        return ts >= fromMs && ts <= toMs;
+      })
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+
+    const rows = formatSystemAuditExportRows(filtered);
+    const { content, mimeType, extension } = serializeExportRecords(rows, query.format);
+    const generatedAt = new Date().toISOString();
+    const metadata = parseExportMetadataHeaders({
+      'X-Export-Source': 'system_audit',
+      'X-Export-Generated-At': generatedAt,
+      'X-Export-Time-Window': `${query.from}..${query.to}`,
+    });
+
+    return {
+      filename: `system_audit_${generatedAt.slice(0, 10)}.${extension}`,
+      mimeType,
+      format: query.format,
+      content,
+      rowCount: rows.length,
+      metadata,
+      endpoint,
+    };
   }
 };

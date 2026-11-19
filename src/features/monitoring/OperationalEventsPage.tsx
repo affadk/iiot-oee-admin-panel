@@ -17,24 +17,16 @@ export const OperationalEventsPage: React.FC = () => {
     limit: DEFAULT_HISTORY_PAGE_LIMIT,
   });
 
-  const [severityFilter, setSeverityFilter] = useState<'ALL' | OperationalEvent['severity']>('ALL');
   const [ackFilter, setAckFilter] = useState<'ALL' | 'UNACK' | 'ACK'>('ALL');
   const [customDeviceInput, setCustomDeviceInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
 
   const deviceFilter = filters.deviceId || 'ALL';
-  const machineFilter = filters.machineId || 'ALL';
-  const eventTypeFilter = (filters.eventType as 'ALL' | OperationalEvent['event_type']) || 'ALL';
 
   const handleFilterChange = (patch: Parameters<typeof updateFilters>[0]) => {
     setCursorStack([undefined]);
     updateFilters(patch);
-  };
-
-  const handleSeverityChange = (value: 'ALL' | OperationalEvent['severity']) => {
-    setCursorStack([undefined]);
-    setSeverityFilter(value);
   };
 
   const handleAckChange = (value: 'ALL' | 'UNACK' | 'ACK') => {
@@ -66,8 +58,6 @@ export const OperationalEventsPage: React.FC = () => {
   } = useOperationalEvents({
     filters,
     deviceFilter,
-    machineFilter,
-    eventTypeFilter,
     onFilterChange: handleFilterChange,
   });
 
@@ -75,14 +65,12 @@ export const OperationalEventsPage: React.FC = () => {
 
   const { data: masterData } = useMasterAssetsQuery();
   const devices = masterData?.devices ?? [];
-  const machines = masterData?.machines ?? [];
 
   const eventsQuery = useOperationalEventsQuery(
     deviceFilter,
     filters,
     activeCursor,
     {
-      severity: severityFilter,
       acknowledged: ackFilter === 'ALL' ? undefined : ackFilter === 'ACK',
     },
     isValid
@@ -151,13 +139,10 @@ export const OperationalEventsPage: React.FC = () => {
       <OperationalEventsFilters
         filters={filters}
         deviceOptions={deviceOptions}
-        machines={machines}
-        severityFilter={severityFilter}
         ackFilter={ackFilter}
         customDeviceInput={customDeviceInput}
         onCustomDeviceInputChange={setCustomDeviceInput}
         onFilterChange={handleFilterChange}
-        onSeverityChange={handleSeverityChange}
         onAckChange={handleAckChange}
         onApplyCustomDevice={handleApplyCustomDevice}
       />
@@ -201,7 +186,6 @@ export const OperationalEventsPage: React.FC = () => {
         emptyDescription="Tidak ada kejadian operasional yang sesuai filter aktif."
         emptyActionLabel="Reset Filter"
         onEmptyAction={() => {
-          setSeverityFilter('ALL');
           setAckFilter('ALL');
           resetFilters();
         }}

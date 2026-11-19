@@ -87,7 +87,7 @@ export const AccessControlConfirmDialogs: React.FC<AccessControlConfirmDialogsPr
         onConfirm={onConfirmDeletePolicy}
         title={`Hapus Policy ${deletePolicyTarget?.id ?? ''}?`}
         variant="destructive"
-        description={`Aturan ${deletePolicyTarget?.eft ?? ''} (${deletePolicyTarget?.action ?? ''} → ${deletePolicyTarget?.resource_pattern ?? ''}) untuk role ${deletePolicyTarget?.role ?? ''} akan dihapus permanen.`}
+        description={`Aturan ${deletePolicyTarget?.effect ?? ''} (${deletePolicyTarget?.action ?? ''} → ${deletePolicyTarget?.resourcePattern ?? ''}) untuk role ${deletePolicyTarget?.roleName ?? ''} akan dihapus permanen.`}
         impacts={['authz_version dinaikkan setelah policy dihapus.']}
         confirmLabel="Ya, Hapus Policy"
         isLoading={isSubmitting}

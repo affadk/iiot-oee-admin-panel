@@ -47,7 +47,8 @@ export interface HistoryFilters {
   machineId?: string;
   deviceId?: string;
   woId?: string;
-  status?: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+  // E20 P20.5 (FAT-157): status WO kanonis §C.1 — termasuk PENDING_CLOSE.
+  status?: 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';
   eventType?: string;
   category?: string;
   activeOnly?: boolean;
@@ -86,20 +87,44 @@ export interface DowntimeExportQuery {
   limit?: number;
 }
 
+/**
+ * E20 P20.4 (FAT-156): `GET /operational-events` (global) hanya mendaftarkan
+ * `from, to, event_type, acknowledged, limit, cursor, envelope` (API doc §I)
+ * — tanpa `machine_id` (hanya `/system/audit`) dan tanpa `severity`
+ * (tidak didukung; parameter tak dikenal diabaikan 200). D-12: hanya kirim
+ * parameter terdaftar per endpoint.
+ */
 export interface OperationalEventsQuery extends HistoricalTimeFilter {
   device_id?: string; // undefined or 'ALL' => global /api/v1/operational-events
-  machine_id?: string;
   event_type?: string;
-  severity?: string;
   acknowledged?: boolean;
 }
 
+/**
+ * E20 P20.4 (FAT-156): `GET /operational-events/export` hanya mendaftarkan
+ * `from, to, format, limit` (API doc §I) — tanpa `machine_id`/`event_type`
+ * (D-12). Guard: policy `refresh:telemetry`, SUPERVISOR/ADMIN LAN (D-13).
+ */
 export interface OperationalEventsExportQuery {
   device_id?: string; // undefined or 'ALL' => global /api/v1/operational-events/export
-  machine_id?: string;
+  from: string;
+  to: string;
+  format: ExportFormat;
+  limit?: number;
+}
+
+/**
+ * E20 P20.4 (FAT-156): `GET /system/audit/export` memakai filter yang sama
+ * dengan daftar (`from`, `to`, `event_type`, `machine_id`) — format
+ * csv/ndjson/json (default csv), limit 1..100000 default 10000, retensi
+ * 90 hari → 400 RETENTION_EXCEEDED, rate limit 5/min, guard
+ * `access_control.read` (D-13).
+ */
+export interface SystemAuditExportQuery {
   from: string;
   to: string;
   event_type?: string;
+  machine_id?: string;
   format: ExportFormat;
   limit?: number;
 }
@@ -119,7 +144,8 @@ export interface TelemetryExportQuery {
 
 export interface WorkOrdersQuery extends HistoricalTimeFilter {
   wo_id?: string;
-  status?: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+  // E20 P20.5 (FAT-157): status WO kanonis §C.1 — termasuk PENDING_CLOSE.
+  status?: 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';
   machine_id?: string;
   product_id?: string;
   operator_id?: string;

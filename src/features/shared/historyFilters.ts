@@ -288,9 +288,13 @@ export function resolveWorkOrderWindow(
   wo: WorkOrder,
   now: Date = new Date()
 ): { from: string; to: string } {
-  const rawStart = wo.start_time ?? wo.actual_start ?? wo.planned_start;
-  const rawEnd = wo.end_time ?? wo.actual_end;
-  const startDate = new Date(rawStart);
+  // E20 P20.5 (FAT-157): nama kanonis `actual_start_at`/`actual_end_at`
+  // (§C); `planned_start` null bila tak ada (tanpa fallback ke created_at).
+  const rawStart = wo.actual_start_at ?? wo.start_time ?? wo.planned_start;
+  const rawEnd = wo.actual_end_at ?? wo.end_time;
+  // `rawStart` null (tanpa actual/planned) → fallback jendela 8 jam
+  // terakhir; `new Date(null)` = epoch 1970, jadi dicek eksplisit.
+  const startDate = rawStart ? new Date(rawStart) : new Date(Number.NaN);
   const endDate = rawEnd ? new Date(rawEnd) : now;
 
   const validStart = Number.isNaN(startDate.getTime())
@@ -375,7 +379,7 @@ export function correlateWorkOrderData(params: {
   });
 
   const inWindowEvents = operationalEvents.filter((ev) => {
-    const ts = Date.parse(ev.timestamp);
+    const ts = Date.parse(ev.recorded_at);
     return Number.isFinite(ts) && ts >= fromMs && ts <= toMs;
   });
 
@@ -392,15 +396,18 @@ export function correlateWorkOrderData(params: {
         )
       : null;
 
+  // E20 P20.5 (FAT-157): `completed_quantity`/`rejected_quantity` DIHAPUS
+  // dari kontrak WO (§C) — tanpa telemetri dalam jendela, total = 0
+  // (bukan angka karangan dari WO).
   const totalGoodParts =
     inWindowTelemetry.length > 0
       ? inWindowTelemetry.reduce((acc, rec) => acc + (rec.goodCount ?? rec.good_count ?? 0), 0)
-      : workOrder.completed_quantity;
+      : 0;
 
   const totalRejectParts =
     inWindowTelemetry.length > 0
       ? inWindowTelemetry.reduce((acc, rec) => acc + (rec.rejectCount ?? rec.reject_count ?? 0), 0)
-      : workOrder.rejected_quantity;
+      : 0;
 
   return {
     woId: workOrder.wo_id,

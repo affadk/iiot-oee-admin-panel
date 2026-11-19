@@ -37,6 +37,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({
               <th className="py-3 px-4">MAC / IP Address</th>
               <th className="py-3 px-4">Firmware</th>
               <th className="py-3 px-4">Konektivitas</th>
+              <th className="py-3 px-4">Enrollment</th>
               <th className="py-3 px-4">Bound Machine</th>
               <th className="py-3 px-4 text-right">Aksi</th>
             </tr>
@@ -44,13 +45,13 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-400">
                   Memuat perangkat edge...
                 </td>
               </tr>
             ) : devices.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-400">
                   Tidak ada perangkat edge pada filter ini.
                 </td>
               </tr>
@@ -92,6 +93,27 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({
                       <div className="text-[11px] font-tabular text-slate-400 mt-1">
                         {dev.last_seen ? new Date(dev.last_seen).toLocaleString() : 'Belum ada data'}
                       </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge
+                        variant={
+                          dev.enrollmentState === 'REVOKED'
+                            ? 'danger'
+                            : dev.enrollmentState === 'PROVISIONED'
+                              ? 'warning'
+                              : 'success'
+                        }
+                      >
+                        {dev.enrollmentState ?? 'ACTIVE'}
+                      </Badge>
+                      <div className="text-[11px] font-tabular text-slate-400 mt-1">
+                        {dev.provisionedAt ? `Prov: ${new Date(dev.provisionedAt).toLocaleDateString()}` : '—'}
+                      </div>
+                      {dev.credentialRotatedAt ? (
+                        <div className="text-[11px] font-tabular text-slate-400">
+                          Rot: {new Date(dev.credentialRotatedAt).toLocaleDateString()}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="py-3 px-4">
                       {dev.bound_machine_id ? (

@@ -32,7 +32,6 @@ export function useWorkOrderCorrelation(selectedWo: WorkOrder | null, machines: 
       if (!selectedDeviceId) {
         const opEventsPage = await apiClient.getOperationalEventsPage(
           {
-            machine_id: selectedWo.machine_id ?? undefined,
             from: selectedWindow.from,
             to: selectedWindow.to,
             limit: 50,
@@ -40,19 +39,25 @@ export function useWorkOrderCorrelation(selectedWo: WorkOrder | null, machines: 
           },
           signal
         );
+        // E20 P20.4 (FAT-156, D-12): `machine_id` tidak terdaftar di
+        // `GET /operational-events` global — filter per mesin dilakukan
+        // sisi klien atas baris halaman yang dikembalikan.
+        const opEvents = selectedWo.machine_id
+          ? opEventsPage.data.filter((e) => e.machine_id === selectedWo.machine_id)
+          : opEventsPage.data;
         return {
           wo: freshWo,
           telemetry: [],
           hourly: [],
           downtimes: [],
-          operationalEvents: opEventsPage.data,
+          operationalEvents: opEvents,
           summary: correlateWorkOrderData({
             workOrder: freshWo,
             machines,
             telemetryRecords: [],
             hourlyPoints: [],
             downtimeEvents: [],
-            operationalEvents: opEventsPage.data,
+            operationalEvents: opEvents,
           }),
         };
       }

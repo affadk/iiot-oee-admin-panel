@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CUSTOM_ROLE_MAX_LEVEL, VALIDATION_PATTERNS } from '../../../utils/capabilities';
-import { validateRoleLevelDesc } from '../iamValidation';
+import { VALIDATION_PATTERNS } from '../../../utils/capabilities';
+import { validateRoleDesc } from '../iamValidation';
 import type { CreateRolePayload } from '../hooks/useRoles';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -15,7 +15,7 @@ interface CreateRoleModalProps {
 
 /**
  * Modal Buat Custom Role Baru. Field form + error validasi field milik
- * modal; sukses me-reset nama/deskripsi/level (25) seperti versi lama.
+ * modal; sukses me-reset nama/deskripsi. Tanpa field level (E20 P20.3).
  */
 export const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
   isOpen,
@@ -24,7 +24,6 @@ export const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
   onSubmit,
 }) => {
   const [roleName, setRoleName] = useState('');
-  const [roleLevel, setRoleLevel] = useState(25);
   const [roleDesc, setRoleDesc] = useState('');
   const [roleFormErrors, setRoleFormErrors] = useState<Record<string, string>>({});
 
@@ -40,17 +39,16 @@ export const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
     if (!VALIDATION_PATTERNS.IAM_ROLE_NAME.test(trimmedName)) {
       errors.name = 'Nama role wajib diawali huruf, panjang 2–64 karakter (huruf, angka, "_", "-").';
     }
-    Object.assign(errors, validateRoleLevelDesc(roleLevel, trimmedDesc, 'create'));
+    Object.assign(errors, validateRoleDesc(trimmedDesc));
     if (Object.keys(errors).length > 0) {
       setRoleFormErrors(errors);
       return;
     }
     setRoleFormErrors({});
-    const ok = await onSubmit({ name: trimmedName, level: Number(roleLevel), description: trimmedDesc });
+    const ok = await onSubmit({ name: trimmedName, description: trimmedDesc });
     if (ok) {
       setRoleName('');
       setRoleDesc('');
-      setRoleLevel(25);
     }
   };
 
@@ -59,7 +57,7 @@ export const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Buat Custom Role Baru"
-      subtitle={`Tingkat kewenangan peran tambahan dibatasi 1–${CUSTOM_ROLE_MAX_LEVEL} (ADMIN = 40, SUPERVISOR = 30). Custom role aktif pada mode enforce.`}
+      subtitle="Custom role aktif pada mode enforce. Hanya ADMIN yang immutable." 
       footer={
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
@@ -84,16 +82,6 @@ export const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
           onChange={(e) => setRoleName(e.target.value.toUpperCase())}
           placeholder="PRODUCTION_MANAGER"
           error={roleFormErrors.name}
-          required
-        />
-        <Input
-          label={`Tingkat Kewenangan (1–${CUSTOM_ROLE_MAX_LEVEL})`}
-          type="number"
-          min={1}
-          max={CUSTOM_ROLE_MAX_LEVEL}
-          value={roleLevel}
-          onChange={(e) => setRoleLevel(Number(e.target.value))}
-          error={roleFormErrors.privilege_level}
           required
         />
         <Input

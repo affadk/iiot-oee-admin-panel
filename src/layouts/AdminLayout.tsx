@@ -7,11 +7,17 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { useAuth } from '../context/AuthContext';
 
 export const AdminLayout: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mustChangePassword } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Spec 043 (§L): gerbang ganti-password-wajib — tidak ada navigasi lain
+  // selama flag aktif.
+  if (mustChangePassword) {
+    return <Navigate to="/force-change-password" replace />;
   }
 
   return (

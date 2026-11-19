@@ -5,22 +5,20 @@ import type { IamMutationDeps } from '../accessControlTypes';
 
 export interface CreateRolePayload {
   name: string;
-  level: number;
   description: string;
 }
 
 export interface UpdateRolePayload {
-  level: number;
   description: string;
 }
 
 /**
  * Create / Edit / Delete custom role + modal Detail.
  *
- * Field form (nama/level/deskripsi) + error validasi field tinggal di dalam
+ * Field form (nama/deskripsi) + error validasi field tinggal di dalam
  * modal masing-masing; hook ini hanya menyimpan flag buka + target dan
  * menyediakan aksi onSubmit(payload) yang mengembalikan true bila sukses.
- * Reset field saat sukses (create: nama/deskripsi/level 25) dilakukan modal;
+ * Reset field saat sukses (create: nama/deskripsi) dilakukan modal;
  * update TIDAK me-reset — modal menutup via target di-null-kan.
  * editRoleTarget ganda sebagai open flag DAN target mutasi — jangan dipisah.
  */
@@ -43,7 +41,6 @@ export const useRoles = ({ roles, deps }: { roles: IamRole[]; deps: IamMutationD
     try {
       const created = await apiClient.createIamRole({
         name: payload.name,
-        privilege_level: payload.level,
         description: payload.description,
       });
       setIsRoleModalOpen(false);
@@ -60,15 +57,15 @@ export const useRoles = ({ roles, deps }: { roles: IamRole[]; deps: IamMutationD
   const updateRole = async (payload: UpdateRolePayload): Promise<boolean> => {
     if (!editRoleTarget || isSubmitting) return false;
     const target = editRoleTarget;
-    if (target.is_system) {
-      setFeedback({ type: 'error', msg: 'Role sistem dilindungi dan tidak dapat diubah.' });
+    // §3.4: hanya ADMIN yang immutable (ROLE_IMMUTABLE).
+    if (target.is_system || target.name.trim().toUpperCase() === 'ADMIN') {
+      setFeedback({ type: 'error', msg: 'Role ADMIN immutable dan tidak dapat diubah.' });
       return false;
     }
     setIsSubmitting(true);
     try {
       const updated = await apiClient.updateIamRole(target.id, {
         description: payload.description,
-        privilege_level: payload.level,
       });
       setEditRoleTarget(null);
       await afterMutation(`Role "${updated.name}" berhasil diperbarui.`, false);

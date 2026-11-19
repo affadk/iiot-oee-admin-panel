@@ -31,8 +31,19 @@ export const CursorPaginationBar: React.FC<CursorPaginationBarProps> = ({
     <div className="px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
       <div className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-300 font-tabular">
         <span>
-          Menampilkan <strong className="text-slate-900 dark:text-slate-100">{loadedCount}</strong> dari{' '}
-          <strong className="text-slate-900 dark:text-slate-100">{totalCount}</strong> rekaman
+          Menampilkan <strong className="text-slate-900 dark:text-slate-100">{loadedCount}</strong>
+          {/* E20 tindak lanjut: total dataset tidak pernah dikirim server
+              (envelope `meta.count` = baris halaman, bukan total) — "dari
+              total" hanya jujur bila tidak ada halaman lanjutan, karena
+              saat itu semua rekaman sudah dimuat. Bila masih ada halaman,
+              total tidak diketahui, jadi jangan tampilkan angka total. */}
+          {!hasMore ? (
+            <>
+              {' '}dari <strong className="text-slate-900 dark:text-slate-100">{totalCount}</strong> rekaman
+            </>
+          ) : (
+            <> rekaman</>
+          )}
         </span>
         <span aria-hidden="true" className="text-slate-400">·</span>
         <span className="font-sans text-slate-500 dark:text-slate-400">Urutan menurun (terbaru)</span>

@@ -13,7 +13,8 @@ import { DowntimeEvent } from '../../../types/monitoring';
  * Aturan hitungan "menampilkan N dari M" (M = `total_count` halaman
  * terakhir — di mode Real dipetakan transport dari `meta.count` bila server
  * mengirimnya, lihat `pageMeta` di `http/primitives.ts`; di demo diisi
- * `paginateWithCursor` dengan jumlah seluruh item yang cocok):
+ * `paginateWithCursor` dengan jumlah baris halaman itu (E20 P20.4 —
+ * envelope `count` = baris halaman, bukan total dataset)):
  * - Semua halaman sudah dimuat (`has_more` false) → M = N (eksak — semua
  *   event memang sudah ada di tangan, tidak perlu total server).
  * - Masih ada halaman berikut DAN total yang dilaporkan LEBIH BESAR dari N

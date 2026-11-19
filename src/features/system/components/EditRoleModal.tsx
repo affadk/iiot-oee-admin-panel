@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { IamRole } from '../../../types/iam';
-import { CUSTOM_ROLE_MAX_LEVEL } from '../../../utils/capabilities';
-import { validateRoleLevelDesc } from '../iamValidation';
+import { validateRoleDesc } from '../iamValidation';
 import type { UpdateRolePayload } from '../hooks/useRoles';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -25,13 +24,11 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [editRoleLevel, setEditRoleLevel] = useState(25);
   const [editRoleDesc, setEditRoleDesc] = useState('');
   const [editRoleErrors, setEditRoleErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (target) {
-      setEditRoleLevel(target.privilege_level);
       setEditRoleDesc(target.description);
       setEditRoleErrors({});
     }
@@ -39,13 +36,13 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
 
   const submit = async () => {
     if (isSubmitting) return;
-    const errors = validateRoleLevelDesc(editRoleLevel, editRoleDesc, 'update');
+    const errors = validateRoleDesc(editRoleDesc);
     if (Object.keys(errors).length > 0) {
       setEditRoleErrors(errors);
       return;
     }
     setEditRoleErrors({});
-    await onSubmit({ level: Number(editRoleLevel), description: editRoleDesc.trim() });
+    await onSubmit({ description: editRoleDesc.trim() });
   };
 
   return (
@@ -53,7 +50,7 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
       isOpen={Boolean(target)}
       onClose={onClose}
       title={`Edit Role ${target?.name ?? ''}`}
-      subtitle={`Perbarui deskripsi atau tingkat kewenangan custom role (1–${CUSTOM_ROLE_MAX_LEVEL}).`}
+      subtitle="Perbarui deskripsi custom role." 
       footer={
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
@@ -72,16 +69,6 @@ export const EditRoleModal: React.FC<EditRoleModalProps> = ({
         }}
         className="space-y-4"
       >
-        <Input
-          label={`Tingkat Kewenangan (1–${CUSTOM_ROLE_MAX_LEVEL})`}
-          type="number"
-          min={1}
-          max={CUSTOM_ROLE_MAX_LEVEL}
-          value={editRoleLevel}
-          onChange={(e) => setEditRoleLevel(Number(e.target.value))}
-          error={editRoleErrors.privilege_level}
-          required
-        />
         <Input
           label="Deskripsi"
           value={editRoleDesc}

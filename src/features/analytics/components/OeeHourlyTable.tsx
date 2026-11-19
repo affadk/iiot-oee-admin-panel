@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { HourlyOeePoint } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
 import { Badge } from '../../../components/ui/Badge';
-import { formatDuration } from '../../../utils/oeeCalculations';
+import { formatDuration, formatNullablePct } from '../../../utils/oeeCalculations';
 import { formatJakartaTime } from '../../../utils/historicalExport';
 import { formatRollupPerformance } from '../../shared/historyFilters';
 import { joinScopeLabel } from '../scopeLabels';
@@ -88,8 +88,8 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
               // E12 T12.3 (F-6): samakan perlakuan kapasitas unknown dengan
               // rollup — kapasitas 0/tidak diketahui (targetPerHour null/0)
               // menampilkan "— (Kapasitas 0/Unknown)", bukan Performance 0.
-              // `performance` di tipe ini number (mapper mengubah null server
-              // menjadi 0), jadi sinyal kapasitas adalah targetPerHour.
+              // E20 P20.5 (FAT-157): `performance`/`oee` kini nullable di
+              // tipe — `null` = kapasitas unknown, tampil '—' (bukan 0%).
               const capacityUnknown = pt.targetPerHour === null || pt.targetPerHour === 0;
               return (
               <tr key={pt.hour} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -109,10 +109,10 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
                   </div>
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular font-bold text-slate-900 dark:text-slate-100">
-                  {pt.oee.toFixed(2)}%
+                  {formatNullablePct(pt.oee, 2)}
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular text-slate-600 dark:text-slate-300">
-                  {pt.availability.toFixed(2)}% / {formatRollupPerformance(capacityUnknown ? null : pt.performance)} / {pt.quality.toFixed(2)}%
+                  {formatNullablePct(pt.availability, 2)} / {formatRollupPerformance(capacityUnknown ? null : pt.performance)} / {formatNullablePct(pt.quality, 2)}
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular">
                   <strong>{pt.parts_produced}</strong>

@@ -174,6 +174,9 @@ export const INITIAL_DEVICES: EdgeDevice[] = [
     last_seen: new Date(Date.now() - 12_000).toISOString(),
     bound_machine_id: 'CNC-MILLING-01',
     bound_machine_name: 'CNC Milling Center Alpha',
+    enrollmentState: 'ACTIVE',
+    provisionedAt: '2026-01-10T08:00:00Z',
+    credentialRotatedAt: null,
     created_at: '2026-01-10T08:00:00Z',
   },
   {
@@ -186,6 +189,9 @@ export const INITIAL_DEVICES: EdgeDevice[] = [
     last_seen: new Date(Date.now() - 18_000).toISOString(),
     bound_machine_id: 'CNC-LATHE-02',
     bound_machine_name: 'High Precision Lathe Bravo',
+    enrollmentState: 'ACTIVE',
+    provisionedAt: '2026-01-10T08:00:00Z',
+    credentialRotatedAt: null,
     created_at: '2026-01-10T08:00:00Z',
   },
   {
@@ -198,6 +204,9 @@ export const INITIAL_DEVICES: EdgeDevice[] = [
     last_seen: new Date(Date.now() - 25_000).toISOString(),
     bound_machine_id: 'CNC-PRESS-03',
     bound_machine_name: 'Hydraulic Stamping Press Charlie',
+    enrollmentState: 'ACTIVE',
+    provisionedAt: '2026-01-10T08:00:00Z',
+    credentialRotatedAt: null,
     created_at: '2026-01-12T08:00:00Z',
   },
   {
@@ -210,6 +219,9 @@ export const INITIAL_DEVICES: EdgeDevice[] = [
     last_seen: new Date(Date.now() - 2 * 3600_000).toISOString(),
     bound_machine_id: 'CNC-WELD-04',
     bound_machine_name: 'Robotic Welding Cell Delta',
+    enrollmentState: 'ACTIVE',
+    provisionedAt: '2026-01-10T08:00:00Z',
+    credentialRotatedAt: null,
     created_at: '2026-01-15T08:00:00Z',
   },
   {
@@ -222,6 +234,9 @@ export const INITIAL_DEVICES: EdgeDevice[] = [
     last_seen: new Date(Date.now() - 40_000).toISOString(),
     bound_machine_id: null,
     bound_machine_name: null,
+    enrollmentState: 'ACTIVE',
+    provisionedAt: '2026-03-01T08:00:00Z',
+    credentialRotatedAt: null,
     created_at: '2026-03-01T08:00:00Z',
   },
 ];

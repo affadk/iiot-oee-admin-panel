@@ -6,10 +6,11 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { UpdateOperatorInput } from '../hooks/useOperatorCrud';
-import { ALL_ROLES } from '../hooks/useOperators';
 
 export interface OperatorEditModalProps {
   operator: Operator | null;
+  /** Daftar role otoritatif (GET /access-control/roles) + UNASSIGNED. */
+  assignableRoles: UserRole[];
   onClose: () => void;
   onSubmit: (operatorId: string, input: UpdateOperatorInput) => Promise<void>;
 }
@@ -18,10 +19,10 @@ export interface OperatorEditModalProps {
  * Modal edit operator (R9.5, dipindah dari OperatorsPage L896–948).
  * Form state lokal, diinisialisasi dari prop `operator` tiap target berganti.
  */
-export const OperatorEditModal: React.FC<OperatorEditModalProps> = ({ operator, onClose, onSubmit }) => {
+export const OperatorEditModal: React.FC<OperatorEditModalProps> = ({ operator, assignableRoles, onClose, onSubmit }) => {
   const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState<UserRole>('OPERATOR');
-  const [editLineId, setEditLineId] = useState('LINE-01');
+  const [editRole, setEditRole] = useState<UserRole>('UNASSIGNED');
+  const [editLineId, setEditLineId] = useState('');
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -106,7 +107,9 @@ export const OperatorEditModal: React.FC<OperatorEditModalProps> = ({ operator, 
               onChange={(e) => setEditRole(e.target.value as UserRole)}
               className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 disabled:opacity-60"
             >
-              {ALL_ROLES.map((r) => (
+              {Array.from(
+                new Set(['UNASSIGNED', ...assignableRoles, operator?.role].filter(Boolean) as UserRole[]),
+              ).map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>

@@ -53,9 +53,9 @@ DOWNTIME_REASON: {
 OPERATIONAL_EVENTS_LIST: {
     key: 'OPERATIONAL_EVENTS_LIST',
     method: 'GET',
-    // Guide §6.7: trailing slash WAJIB untuk endpoint list ini.
-    template: '/api/v1/operational-events/',
-    buildPath: () => '/api/v1/operational-events/',
+    // E20 P20.4 (FAT-156, R9): dokumen menulis tanpa trailing slash.
+    template: '/api/v1/operational-events',
+    buildPath: () => '/api/v1/operational-events',
   },
 
 OPERATIONAL_EVENTS_BY_DEVICE: {
@@ -91,5 +91,15 @@ SYSTEM_AUDIT: {
     method: 'GET',
     template: '/api/v1/system/audit',
     buildPath: () => '/api/v1/system/audit',
+  },
+
+// E20 P20.4 (FAT-156): GET /system/audit/export (API doc §I) — csv/ndjson/json,
+// filter sama dengan daftar (from, to, event_type, machine_id), retensi
+// 90 hari, rate limit 5/min, guard `access_control.read` (D-13).
+SYSTEM_AUDIT_EXPORT: {
+    key: 'SYSTEM_AUDIT_EXPORT',
+    method: 'GET',
+    template: '/api/v1/system/audit/export',
+    buildPath: () => '/api/v1/system/audit/export',
   },
 };

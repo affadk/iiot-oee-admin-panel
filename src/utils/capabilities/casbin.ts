@@ -7,6 +7,7 @@
 import { AbacComparator, validateAbacCondition } from './abac';
 import { NetworkAccessMode, UserRole } from '../../types/auth';
 import { IamAssignment, IamPolicyRule } from '../../types/iam';
+import { policyMatchesSubject } from './specs';
 
 export interface CasbinAbacEnvironment {
   networkMode?: NetworkAccessMode;
@@ -30,6 +31,8 @@ export interface CasbinAbacEvalInput {
   resourceKey: string;
   baselineAllowed: boolean;
   env?: CasbinAbacEnvironment;
+  /** Operator subjek yang dievaluasi (untuk pola `operator:<id>`). */
+  subjectId?: string;
 }
 
 export interface CasbinAbacEvalResult {
@@ -130,25 +133,27 @@ export function evaluateCasbinAbacDecision(input: CasbinAbacEvalInput): CasbinAb
   let malformedAbacDetected = false;
 
   for (const policy of input.policies) {
-    if (!policy.is_active) continue;
-    const roleMatch = policy.role
-      .split('|')
-      .map((r) => r.trim())
-      .some((r) => r === '*' || effectiveRoles.includes(r));
-    if (!roleMatch) continue;
+    if (!policy.enabled) continue;
+    // Pola subjek kanonis (§3.4): `*`, `role:<nama>`, `operator:<id>`.
+    // Policy juga berlaku bila salah satu role efektif subjek cocok dengan
+    // pola `role:<nama>` (assignment ORGANIZATION + primaryRole).
+    const subjectMatch =
+      policyMatchesSubject(policy.subjectMatch, { role: input.primaryRole, operatorId: input.subjectId }) ||
+      effectiveRoles.some((r) => policyMatchesSubject(policy.subjectMatch, { role: r, operatorId: input.subjectId }));
+    if (!subjectMatch) continue;
     if (!matchAction(policy.action, input.action)) continue;
-    if (!matchResourcePattern(policy.resource_pattern, input.resourceKey)) continue;
+    if (!matchResourcePattern(policy.resourcePattern, input.resourceKey)) continue;
 
-    const abacResult = matchAbacCondition(policy.abac_condition, input.env ?? {});
+    const abacResult = matchAbacCondition(policy.abacCondition, input.env ?? {});
     if (abacResult.malformed) {
       malformedAbacDetected = true;
       continue;
     }
     if (!abacResult.matched) continue;
 
-    if (policy.eft === 'DENY') {
+    if (policy.effect === 'DENY') {
       hasDeny = true;
-    } else if (policy.eft === 'ALLOW') {
+    } else if (policy.effect === 'ALLOW') {
       hasAllow = true;
     }
   }

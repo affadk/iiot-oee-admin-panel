@@ -30,6 +30,8 @@ import type { IamFeedback } from '../accessControlTypes';
  */
 export const useIamData = () => {
   const { reportForbidden, refreshCapabilities } = useAuth();
+  // §3.4: baca IAM digate `access_control.read`, tulis `access_control.manage`.
+  const canRead = useCapability('access_control.read');
   const canManage = useCapability('access_control.manage');
 
   const [iamInfo, setIamInfo] = useState<IamInfo | null>(null);
@@ -56,7 +58,7 @@ export const useIamData = () => {
   );
 
   const loadIamData = useCallback(async (): Promise<IamInfo | null> => {
-    if (!canManage.canInteract) {
+    if (!canRead.canInteract) {
       setIsLoading(false);
       return null;
     }
@@ -85,11 +87,27 @@ export const useIamData = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [canManage.canInteract, reportError]);
+  }, [canRead.canInteract, reportError]);
 
   useEffect(() => {
     void loadIamData();
   }, [loadIamData]);
+
+  /**
+   * Muat ulang keputusan audit dengan filter server (§3.4:
+   * subject/decision/mode/from/to).
+   */
+  const reloadDecisions = useCallback(
+    async (filters: import('../../../types/iam').IamAuditFilters): Promise<void> => {
+      try {
+        const decList = await apiClient.getIamAuditDecisions(filters);
+        setDecisions(decList);
+      } catch (err: unknown) {
+        reportError(err, 'Gagal memuat keputusan audit IAM.');
+      }
+    },
+    [reportError],
+  );
 
   const handleAfterMutation = useCallback(
     async (msg: string, bumpsAuthz = true) => {
@@ -118,8 +136,10 @@ export const useIamData = () => {
     feedback,
     setFeedback,
     reload: loadIamData,
+    reloadDecisions,
     afterMutation: handleAfterMutation,
     reportError,
+    canRead,
     canManage,
   };
 };

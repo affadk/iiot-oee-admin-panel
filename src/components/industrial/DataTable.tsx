@@ -26,6 +26,11 @@ interface DataTableProps<TData extends RowData> {
   cursorPagination?: {
     hasMore: boolean;
     hasPrev: boolean;
+    /**
+     * E20 P20.4 (FAT-156, item 10): jumlah baris HALAMAN ini (envelope
+     * `meta.count`, API doc §I FR-034-30..34) — BUKAN total dataset (tidak
+     * ada query COUNT(*) total). Jangan ditampilkan sebagai "dari total".
+     */
     totalCount?: number;
     pageIndex: number;
     onNextPage: () => void;
@@ -263,9 +268,6 @@ export function DataTable<TData extends RowData>({
         <div className="px-4 py-3 bg-slate-50/60 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
           <span className="font-tabular">
             Menampilkan {data.length} baris
-            {cursorPagination.totalCount !== undefined
-              ? ` dari total ${cursorPagination.totalCount}`
-              : ''}
             {' · '}Halaman {cursorPagination.pageIndex + 1}
           </span>
           <div className="flex items-center gap-2">

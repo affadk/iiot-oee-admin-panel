@@ -4,7 +4,7 @@
  * Dipisah dari file god-file pada refactoring R9 (kontrak docs/DIRECTORY_STRUCTURE.md).
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
-import { MUTATION_TIMEOUT_MS, httpToken, tokenAuthzVersion, assertLanForMutation, assertAuthenticatedHttp, reqJson, checkAbortHttp, setHttpToken } from './transport';
+import { MUTATION_TIMEOUT_MS, httpToken, assertLanForMutation, assertAuthenticatedHttp, reqJson, checkAbortHttp, setHttpToken, setTokenAuthzVersion } from './transport';
 import { mapAuthMe } from './mappers';
 import { mustParse } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
@@ -45,7 +45,11 @@ export const httpAuth = {
       (raw) => RefreshResponseSchema.parse(raw),
     );
     setHttpToken(parsed.token);
-    return { token: parsed.token, expires_in: parsed.expires_in, authz_version: tokenAuthzVersion };
+    // §L: refresh mengembalikan `authzVersion` hasil baca ulang identitas
+    // dari database (FR-037-10/11) — BUKAN variabel modul (dulu selalu 0).
+    const authzVersion = parsed.authzVersion ?? 0;
+    setTokenAuthzVersion(authzVersion);
+    return { token: parsed.token, expires_in: parsed.expires_in, authz_version: authzVersion };
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {

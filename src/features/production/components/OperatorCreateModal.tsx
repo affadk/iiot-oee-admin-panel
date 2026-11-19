@@ -26,8 +26,8 @@ export const OperatorCreateModal: React.FC<OperatorCreateModalProps> = ({
 }) => {
   const [newOpId, setNewOpId] = useState('OP-');
   const [newOpName, setNewOpName] = useState('');
-  const [newOpRole, setNewOpRole] = useState<UserRole>('OPERATOR');
-  const [newOpLineId, setNewOpLineId] = useState('LINE-01');
+  const [newOpRole, setNewOpRole] = useState<UserRole>('UNASSIGNED');
+  const [newOpLineId, setNewOpLineId] = useState('');
   const [newOpPassword, setNewOpPassword] = useState('');
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -37,8 +37,8 @@ export const OperatorCreateModal: React.FC<OperatorCreateModalProps> = ({
     if (isOpen) {
       setNewOpId('OP-');
       setNewOpName('');
-      setNewOpRole(assignableRoles[assignableRoles.length - 1] || 'OPERATOR');
-      setNewOpLineId('LINE-01');
+      setNewOpRole('UNASSIGNED');
+      setNewOpLineId('');
       setNewOpPassword('');
       setCreateErrors({});
       setSubmitError(null);
@@ -127,7 +127,7 @@ export const OperatorCreateModal: React.FC<OperatorCreateModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label htmlFor="create-operator-role" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Peran Awal (Dibatasi Hierarki)
+              Peran Awal
             </label>
             <select
               id="create-operator-role"
@@ -135,7 +135,7 @@ export const OperatorCreateModal: React.FC<OperatorCreateModalProps> = ({
               onChange={(e) => setNewOpRole(e.target.value as UserRole)}
               className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
             >
-              {assignableRoles.map((r) => (
+              {['UNASSIGNED', ...assignableRoles.filter((r) => r !== 'UNASSIGNED')].map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>

@@ -1,7 +1,9 @@
 /**
  * Authoritative Admin Panel Endpoint Catalog
- * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (132 Admin REST candidates + 1 WebSocket = 133)
- * and API_DOCUMENTATION.md.
+ * Matches ADMIN_PANEL_BUILD_GUIDE.md Lampiran A (134 Admin REST candidates + 1 WebSocket = 135)
+ * and API_DOCUMENTATION.md. E20 P20.2: 132 → 134 (tambah DEVICES_PROVISION /
+ * DEVICES_REVOKE / DEVICES_CREDENTIALS, hapus MQTT_DYNSEC_CLIENTS_PROVISION).
+ * E20 P20.5: 134 → 135 (tambah SYSTEM_ACCESS_MODE, pembaruan 09:23).
  *
  * Strictly EXCLUDES HMI-only flows:
  * - POST /api/v1/devices/:device_id/command (ADR-003 machine actuation)
@@ -32,6 +34,7 @@ import { MONITORING_ENDPOINTS } from './endpoints/monitoring';
 import { TELEMETRY_ENDPOINTS } from './endpoints/telemetry';
 import { IAM_ENDPOINTS } from './endpoints/iam';
 import { MQTT_ENDPOINTS } from './endpoints/mqtt';
+import { SYSTEM_ENDPOINTS } from './endpoints/system';
 
 export const ADMIN_ENDPOINTS = {
   ...HEALTH_ENDPOINTS,
@@ -45,6 +48,7 @@ export const ADMIN_ENDPOINTS = {
   ...TELEMETRY_ENDPOINTS,
   ...IAM_ENDPOINTS,
   ...MQTT_ENDPOINTS,
+  ...SYSTEM_ENDPOINTS,
 };
 
 export type AdminEndpointKey = keyof typeof ADMIN_ENDPOINTS;
@@ -52,6 +56,10 @@ export type AdminEndpointKey = keyof typeof ADMIN_ENDPOINTS;
 export const FORBIDDEN_ENDPOINT_PATTERNS = [
   '/mqtt/configuration/versions',
   '/mqtt/dynamic-security/provision',
+  // E20 P20.2 (X1, K-11 — keputusan E18 P-A): rute provision lama
+  // /mqtt/dynamic-security/clients/provision kembali dilarang; pengganti
+  // kanonis POST /api/v1/devices/provision.
+  '/mqtt/dynamic-security/clients/provision',
   '/auth/operator-pin',
   '/command',
   '/work-orders/validate-zone',
@@ -64,7 +72,7 @@ export const FORBIDDEN_ENDPOINT_PATTERNS = [
 
 export function isValidEndpointPrefix(path: string): boolean {
   const cleanPath = path.split('?')[0];
-  if (cleanPath === '/health' || cleanPath === '/ws/telemetry') {
+  if (cleanPath === '/health' || cleanPath === '/health/detail' || cleanPath === '/ws/telemetry') {
     return true;
   }
   return cleanPath.startsWith('/api/v1/');

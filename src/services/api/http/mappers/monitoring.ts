@@ -13,8 +13,29 @@ import { LiveStateRecord, DowntimeEvent, OperationalEvent, DowntimeCategory, Mac
 import { ShiftSummary, HourlyOeePoint, ShiftTimelineSegment, RejectParetoItem, TelemetryHistoryRecord, TelemetryRollupItem, ReconciliationJob, TelemetryAggregatePoint } from '../../../../types/analytics';
 import { AuditLogItem } from '../../../../types/system';
 
+/**
+ * E20 P20.5 (FAT-157): `device_online` BUKAN hardcode `true` — dibaca bila
+ * server mengirim `isOnline`/`device_online`, bila tidak diturunkan dari
+ * proyeksi TTL atas `lastTelemetryAt`/`updatedAt` (§7E,
+ * `DEVICE_PRESENCE_TTL_SEC=300`); live-state sendiri tidak membawa
+ * `isOnline`. Tanpa timestamp yang bisa diproyeksikan → offline (false).
+ * Field `spindleRpm`/`machineTempC`/`plcAlarmCode` DIHAPUS — tidak ada di
+ * respons §B; nilai PLC itu datang lewat WS `plc_modbus` (§7A), bukan
+ * dari snapshot live-state HTTP.
+ */
 export function mapLiveState(raw: unknown): LiveStateRecord {
   const r = (raw ?? {}) as Record<string, unknown>;
+  const lastTelemetryAt = iso(pick(r.lastTelemetryAt, r.last_telemetry_at, r.updatedAt, r.updated_at));
+  const updatedAt = iso(pick(r.updatedAt, r.updated_at));
+  const onlineFlag = pick(r.isOnline, r.device_online);
+  const deviceOnline =
+    typeof onlineFlag === 'boolean'
+      ? onlineFlag
+      : (() => {
+          const tsMs = Date.parse(lastTelemetryAt) || Date.parse(updatedAt);
+          if (!Number.isFinite(tsMs) || tsMs <= 0) return false;
+          return Date.now() - tsMs <= 300_000;
+        })();
   return {
     device_id: str(pick(r.deviceId, r.device_id)),
     machine_id: (pick(r.machineId, r.machine_id) as string | null) ?? null,
@@ -32,16 +53,13 @@ export function mapLiveState(raw: unknown): LiveStateRecord {
     operating_time_seconds: num(pick(r.operatingTimeSec, r.operating_time_sec, r.operatingTimeSeconds), 0),
     run_time_seconds: num(pick(r.runTimeSec, r.run_time_sec, r.runTimeSeconds), 0),
     downtime_seconds: num(pick(r.downtimeSec, r.downtime_sec, r.downtimeSeconds), 0),
-    spindle_rpm: num(pick(r.spindleRpm, r.spindle_rpm), 0) || undefined,
-    machine_temp_c: num(pick(r.machineTempC, r.machine_temp_c), 0) || undefined,
-    plc_alarm_code: num(pick(r.plcAlarmCode, r.plc_alarm_code), 0) || undefined,
     uptime_seconds: num(pick(r.uptimeSeconds, r.uptime_seconds), 0) || undefined,
     free_heap_bytes: num(pick(r.freeHeapBytes, r.free_heap_bytes), 0) || undefined,
     active_work_order: (pick(r.woId, r.wo_id) as string | null) ?? null,
     active_product: null,
-    last_telemetry_at: iso(pick(r.lastTelemetryAt, r.last_telemetry_at, r.updatedAt, r.updated_at)),
-    updated_at: iso(pick(r.updatedAt, r.updated_at)),
-    device_online: true,
+    last_telemetry_at: lastTelemetryAt,
+    updated_at: updatedAt,
+    device_online: deviceOnline,
   };
 }
 
@@ -56,7 +74,9 @@ export function mapDowntime(raw: unknown): DowntimeEvent {
     machine_name: str(pick(r.machineName, r.machine_name), ''),
     started_at: iso(pick(r.startTime, r.start_time, r.startedAt, r.started_at)),
     ended_at: (pick(r.endTime, r.end_time, r.endedAt, r.ended_at) as string | null) ?? null,
-    duration_seconds: num(pick(r.durationSec, r.duration_seconds, r.durationSec), 0),
+    // E20 P20.5 (FAT-157): sumber kebenaran durasi adalah `duration_sec`
+    // (§7B/D1) — dibaca PERTAMA; alias lain hanya fallback.
+    duration_seconds: num(pick(r.duration_sec, r.durationSec, r.duration_seconds), 0),
     durationFormatted: str(pick(r.durationFormatted, r.duration_formatted), undefined) || undefined,
     category: (pick(r.category) as DowntimeCategory) ?? 'OTHER',
     reason: str(pick(r.operatorReason, r.operator_reason, r.reason), ''),
@@ -68,45 +88,59 @@ export function mapDowntime(raw: unknown): DowntimeEvent {
   };
 }
 
+/**
+ * E20 P20.4 (FAT-156): `OperationalEventItem` FR-034-01 persis (API doc §I).
+ * - `acknowledged` DITURUNKAN dari `acknowledgedAt` (bukan dibaca dari field).
+ * - `machineName` null bila mesin dihapus (jangan default 'Plant System').
+ * - Baca `description` + `recordedAt`; `snapshotTotalCount`/`snapshotRunSec`
+ *   dibuang bila tak ada (null) — jangan dikarang. Tidak ada `severity`.
+ * - `event_type` diteruskan apa adanya (enum tertutup + pola); bila absen
+ *   kosong — jangan default ke nilai tebakan ('STATE_CHANGE' dihapus).
+ * - `recorded_at`/`created_at` kosong ('') bila tak ada — jangan isi epoch
+ *   (primitif `iso()` mengarang 1970-01-01).
+ */
 export function mapOperationalEvent(raw: unknown): OperationalEvent {
   const r = (raw ?? {}) as Record<string, unknown>;
   const deviceId = pick(r.deviceId, r.device_id);
   const machineId = pick(r.machineId, r.machine_id);
+  const machineName = pick(r.machineName, r.machine_name);
+  const recordedAt = pick(r.recordedAt, r.recorded_at);
+  const createdAt = pick(r.createdAt, r.created_at);
+  const acknowledgedAt = pick(r.acknowledgedAt, r.acknowledged_at);
+  const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
+  const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+  const numOrNull = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
   return {
     id: String(pick(r.id) ?? ''),
+    recorded_at: strOrEmpty(recordedAt),
     device_id: deviceId === '[deleted]' ? null : (deviceId as string | null) ?? null,
     machine_id: machineId === '[deleted]' ? null : (machineId as string | null) ?? null,
-    machine_name: str(pick(r.machineName, r.machine_name), 'Plant System'),
-    event_type: (pick(r.eventType, r.event_type) as OperationalEvent['event_type']) ?? 'STATE_CHANGE',
-    severity: (pick(r.severity) as OperationalEvent['severity']) ?? 'INFO',
-    message: str(pick(r.message, r.details, r.eventType, r.event_type), ''),
-    acknowledged: bool(pick(r.acknowledged, r.isAcknowledged), false),
-    acknowledged_by: str(pick(r.acknowledgedBy, r.acknowledged_by), undefined) || undefined,
-    acknowledged_at: str(pick(r.acknowledgedAt, r.acknowledged_at), undefined) || undefined,
-    ack_note: str(pick(r.ackNote, r.ack_note, r.note), undefined) || undefined,
-    timestamp: iso(pick(r.timestamp, r.createdAt, r.created_at)),
+    machine_name: machineName === '[deleted]' ? null : (machineName as string | null) ?? null,
+    wo_id: (pick(r.woId, r.wo_id) as string | null) ?? null,
+    event_type: (pick(r.eventType, r.event_type) as OperationalEvent['event_type']) ?? ('' as OperationalEvent['event_type']),
+    trigger_source: strOrNull(pick(r.triggerSource, r.trigger_source)),
+    event_code: numOrNull(pick(r.eventCode, r.event_code)),
+    snapshot_total_count: numOrNull(pick(r.snapshotTotalCount, r.snapshot_total_count)),
+    snapshot_run_sec: numOrNull(pick(r.snapshotRunSec, r.snapshot_run_sec)),
+    description: str(pick(r.description), ''),
+    acknowledged: acknowledgedAt !== undefined && acknowledgedAt !== null,
+    acknowledged_at: strOrNull(acknowledgedAt),
+    acknowledged_by: strOrNull(pick(r.acknowledgedBy, r.acknowledged_by)),
+    ack_note: strOrNull(pick(r.ackNote, r.ack_note, r.note)),
+    created_at: strOrEmpty(createdAt ?? recordedAt),
   };
 }
 
+/**
+ * E20 P20.4 (FAT-156): `/system/audit` adalah alias audit trail global yang
+ * mengembalikan `OperationalEventItem[]` (API doc §I) — tidak ada field
+ * karangan (`operator_id`/`operator_name`, `action`, `resource_type`,
+ * `resource_id`, `client_ip`, `access_mode`). Mapper audit = mapper
+ * operational-event, tanpa tambahan apa pun.
+ */
 export function mapAuditLog(raw: unknown): AuditLogItem {
-  const ev = mapOperationalEvent(raw);
-  const r = (raw ?? {}) as Record<string, unknown>;
-  return {
-    id: ev.id,
-    timestamp: ev.timestamp,
-    device_id: ev.device_id,
-    machine_id: ev.machine_id ?? null,
-    machine_name: ev.machine_name,
-    operator_id: (pick(r.operatorId, r.operator_id) as string | null) ?? null,
-    operator_name: str(pick(r.operatorName, r.operator_name), ''),
-    event_type: ev.event_type,
-    action: str(pick(r.action, r.eventType, r.event_type), ev.event_type),
-    resource_type: (pick(r.resourceType, r.resource_type) as AuditLogItem['resource_type']) ?? 'SYSTEM',
-    resource_id: str(pick(r.resourceId, r.resource_id, ev.id)),
-    details: ev.message,
-    client_ip: str(pick(r.clientIp, r.client_ip), ''),
-    access_mode: (pick(r.accessMode, r.access_mode) as AuditLogItem['access_mode']) ?? 'LAN',
-  };
+  return mapOperationalEvent(raw);
 }
 
 export function mapTelemetryHistory(raw: unknown): TelemetryHistoryRecord {
@@ -153,15 +187,31 @@ export function mapTelemetryHistory(raw: unknown): TelemetryHistoryRecord {
   };
 }
 
+/**
+ * E20 P20.5 (FAT-157): `*Pct` nullable dipertahankan — `pick` membuang
+ * `null`, jadi baca langsung dari field (bukan lewat `pick` + `num(..., 0)`).
+ * Absen → `null` (unknown); string-numeric ("92.50") diparse ke number.
+ * D-8: `oee` null saat kapasitas unknown, bukan 0.
+ */
+function pctOrNull(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    if (v === undefined) continue;
+    if (v === null) return null;
+    const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 export function mapHourly(raw: unknown): HourlyOeePoint {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     hour: str(pick(r.bucket, r.hour), ''),
     bucket: str(pick(r.bucket), undefined) || undefined,
-    oee: num(pick(r.oeePct, r.oee), 0),
-    availability: num(pick(r.availabilityPct, r.availability), 0),
-    performance: num(pick(r.performancePct, r.performance), 0),
-    quality: num(pick(r.qualityPct, r.quality), 0),
+    oee: pctOrNull(r.oeePct, r.oee),
+    availability: pctOrNull(r.availabilityPct, r.availability),
+    performance: pctOrNull(r.performancePct, r.performance),
+    quality: pctOrNull(r.qualityPct, r.quality),
     parts_produced: num(pick(r.totalCount, r.total_count), 0),
     defect_count: num(pick(r.rejectCount, r.reject_count), 0),
     good_count: num(pick(r.goodCount, r.good_count), 0) || undefined,
@@ -177,6 +227,9 @@ export function mapHourly(raw: unknown): HourlyOeePoint {
     state: (pick(r.state) as MachineFsmState | null) ?? undefined,
     planned: bool(pick(r.planned), false),
     provisional: bool(pick(r.provisional), false),
+    deviceId: (pick(r.deviceId, r.device_id) as string | null) ?? null,
+    machineId: (pick(r.machineId, r.machine_id) as string | null) ?? null,
+    woId: (pick(r.woId, r.wo_id) as string | null) ?? null,
   };
 }
 
@@ -199,10 +252,12 @@ export function mapAggregate(raw: unknown): TelemetryAggregatePoint {
     rejectCount,
     operatingSec: num(pick(r.operatingSec, r.operating_sec), 0),
     runSec: num(pick(r.runSec, r.run_sec), 0),
-    availabilityPct: pick(r.availabilityPct, r.availability_pct, r.avg_availability, r.availability, 0) as string | number,
-    performancePct: (pick(r.performancePct, r.performance_pct, r.avg_performance, r.performance) as string | number | null) ?? null,
-    qualityPct: pick(r.qualityPct, r.quality_pct, r.avg_quality, r.quality, 0) as string | number,
-    oeePct: pick(r.oeePct, r.oee_pct, r.avg_oee, r.oee, 0) as string | number,
+    // E20 P20.5 (FAT-157): `*Pct` nullable dipertahankan (bukan 0) —
+    // baca langsung dari field; alias legacy (`avg_*`) hanya fallback.
+    availabilityPct: pctOrNull(r.availabilityPct, r.availability_pct, r.avg_availability, r.availability),
+    performancePct: pctOrNull(r.performancePct, r.performance_pct, r.avg_performance, r.performance),
+    qualityPct: pctOrNull(r.qualityPct, r.quality_pct, r.avg_quality, r.quality),
+    oeePct: pctOrNull(r.oeePct, r.oee_pct, r.avg_oee, r.oee),
     sampleCount: num(pick(r.sampleCount, r.sample_count), 0),
     provisional: bool(pick(r.provisional), false),
   };
@@ -223,10 +278,10 @@ export function mapRollup(raw: unknown): TelemetryRollupItem {  const r = (raw ?
     rejectCount: num(pick(r.rejectCount, r.reject_count), 0),
     operatingSec: num(pick(r.operatingSec, r.operating_sec), 0),
     runSec: num(pick(r.runSec, r.run_sec), 0),
-    availabilityPct: pick(r.availabilityPct, r.availability_pct, 0) as string | number,
-    performancePct: (pick(r.performancePct, r.performance_pct) as string | number | null) ?? null,
-    qualityPct: pick(r.qualityPct, r.quality_pct, 0) as string | number,
-    oeePct: pick(r.oeePct, r.oee_pct, 0) as string | number,
+    availabilityPct: pctOrNull(r.availabilityPct, r.availability_pct),
+    performancePct: pctOrNull(r.performancePct, r.performance_pct),
+    qualityPct: pctOrNull(r.qualityPct, r.quality_pct),
+    oeePct: pctOrNull(r.oeePct, r.oee_pct),
     sampleCount: num(pick(r.sampleCount, r.sample_count), 0),
     provisional: bool(pick(r.provisional), false),
   };
@@ -311,6 +366,9 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
     good_parts: num(pick(r.goodCount, r.good_count), 0),
     defect_parts: num(pick(r.rejectCount, r.reject_count), 0),
     target_per_hour: (pick(r.target_per_hour, r.targetPerHour) as number | null) ?? null,
+    // E20 P20.5 (FAT-157): baca `hourly[]` bila server menyertakannya
+    // (`include_hourly=true`, §Q.1) — sebelumnya dibuang.
+    hourly: Array.isArray(r.hourly) ? (r.hourly as unknown[]).map((h) => mapHourly(h)) : undefined,
   };
 }
 

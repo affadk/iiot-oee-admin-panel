@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { HourlyOeePoint } from '../../../types/analytics';
 import { MachineStateBadge } from '../../../components/industrial/MachineStateBadge';
-import { parseServerMetric } from '../../../utils/oeeCalculations';
+import { formatNullablePct } from '../../../utils/oeeCalculations';
 import { formatJakartaTime } from '../../../utils/historicalExport';
 
 export function useTelemetryHourlyColumns() {
@@ -36,7 +36,8 @@ export function useTelemetryHourlyColumns() {
         header: 'OEE %',
         cell: ({ row }) => (
           <span className="font-tabular text-xs font-bold text-slate-900 dark:text-slate-100">
-            {parseServerMetric(row.original.oee).toFixed(1)}%
+            {/* E20 P20.5 (FAT-157): `oee` null (kapasitas unknown) tampil '—', bukan 0%. */}
+            {formatNullablePct(row.original.oee)}
           </span>
         ),
       },
@@ -45,8 +46,8 @@ export function useTelemetryHourlyColumns() {
         header: 'A / P / Q',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-600 dark:text-slate-300">
-            {row.original.availability.toFixed(1)}% / {row.original.performance.toFixed(1)}% /{' '}
-            {row.original.quality.toFixed(1)}%
+            {formatNullablePct(row.original.availability)} / {formatNullablePct(row.original.performance)} /{' '}
+            {formatNullablePct(row.original.quality)}
           </span>
         ),
       },

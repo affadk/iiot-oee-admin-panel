@@ -188,7 +188,7 @@ export function buildDemoAggregateRows(
       availabilityPct: availability,
       performancePct: isUnknownCapacity ? null : round1(Math.min(100, Math.max(0, 93.1 + v * 0.9))),
       qualityPct: isUnknownCapacity ? 100 : round1(Math.min(100, Math.max(0, 98.0 + v * 0.4))),
-      oeePct: isUnknownCapacity ? 0 : round1(Math.min(100, Math.max(0, 83.5 + v))),
+      oeePct: isUnknownCapacity ? null : round1(Math.min(100, Math.max(0, 83.5 + v))),
       sampleCount: samplesDist[i],
       provisional: i === count - 1,
     };
