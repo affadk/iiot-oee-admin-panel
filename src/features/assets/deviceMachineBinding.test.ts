@@ -152,6 +152,7 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
       id: 'opev-hist-test-90',
       recorded_at: '2026-11-10T08:04:00Z',
       device_id: 'STM32-TEST-90',
+      station_label: null,
       machine_id: null,
       machine_name: null,
       wo_id: null,

@@ -194,6 +194,14 @@ export interface OperationalEvent {
   id: string;
   recorded_at: string;
   device_id: string | null;
+  /**
+   * E27 (FAT-233, T2): label stasiun mentah dari klien (kolom DB
+   * `operational_events.station_label`, migrasi 0029) — UNTRUSTED, tampil
+   * apa adanya sebagai teks biasa; null bila event lama / server tidak
+   * mengirimnya. BUKAN FK — jangan dipakai sebagai key React atau kunci
+   * lookup tanpa normalisasi.
+   */
+  station_label: string | null;
   machine_id: string | null;
   machine_name: string | null;
   wo_id: string | null;

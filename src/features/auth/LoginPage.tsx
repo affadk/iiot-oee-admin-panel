@@ -10,10 +10,22 @@ import {
   isDemoPresetLoginEnabled,
   resolveAccessMode,
   resolveApiMode,
-  resolveDefaultStationId,
 } from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+
+/**
+ * E27 (FAT-235): pemetaan error login 400 `STATION_NOT_FOUND` → pesan
+ * Indonesia (bukan pesan mentah server berbahasa Inggris). Periksa
+ * `httpStatus` DAN `code` — 400 lain (mis. `VALIDATION_ERROR`) tetap memakai
+ * pesan generik/server. Mengembalikan null bila error ini bukan kasusnya.
+ */
+export function mapStationNotFoundMessage(err: unknown): string | null {
+  if (err instanceof ApiError && err.httpStatus === 400 && err.code === 'STATION_NOT_FOUND') {
+    return 'Stasiun tidak terdaftar. Periksa Station / Terminal ID, atau daftarkan stasiun ini di halaman Stations (admin).';
+  }
+  return null;
+}
 
 export const LoginPage: React.FC = () => {
   const { login, sessionExpiredReason, clearSessionExpiredReason } = useAuth();
@@ -27,7 +39,14 @@ export const LoginPage: React.FC = () => {
 
   const [operatorId, setOperatorId] = useState(presetsEnabled ? 'ADM-001' : '');
   const [password, setPassword] = useState(presetsEnabled ? DEMO_PRESET_PASSWORD : '');
-  const [stationId, setStationId] = useState(resolveDefaultStationId());
+  // E27 (FAT-235, f2): field Station/Terminal ID dimulai KOSONG — prefill
+  // default yang tak terdaftar (ADMIN-CONSOLE-01) membuat semua login gagal
+  // 400 STATION_NOT_FOUND secara default (verifikasi live 2026-11-20
+  // 00:46 WIB: login tanpa station_id berhasil, dengan station tak
+  // terdaftar gagal). Placeholder memberi contoh format, bukan nilai.
+  // Jalur sementara: login dengan station kosong sampai ADMIN-CONSOLE-01
+  // didaftarkan lewat registry stasiun (T1).
+  const [stationId, setStationId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Hitung mundur throttle SERVER (header Retry-After respons 429, §L).
@@ -76,6 +95,13 @@ export const LoginPage: React.FC = () => {
               ? `Terlalu banyak percobaan login. Tunggu ${seconds} detik sebelum mencoba kembali.`
               : 'Terlalu banyak percobaan login. Silakan coba lagi sebentar lagi.'
           );
+          return;
+        }
+        // E27 (FAT-235): 400 STATION_NOT_FOUND — stasiun belum terdaftar di
+        // registry devices; pesan Indonesia, bukan pesan mentah server.
+        const stationMsg = mapStationNotFoundMessage(err);
+        if (stationMsg) {
+          setErrorMsg(stationMsg);
           return;
         }
       }

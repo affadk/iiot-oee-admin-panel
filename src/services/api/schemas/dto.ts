@@ -311,6 +311,33 @@ export const EdgeDeviceSchema = z.object({
   created_at: z.string(),
 });
 
+/**
+ * E27 Spec 043 (FAT-232, T1): ID stasiun/kiosk — konvensi panel yang sama
+ * dengan HistoryFiltersSchema (dto.ts:422): trim, 1..64 karakter. Batas ini
+ * konvensi panel, BUKAN batas server; TIDAK ada regex ^STM32-... di sini
+ * (EdgeDeviceSchema di atas menolak ID stasiun seperti ADMIN-CONSOLE-01).
+ */
+export const StationIdSchema = z.string().trim().min(1).max(64);
+
+/**
+ * E27 Spec 043 (FAT-232, T1): skema respons stasiun — bentuk DeviceResponse
+ * yang sama dengan edge device, tapi device_id memakai StationIdSchema
+ * (tanpa regex STM32) dan tanpa ikatan mesin. Dipakai mapStation().
+ */
+export const StationSchema = z.object({
+  device_id: StationIdSchema,
+  model: z.string().optional(),
+  mac_address: z.string(),
+  ip_address: z.string().nullable(),
+  firmware_version: z.string().nullable(),
+  online: z.boolean(),
+  last_seen: z.string().nullable(),
+  enrollmentState: DeviceEnrollmentStateSchema.optional(),
+  provisionedAt: z.string().nullable().optional(),
+  credentialRotatedAt: z.string().nullable().optional(),
+  created_at: z.string(),
+});
+
 export const MachineSchema = z.object({
   machine_id: z.string().regex(/^CNC-[A-Z0-9_-]{3,32}$/),
   name: z.string().min(3).max(100),

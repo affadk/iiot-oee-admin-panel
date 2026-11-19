@@ -12,6 +12,7 @@ import { ShiftsPage } from '../features/production/ShiftsPage';
 import { ShiftSchedulesPage } from '../features/production/ShiftSchedulesPage';
 import { MachinesPage } from '../features/assets/MachinesPage';
 import { DevicesPage } from '../features/assets/DevicesPage';
+import { StationsPage } from '../features/assets/StationsPage';
 import { LiveStatePage } from '../features/monitoring/LiveStatePage';
 import { DowntimeEventsPage } from '../features/monitoring/DowntimeEventsPage';
 import { OperationalEventsPage } from '../features/monitoring/OperationalEventsPage';
@@ -59,6 +60,7 @@ export const AppRouter: React.FC = () => {
           <Route path="downtime" element={<DowntimeEventsPage />} />
           <Route path="audit" element={<OperationalEventsPage />} />
           <Route path="devices" element={<DevicesPage />} />
+          <Route path="stations" element={<StationsPage />} />
           <Route path="machines" element={<MachinesPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="operators" element={<OperatorsPage />} />
@@ -93,6 +95,7 @@ export const AppRouter: React.FC = () => {
           <Route path="production/operators" element={<OperatorsPage />} />
           <Route path="assets/machines" element={<MachinesPage />} />
           <Route path="assets/devices" element={<DevicesPage />} />
+          <Route path="assets/stations" element={<StationsPage />} />
           <Route path="monitoring/live-state" element={<LiveStatePage />} />
           <Route path="monitoring/downtime" element={<DowntimeEventsPage />} />
           <Route path="monitoring/events" element={<OperationalEventsPage />} />

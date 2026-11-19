@@ -2442,3 +2442,167 @@ path `docs/` yang sudah diarsip yang dirujuk; `PAGE_DOCUMENTATION.md`
 dirujuk pada lokasi sebenarnya di repo root). `git status` hanya
 menunjukkan kedua file ini sebagai berubah; tidak ada file lain yang
 tersentuh. Tidak di-commit — penggabungan dan commit oleh parent.
+
+## 37. Spec 043 — Device Registry & Station Audit (2026-11-20)
+
+### 37.1 Konteks
+
+Backend commit `b4456eb` live di https://oee.fadik.web.id (restart
+~23:58 WIB 19 Nov). `station_id` kini atribut konteks tervalidasi
+(deviceId kiosk), bukan kredensial. Nilai tak terdaftar di tabel
+`devices` → backend balas **400 `STATION_NOT_FOUND`** (bukan 401),
+dan tidak menaikkan counter throttle login. Audit
+`SECURITY_REJECTION` menyimpan dua kolom terpisah: `device_id` (FK ke
+`devices.device_id`, null bila tak valid) dan `station_label` (label
+mentah apa adanya dari klien, kolom baru, migrasi 0029). Frontend
+kiosk mengirim `station_id` dari `deviceId` konteks.
+
+Bukti live (parent): POST `/auth/login` operator dummy + station
+`STATION-UNKNOWN-XYZ` →
+`{"error":"STATION_NOT_FOUND","message":"station_id is not a registered station"}`;
+validasi station terjadi SEBELUM cek kredensial. Login TANPA
+`station_id` BERHASIL (ADM-001, 00:46 WIB, sesi 14:56, badge normal,
+OEE 1.0%); login DENGAN station `ADMIN-CONSOLE-01` GAGAL 400 — jadi
+`station_id` OPSIONAL bila dikosongkan, WAJIB terdaftar bila dikirim.
+
+Spec OpenAPI live (`~/workspace/oee-live-openapi-2026-11-20.json`,
+fetch 00:43 WIB) STALE terhadap perilaku ini: 0 hit `station_label` /
+`STATION_NOT_FOUND` / `hostname`; 104 paths, tanpa endpoint station.
+Task ini + perilaku live adalah sumber kebenaran, bukan spec.
+GET `/api/v1/devices` (publik) hanya 2 baris (`STM32-OEE-01`,
+`STM32-OEE-SIM`); TIDAK ADA `ADMIN-CONSOLE-01`. Probe parent
+kemungkinan sudah membuat satu event `SECURITY_REJECTION` di audit
+(`device_id` null, `station_label` `STATION-UNKNOWN-XYZ`) — fixture
+alami untuk uji AC2/AC3.
+
+### 37.2 Keputusan arsitektur (investigasi E27, `tmp-e27-invest.md`)
+
+- **D-1 — Endpoint T1 memakai API devices yang ada.** Daftar GET
+  `/api/v1/devices`; create POST `/api/v1/devices` (legacy register)
+  `{deviceId*, macAddress?, ipAddress?, firmwareVersion?}` — BUKAN
+  `/provision` (itu membuat identitas broker MQTT + kredensial sekali
+  tampil, tidak masuk akal untuk kiosk); ubah PUT
+  `/devices/{deviceId}` `{ipAddress?, firmwareVersion?}` saja (kosong
+  di-omit, null dilarang); nonaktifkan = POST
+  `/devices/{deviceId}/revoke` `{reason}` → REVOKED, tanpa un-revoke;
+  DELETE tersedia dengan guard + dialog konfirmasi.
+- **D-2 — Halaman baru `StationsPage`, rute `/admin/stations`** (+ alias
+  `/admin/assets/stations`), item sidebar "Stations" grup Assets
+  setelah "Edge Devices" (`device.read`; mutasi `device.manage`).
+  Terpisah dari `/admin/devices` karena audiens dan bentuk datanya
+  beda (stasiun tanpa mesin terikat/health/provision broker).
+- **D-3 — T2 target `OperationalEventsPage` (`/admin/audit`)**, bukan
+  `AuditTrailPage` (`/admin/system-audit` — itu audit sistem, bukan
+  `operational_events`). `OperationalEvent` + `station_label: string |
+  null`; mapper toleran (event lama tanpa field → null). Badge "Tidak
+  terdaftar" hanya bila `device_id === null` DAN `station_label`
+  non-kosong setelah trim.
+- **D-4 — T3 derivasi client-side dari `SECURITY_REJECTION`**
+  (distinct `station_label` trim-normalisasi, case-sensitive,
+  `device_id` null) vs daftar device; panel diagnostik di
+  `StationsPage` + CTA "Daftarkan" prefill form T1.
+- **D-5 — Validasi client `.trim().min(1).max(64)`** mengikuti
+  `HistoryFiltersSchema` (`dto.ts:422`). TIDAK ADA
+  `OperatorLoginRequestSchema` di panel (grep 0 hit; hanya
+  `LoginResponseSchema`) — batas 1..64 adalah konvensi panel, bukan
+  batas server (spec zod tidak mengekspos checks).
+- **D-6 — LoginPage: pemetaan 400 `STATION_NOT_FOUND` → "Stasiun
+  tidak terdaftar"** (`mapHttpErrorToApiError` sudah menyalin `error`
+  → `ApiError.code`, jadi cukup periksa `httpStatus === 400 && code ===
+  'STATION_NOT_FOUND'`). **Default prefill DIKOSONGKAN**
+  (`useState('')`, placeholder `ADMIN-CONSOLE-01`): bukti live 00:46
+  WIB — prefill tak terdaftar membuat semua login gagal secara
+  default; login tanpa station berhasil; login station terdaftar
+  berhasil. `resolveDefaultStationId()` tetap ada di `mode.ts` +
+  komentar peringatan. Jalur pemulihan sementara: login station
+  kosong sampai `ADMIN-CONSOLE-01` didaftarkan lewat registry T1.
+- **D-7 — `station_label` UNTRUSTED**: render teks biasa (React
+  escape), jangan jadi key React / kunci lookup tanpa normalisasi,
+  jangan `dangerouslySetInnerHTML`.
+- **D-8 — Blokir kritis: `EdgeDeviceSchema.device_id` regex
+  `^STM32-[A-Za-z0-9_-]+$` + `mapDevice()` `mustParse`** → respons
+  device non-STM32 (mis. `ADMIN-CONSOLE-01`) gagal parse. Dibuat
+  `StationSchema`/`Station` + `mapStation()` terpisah; regex edge
+  device TIDAK dilonggarkan (tes membuktikan `mapDevice` melempar
+  `INVALID_RESPONSE` untuk `ADMIN-CONSOLE-01`).
+
+### 37.3 Penyimpangan dari teks tugas (ikuti API dulu, tandai diff)
+
+- **hostname: TIDAK ADA di `DeviceResponse`** — form dan tabel tanpa
+  field hostname; catatan kecil di halaman bahwa API belum mendukung
+  hostname.
+- **status active/inactive: TIDAK ADA** — yang ada `enrollmentState`
+  PROVISIONED|ACTIVE|REVOKED + `isOnline`; status ditampilkan dari
+  `enrollmentState` (Terdaftar/Aktif/Dicabut) + badge ONLINE/OFFLINE.
+- **Kolom `operator_id` di tabel audit: TIDAK ditambahkan** — API
+  tidak mengirim `operator_id` dan kontrak melarang mengarang field.
+  Kolom lain yang disebut tugas sudah ada/tertutup: `recorded_at`
+  (kolom Timestamp), `device_id`, `station_label` (baru),
+  `trigger_source` (di bawah Tipe Event).
+- **DELETE: tombol tetap disediakan** — kontrak tidak melarang delete;
+  dialog konfirmasi merekomendasikan Nonaktifkan (revoke) untuk
+  stasiun berhitori; 409 server ditampilkan via `ConflictDialog`.
+- **Fixture demo `SECURITY_REJECTION`** (opsional di kontrak): tidak
+  ditambahkan — verifikasi utama tetap Real mode.
+
+### 37.4 Implementasi
+
+Baru: `src/services/api/http/stations.ts` (231 baris),
+`src/features/assets/StationsPage.tsx` (200),
+`hooks/useStations.ts` (194), `hooks/useUnknownStations.ts` (92),
+`stationValidation.ts` (41), `components/StationTable.tsx` (156),
+`StationRegisterModal.tsx` (139), `StationEditModal.tsx` (101),
+`StationRevokeDialog.tsx` (79), `UnknownStationsPanel.tsx` (84),
+`stations.test.ts` (236), `src/features/monitoring/components/OperationalEventMachineCell.tsx`
+(54), `src/features/auth/LoginPage.test.ts`,
+`src/features/monitoring/components/OperationalEventMachineCell.test.ts`,
+`src/services/api/http/mappers/monitoringStationLabel.test.ts`.
+Diubah: `types/assets.ts` (+22, tipe `Station`), `schemas/dto.ts`
+(+27, `StationIdSchema` + `StationSchema`), `mappers/assets.ts`
+(+32, `mapStation()` saja), `Router.tsx` (+3), `Sidebar.tsx` (+2),
+`types/monitoring.ts` (+8, `station_label`), `mappers/monitoring.ts`
+(+4), `useOperationalEventColumns.tsx` (136 → 116),
+`OperationalEventAckModal.tsx` (+24, grid FK vs label mentah),
+`LoginPage.tsx` (+30/−2), `mode.ts` (+15/−1, komentar peringatan),
+plus knock-on mekanis `station_label: null` di literal demo/tes
+(`seeds/monitoring.ts`, `seeds/system.ts`, `demo/store.ts`,
+`deviceMachineBinding.test.ts`, `historyFilters.test.ts`) — tanpa
+perubahan perilaku demo.
+
+Catatan integrasi: `readStationLabel()` di `useUnknownStations`
+membaca `station_label` secara toleran dari objek mentah
+(snake_case/camelCase) agar derivasi T3 jalan baik sebelum maupun
+sesudah merge T2; setelah merge, field sudah tersedia lewat mapper
+T2 dan pembacaan toleran ini hanya fallback defensif. Bila backend
+belum mengirim field-nya (Q2), panel menampilkan empty state, bukan
+error.
+
+Verifikasi (koordinator, pasca-merge kedua worker): `tsc` 0 error;
+`npm test` **454/454** lolos (428 lama + 26 baru: 15 stations +
+11 T2/login); `vite build` OK; checker **0 FAIL** (326 file, 40 WARN
+soft — termasuk `useStations.ts` 195/250, di bawah hard cap).
+
+Linear: E27 FAT-231 + T1 FAT-232, T2 FAT-233, T3 FAT-234, LOGIN
+FAT-235, VERIFY FAT-236 — semua Todo. Tiket implementasi sengaja
+tetap Todo menunggu VERIFY live AC1–AC4 (FAT-236); penutupan setelah
+bukti live, bukan hanya bukti lokal.
+
+### 37.5 Yang belum terverifikasi live (ranah VERIFY FAT-236, parent via browser)
+
+- **AC1**: daftarkan `ADMIN-CONSOLE-01` di Real mode lalu login
+  dengan station itu — bergantung Q1 (apakah POST `/devices`
+  menerima `deviceId` non-STM32?); bila server menolak, butuh tiket
+  backend.
+- **AC2/AC3**: event `SECURITY_REJECTION` live (`device_id` null,
+  `station_label` `STATION-UNKNOWN-XYZ`) di `/admin/audit`
+  menampilkan label + badge — bergantung Q2 (apakah GET
+  `/operational-events` live benar-benar memuat `station_label`?);
+  bila tidak ada di respons, butuh tiket backend.
+- **AC4**: panel diagnostik menampilkan `STATION-UNKNOWN-XYZ`
+  (bergantung Q2).
+- Belum diuji di browser nyata: render halaman Stations, alur klik
+  CTA → prefill → submit, perilaku revoke/delete terhadap server
+  (409 `DEVICE_ID_HAS_HISTORY`).
+- Q3–Q6 terbuka (lihat `tmp-e27-invest.md` §5): cara REVOKED →
+  ACTIVE; DELETE device berhitori; batas panjang server; apakah
+  `VITE_DEFAULT_STATION_ID` perlu jadi prefill opt-in.

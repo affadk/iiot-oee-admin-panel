@@ -5,7 +5,7 @@ import { OperationalEvent } from '../../../types/monitoring';
 import { useAuth } from '../../../context/AuthContext';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
-import { formatDeletedRelationLabel } from '../../../utils/oeeCalculations';
+import { OperationalEventMachineCell } from '../components/OperationalEventMachineCell';
 
 export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void) {
   const { checkCapability } = useAuth();
@@ -39,27 +39,7 @@ export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void
       {
         id: 'machine',
         header: 'Mesin / Device',
-        cell: ({ row }) => {
-          const ev = row.original;
-          const machLbl = formatDeletedRelationLabel(ev.machine_name, ev.machine_id);
-          const devLbl = formatDeletedRelationLabel(ev.device_id, null);
-          return (
-            <div className="text-xs">
-              <div
-                className={
-                  machLbl.isDeleted
-                    ? 'italic text-slate-400'
-                    : 'font-semibold text-slate-900 dark:text-slate-100'
-                }
-              >
-                {machLbl.label}
-              </div>
-              <div className="text-[11px] font-tabular text-slate-400">
-                {devLbl.isDeleted ? '[dihapus]' : ev.device_id}
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }) => <OperationalEventMachineCell ev={row.original} />,
       },
       {
         id: 'message',

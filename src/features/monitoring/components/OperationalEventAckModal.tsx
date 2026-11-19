@@ -52,6 +52,30 @@ export const OperationalEventAckModal: React.FC<OperationalEventAckModalProps> =
       }
     >
       <form onSubmit={handleSubmit} className="space-y-3">
+        {/* E27 (FAT-233, T2): detail event — Device ID (FK terdaftar) dan
+            Station label (mentah dari klien) berdampingan dengan label yang
+            jelas. station_label UNTRUSTED: teks biasa, bukan key/lookup. */}
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <div className="font-semibold text-slate-700 dark:text-slate-300">
+              Device ID (terdaftar)
+            </div>
+            <div className="font-tabular text-slate-600 dark:text-slate-300 break-all">
+              {target?.device_id ?? '—'}
+            </div>
+          </div>
+          <div>
+            <div className="font-semibold text-slate-700 dark:text-slate-300">
+              Station label (mentah dari klien)
+            </div>
+            <div
+              className="font-tabular text-slate-600 dark:text-slate-300 break-all"
+              title={target?.station_label ?? undefined}
+            >
+              {target?.station_label ?? '—'}
+            </div>
+          </div>
+        </div>
         <p className="text-xs text-slate-600 dark:text-slate-300 p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-800">
           {target?.description}
         </p>

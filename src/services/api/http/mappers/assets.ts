@@ -5,9 +5,9 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { num, str, bool, iso, pick, mustParse } from '../primitives';
-import { EdgeDeviceSchema, MachineSchema, OperatorSchema, ProductionLineSchema, ShiftSchema, ShiftScheduleSchema } from '../../schemas';
+import { EdgeDeviceSchema, StationSchema, MachineSchema, OperatorSchema, ProductionLineSchema, ShiftSchema, ShiftScheduleSchema } from '../../schemas';
 import { normalizeFsmState } from '../../../../utils/oeeCalculations';
-import { Machine, EdgeDevice, DeviceHealth, MachineStatusHistoryItem } from '../../../../types/assets';
+import { Machine, EdgeDevice, Station, DeviceHealth, MachineStatusHistoryItem } from '../../../../types/assets';
 import { Product, Operator, ProductionLine, Shift, ShiftSchedule } from '../../../../types/production';
 
 export function mapDevice(raw: unknown): EdgeDevice {
@@ -42,6 +42,34 @@ export function mapDevice(raw: unknown): EdgeDevice {
     credentialRotatedAt: (pick(r.credentialRotatedAt, r.credential_rotated_at) as string | null) ?? null,
     created_at: iso(pick(r.createdAt, r.created_at)),
   }, 'perangkat');
+}
+
+/**
+ * E27 Spec 043 (FAT-232, T1): mapper stasiun/kiosk — JANGAN pakai mapDevice()
+ * untuk stasiun: EdgeDeviceSchema menolak device_id non-STM32 (mis.
+ * ADMIN-CONSOLE-01) dengan INVALID_RESPONSE, padahal server menerimanya
+ * sebagai baris devices biasa. Mapper ini toleran terhadap device_id apa
+ * pun (trim, 1..64) dan tidak membaca ikatan mesin / kredensial broker.
+ */
+export function mapStation(raw: unknown): Station {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const enrollment = pick(r.enrollmentState, r.enrollment_state) as string | undefined;
+  return mustParse(StationSchema, {
+    device_id: str(pick(r.deviceId, r.device_id)),
+    model: str(pick(r.model), undefined) || undefined,
+    mac_address: str(pick(r.macAddress, r.mac_address)),
+    ip_address: (pick(r.ipAddress, r.ip_address) as string | null) ?? null,
+    firmware_version: (pick(r.firmwareVersion, r.firmware_version) as string | null) ?? null,
+    online: bool(pick(r.isOnline, r.online), false),
+    last_seen: (pick(r.lastSeenAt, r.last_seen) as string | null) ?? null,
+    enrollmentState:
+      enrollment === 'PROVISIONED' || enrollment === 'ACTIVE' || enrollment === 'REVOKED'
+        ? enrollment
+        : 'ACTIVE',
+    provisionedAt: (pick(r.provisionedAt, r.provisioned_at) as string | null) ?? null,
+    credentialRotatedAt: (pick(r.credentialRotatedAt, r.credential_rotated_at) as string | null) ?? null,
+    created_at: iso(pick(r.createdAt, r.created_at)),
+  }, 'stasiun');
 }
 
 export function mapMachine(raw: unknown): Machine {

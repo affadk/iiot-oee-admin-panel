@@ -91,3 +91,25 @@ export interface DeviceHealth {
   staleCount: number;
   staleTasks: string[];
 }
+
+/**
+ * E27 Spec 043 (FAT-232, T1): stasiun / terminal login (kiosk) — baris
+ * tabel `devices` yang sama dengan edge device, tapi tanpa ikatan mesin
+ * dan tanpa kredensial broker. `device_id` bebas pola STM32 (mis.
+ * ADMIN-CONSOLE-01). Status = enrollmentState + online — API tidak punya
+ * status active/inactive dan TIDAK punya hostname.
+ */
+export interface Station {
+  device_id: string;
+  model?: string;
+  mac_address: string;
+  ip_address: string | null;
+  firmware_version: string | null;
+  online: boolean;
+  last_seen: string | null;
+  /** §E: status enrollment; perangkat legacy tanpa field ini dianggap ACTIVE oleh mapper. */
+  enrollmentState?: DeviceEnrollmentState;
+  provisionedAt?: string | null;
+  credentialRotatedAt?: string | null;
+  created_at: string;
+}

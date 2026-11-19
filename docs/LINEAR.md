@@ -18,7 +18,7 @@
 
 ## 1. Struktur
 
-### 1.1 Satu Project, dua puluh satu Epic
+### 1.1 Satu Project, dua puluh tujuh Epic
 
 | Epic (parent issue) | Fase Guide | Isi |
 | --- | --- | --- |
@@ -295,6 +295,12 @@ dianggap selesai penuh.
 | MUT-02 | DynSec client-create selalu gagal 'Role not found' untuk semua role termasuk admin | E26 | Todo | High | `verification`, `real-backend` |
 | MUT-03 | Policy create dengan ABAC kosong mengirim abacCondition: null, server menolak (expected record) | E26 | Todo | Medium | `verification`, `real-backend` |
 | MUT-04 | Overwrite label downtime tidak bisa mengembalikan status 'Belum dikategorikan' / teks alasan asli | E26 | Todo | Low | `verification`, `real-backend` |
+| E27 | Spec 043: Device Registry & Station Audit | — | Todo | High | `verification`, `real-backend` |
+| T1 | Device Registry (CRUD devices) — halaman /admin/stations | E27 | Todo | High | `verification`, `real-backend` |
+| T2 | Audit Trail tampilkan station_label + badge "Tidak terdaftar" | E27 | Todo | High | `verification`, `real-backend` |
+| T3 | Diagnostik login kiosk + CTA "Daftarkan stasiun ini" | E27 | Todo | Medium | `verification`, `real-backend` |
+| LOGIN | LoginPage: pesan "Stasiun tidak terdaftar" + kosongkan default prefill station | E27 | Todo | High | `verification`, `real-backend` |
+| VERIFY | Verifikasi live AC1–AC4 (browser, parent) | E27 | Todo | Medium | `verification`, `real-backend` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -488,17 +494,20 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **230 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
-  paginasi penuh, 19 Nov 2026 pasca-E26): **172 Done, 2 In Progress, 56 Todo**,
-  31 tanpa parent, 199 child dengan `parentId`. Total mencakup 4 issue
+- Issue: **236 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
+  paginasi penuh, 19 Nov 2026 pasca-E26; 6 issue E27 dibuat 20 Nov 2026
+  terverifikasi dari respons pembuatan, belum paginasi penuh):
+  **172 Done, 2 In Progress, 62 Todo**,
+  32 tanpa parent, 204 child dengan `parentId`. Total mencakup 4 issue
   onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja proyek); tanpa
-  keempatnya, total proyek = 226. Todo tersisa (56): 4 onboarding + 14 SYS-B
+  keempatnya, total proyek = 232. Todo tersisa (62): 4 onboarding + 14 SYS-B
   terbuka + E13 (FAT-71) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27) + A10.2
   (FAT-40) + E8 (FAT-7) + E22 (FAT-169) + N-2–N-5 (FAT-170/171/173/172) +
   E23 (FAT-174) + N-6 (FAT-175) + N-32 (FAT-202) + N-38 parsial (FAT-207) +
   N-40/N-41 (FAT-209/210) + E24 (FAT-211) + N-42 (FAT-212) + N-43 (FAT-213)
   + E25 (FAT-214) + E2E-01–E2E-11 (FAT-215–225) + E26 (FAT-226) +
-  MUT-01–MUT-04 (FAT-227–230).
+  MUT-01–MUT-04 (FAT-227–230) + E27 (FAT-231) + T1–T3 + LOGIN + VERIFY
+  (FAT-232–236).
   E23 Batch 1–4 (19 Nov 2026) menutup 31 issue panel (FAT-176–182, 183–191,
   192–201, 203–206, 208).
   In Progress: E10 (FAT-34) + V8.2 (FAT-28, tidak lagi Blocked sejak API
@@ -517,6 +526,14 @@ tapi status implementasi yang berlaku adalah status di Linear.
   terbukti). MUT-02 (FAT-228, High) = backend (dengan caveat
   edge_publisher); MUT-01 (FAT-227, Medium) + MUT-03 (FAT-229, Medium) +
   MUT-04 (FAT-230, Low) = panel.
+  E27 (FAT-231, Todo, High) + 5 anak T1 (FAT-232, High), T2 (FAT-233, High),
+  T3 (FAT-234, Medium), LOGIN (FAT-235, High), VERIFY (FAT-236, Medium) dari
+  Spec 043 (backend commit b4456eb, 20 Nov 2026) — Device Registry
+  (/admin/stations) + station_label di audit + diagnostik login kiosk
+  (AUDIT.md §37). Spec OpenAPI live STALE (0 hit station_label /
+  STATION_NOT_FOUND / hostname). Implementasi panel selesai + terverifikasi
+  lokal 20 Nov 2026 (tsc 0, tes 454/454, build OK, checker 0 FAIL) — tiket
+  tetap Todo menunggu VERIFY live AC1–AC4 (FAT-236, browser, parent).
   Riwayat: 28 issue awal + E9/R9.1–R9.6 dibuat 2026-11-16 ~14:20 WIB
   (R9.2–R9.6 Done malam itu); E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
   audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —

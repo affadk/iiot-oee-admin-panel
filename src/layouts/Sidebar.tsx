@@ -22,6 +22,7 @@ import {
   Info,
   Factory,
   Clock,
+  Monitor,
   CalendarClock,
   ChevronDown,
   ChevronRight,
@@ -85,6 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
       icon: Cpu,
       items: [
         { name: 'Edge Devices', path: '/admin/devices', icon: Server, capability: 'device.read' },
+        { name: 'Stations', path: '/admin/stations', icon: Monitor, capability: 'device.read' },
         { name: 'Machines', path: '/admin/machines', icon: Cpu, capability: 'machine.read' },
         { name: 'Products', path: '/admin/products', icon: Package, capability: 'product.read' },
         { name: 'Operators', path: '/admin/operators', icon: Users, capability: 'operator.read' },

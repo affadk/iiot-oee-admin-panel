@@ -112,6 +112,9 @@ export function mapDowntime(raw: unknown): DowntimeEvent {
  *   kosong — jangan default ke nilai tebakan ('STATE_CHANGE' dihapus).
  * - `recorded_at`/`created_at` kosong ('') bila tak ada — jangan isi epoch
  *   (primitif `iso()` mengarang 1970-01-01).
+ * - E27 (FAT-233, T2): `station_label` dibaca TOLERAN (camelCase/snake_case)
+ *   — event lama tanpa field ini → null, tidak throw. Nilai mentah dari
+ *   klien (UNTRUSTED): tampilkan apa adanya, jangan jadikan key/lookup.
  */
 export function mapOperationalEvent(raw: unknown): OperationalEvent {
   const r = (raw ?? {}) as Record<string, unknown>;
@@ -129,6 +132,7 @@ export function mapOperationalEvent(raw: unknown): OperationalEvent {
     id: String(pick(r.id) ?? ''),
     recorded_at: strOrEmpty(recordedAt),
     device_id: deviceId === '[deleted]' ? null : (deviceId as string | null) ?? null,
+    station_label: strOrNull(pick(r.stationLabel, r.station_label)),
     machine_id: machineId === '[deleted]' ? null : (machineId as string | null) ?? null,
     machine_name: machineName === '[deleted]' ? null : (machineName as string | null) ?? null,
     wo_id: (pick(r.woId, r.wo_id) as string | null) ?? null,

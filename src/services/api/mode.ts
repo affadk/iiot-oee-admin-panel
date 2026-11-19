@@ -434,7 +434,20 @@ export function resolvePlantLabel(): string {
   return (readEnv('VITE_PLANT_LABEL') ?? '').trim() || 'Plant 01';
 }
 
-/** Station/terminal ID default yang diisi di form login. */
+/**
+ * Station/terminal ID default yang diisi di form login.
+ *
+ * E27 (FAT-235, f2) — PERINGATAN: prefill dari fungsi ini HANYA aman bila
+ * ID tersebut SUDAH terdaftar di tabel devices. Bila nilai yang dikirim
+ * belum terdaftar, backend menolak login dengan 400 STATION_NOT_FOUND —
+ * prefill default yang tak terdaftar (mis. fallback 'ADMIN-CONSOLE-01'
+ * yang belum ada di registry) membuat SEMUA login gagal secara default
+ * (terverifikasi live 2026-11-20 00:46 WIB). LoginPage TIDAK lagi memakai
+ * fungsi ini sebagai nilai awal (field dimulai kosong; login tanpa
+ * station_id berhasil). Fungsi ini tetap tersedia untuk pemakaian eksplisit
+ * via env `VITE_DEFAULT_STATION_ID` pada kiosk yang station-nya sudah
+ * terdaftar; bila ragu, kosongkan.
+ */
 export function resolveDefaultStationId(): string {
   return (readEnv('VITE_DEFAULT_STATION_ID') ?? '').trim() || 'ADMIN-CONSOLE-01';
 }
