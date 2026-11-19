@@ -12,6 +12,19 @@ disediakan backend** supaya mode Private/Public benar-benar berlaku.
 > Prinsip: **server adalah otoritas final** (Guide §4.5/§4.6g — server 403
 > adalah keputusan final; panel hanya memproyeksikannya).
 
+> **Status 19 Nov 2026 (E20 P20.5 + E21):** endpoint `GET /api/v1/system/access-mode`
+> (B13) **sudah ada di api_docs** menurut amandemen 09:23 dari Fathur — dan
+> panel sudah mengonsumsinya (registry + transport + demo + wiring UI, E20
+> Batch 4; di mode Real panel memakai nilai server, fallback derivasi
+> env+kanal). **Caveat:** amandemen 09:23 **tidak ada di salinan
+> `pasted-text.txt` di disk** (0 hit `access-mode`); keberadaan endpoint
+> baru terverifikasi definitif setelah salinan api_docs baru tersedia (R-23).
+> **A10.2 keseluruhan tetap Blocked (FAT-40):** enforcement server-side
+> (B7 + B11, middleware penolak mutasi tunnel saat `private`) belum ada,
+> sehingga switch mode di panel masih kosmetik. Checklist V1–V12 di §7
+> masih pending — belum ada backend untuk diuji. Persyaratan B1–B25 di
+> bawah ini TIDAK berubah dan tetap berlaku untuk backend.
+
 ---
 
 ## 1. Konfigurasi mode akses di sisi server
@@ -37,7 +50,7 @@ Backend harus menentukan kanal dari sisi server, bukan dari klaim client:
 
 | # | Kebutuhan | Detail |
 | --- | --- | --- |
-| B7 | Tolak mutasi dari tunnel saat mode `private` | Semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 132 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. |
+| B7 | Tolak mutasi dari tunnel saat mode `private` | Semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 137 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. |
 | B8 | Baca tetap diizinkan dari tunnel | `GET` (termasuk ekspor & history) tetap boleh dari tunnel di kedua mode — tunnel memang dibuat untuk observasi jarak jauh. |
 | B9 | Login dari tunnel mengikuti mode | `POST /auth/login` dari tunnel: diizinkan di mode `public`; di mode `private` **ditolak 403** (konsisten dengan panel — login demo pun dijaga). Alasan: sesi yang lahir dari tunnel di mode private tidak boleh ada. |
 | B10 | WebSocket telemetri read-only | `GET /ws/telemetry` boleh dari kedua kanal di kedua mode, tetapi **hanya stream baca**. Tidak ada pesan tulis/aktuasi lewat WS (ADR-003). |
@@ -52,10 +65,10 @@ konfigurasi server):
 
 | # | Kebutuhan | Detail |
 | --- | --- | --- |
-| B13 | Endpoint status akses | `GET /api/v1/system/access-mode` (atau perluasan `GET /health`) mengembalikan minimal: `{ "mode": "private" \| "public", "channel": "lan" \| "tunnel", "mutations_allowed": true \| false }`. Endpoint ini **tidak butuh auth** (atau butuh auth minimal) supaya banner panel bisa tampil benar sebelum login. |
+| B13 | Endpoint status akses | `GET /api/v1/system/access-mode` (atau perluasan `GET /health`) mengembalikan minimal: `{ "mode": "private" \| "public", "channel": "lan" \| "tunnel", "mutations_allowed": true \| false }`. Endpoint ini **tidak butuh auth** (atau butuh auth minimal) supaya banner panel bisa tampil benar sebelum login. **Pembaruan E20 (amandemen api_docs 09:23): endpoint ini ADA sebagai `GET /api/v1/system/access-mode` → 200 `{mode: "private"\|"public", channel: "lan"\|"tunnel"\|"unknown", mutations_allowed: boolean}` — dengan koreksi: JWT WAJIB (tanpa token → 401), jadi banner sebelum login tidak bisa memakai endpoint ini; panel memakai nilai server setelah login dan derivasi env+kanal sebelumnya. Verifikasi definitif menunggu salinan api_docs baru (R-23).** |
 | B14 | Sertakan di `GET /auth/me` | Respons `auth/me` menyertakan `access_mode` + `mutations_allowed` untuk sesi berjalan, supaya panel tidak perlu menebak dari port. |
 | B15 | Header respons (opsional, pelengkap) | Setiap respons membawa `X-Access-Channel: lan | tunnel` dan `X-Access-Mode: private | public` untuk debugging/observabilitas. |
-| B16 | Panel memakai data server bila tersedia | (Tugas frontend, sudah disiapkan: `resolveEffectiveAccess` — bila B13/B14 tersedia, panel memakai nilai server dan hanya memakai env sebagai fallback.) |
+| B16 | Panel memakai data server bila tersedia | (Tugas frontend, sudah disiapkan: `resolveEffectiveAccess` — bila B13/B14 tersedia, panel memakai nilai server dan hanya memakai env sebagai fallback.) **Sudah dikerjakan sisi panel (E20 P20.5): panel mengonsumsi `GET /system/access-mode` di mode Real, fallback derivasi env+kanal; demo mengembalikan nilai turunan env.** |
 
 ## 5. Perubahan mode oleh admin (bila diinginkan)
 
@@ -77,6 +90,11 @@ konfigurasi server):
 | B25 | Log akses kanal | Setiap request mencatat kanal (`lan`/`tunnel`) di access log, supaya insiden bisa ditelusuri per kanal. |
 
 ## 7. Checklist verifikasi (untuk tim backend + QA)
+
+**Status 19 Nov 2026:** belum satu pun lolos — tidak ada backend untuk diuji
+(A10.2 Blocked). V8 sebagian teratasi di sisi panel: endpoint
+`GET /api/v1/system/access-mode` sudah dikonsumsi panel (E20 P20.5), tetapi
+kebenaran nilainya dari server sungguhan belum terverifikasi (R-23).
 
 | # | Uji | Hasil yang diharapkan |
 | --- | --- | --- |

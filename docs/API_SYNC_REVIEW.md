@@ -7,6 +7,7 @@
 | **Sumber kebenaran** | API docs terupdate `~/workspace/user/files/pasted-text.txt` (2100 baris, Fastify 5.x + spec 015/020/027/032/034/035/036/037/042/043) |
 | **Diff lengkap** | `docs/API_SYNC_DIFF.md` (P20.1, FAT-153) — 294 entri: 162 OK / 102 CHANGE / 21 NEW / 9 REMOVE |
 | **Keputusan** | D-1–D-14 diputuskan 2026-11-19 dengan mengikuti api_docs (Fathur: "ikuti api_docs dulu") |
+| **Pembaruan E21** | 2026-11-19 (`docs/BACKEND_SYNC_CLOSURE.md` §5.1/§5.3): R-1–R-15 = **3 terjawab** (R-7, R-11, R-15) / **2 berubah** (R-3, R-9 — keduanya bersandar amandemen 09:23, belum terverifikasi di dokumen) / **10 masih terbuka**; item baru **R-16–R-23** didefinisikan (lihat §2, baris R-16–R-23) |
 
 ## 1. Keputusan D-1–D-14 — mengikuti api_docs
 
@@ -50,11 +51,24 @@ implementasi terkait dianggap final. Implementasi E20 berjalan mengikuti keputus
 | R-8 | PUT /policies casing | C4 — deskripsi PUT campur snake_case di tengah camelCase | Konfirmasi camelCase saja | Body tulis policy |
 | R-9 | §M dibersihkan | C1/C5 — §M masih mendokumentasikan `/clients/provision` sebagai live | ~~Hapus provisioning dari §M~~ **SEBAGIAN TERJAWAB 19 Nov 09:23 — contoh cURL §M diperbaiki (`/clients/provision` → `/clients`); heading §M masih mendokumentasikan provisioning via `POST /clients {deviceId, access,...}` — minta backend bersihkan sisanya** — **caveat E21: amandemen 09:23 tidak ada di salinan file (baris 1340 masih `/clients/provision`); penutupan definitif menunggu salinan baru (R-23)** | Panel sudah ikuti §E.3a; §M adalah sisa lama |
 | R-10 | Parameter tak dikenal di luar `/system/audit` | C17 — klausul abaikan hanya ditulis untuk `/system/audit` | Konfirmasi klausul abaikan berlaku global | Builder endpoint (panel kirim hanya parameter terdaftar) |
-| R-11 | Guard ekspor | C18 — dua guard berbeda untuk dua ekspor hampir sama | Konfirmasi pemetaan guard per endpoint | Kunci capability ekspor |
+| R-11 | Guard ekspor | C18 — dua guard berbeda untuk dua ekspor hampir sama | Konfirmasi pemetaan guard per endpoint | **TERJAWAB (E21)** — kedua guard tertulis eksplisit (§I:1081 vs :1085–1087) — bukan kontradiksi, memang dua guard berbeda: `/system/audit/export` → `authorize("read","access_control")`, `/operational-events/export` → policy `refresh:telemetry` (SUPERVISOR/ADMIN LAN) | Kunci capability ekspor |
 | R-12 | Tabel error §2 tidak lengkap | C19 — `ROLE_IMMUTABLE`, `PASSWORD_ROTATION_REQUIRED`, `WEAK_PASSWORD`, `AUTHZ_STALE`, `MQTT_*` tidak ada di tabel | Lengkapi tabel §2 | Panel meneruskan kode generik sementara |
 | R-13 | Mutasi 204 | C2 — §6B "tidak ada mutasi memakai 204" vs tabel §M 7× DELETE → 204 | Bersihkan §6B atau tabel §M | Panel sudah tangani 204 dengan benar |
 | R-14 | Nama field password sekali-tampil `POST /clients` | B34 — dokumen tidak menamai field | Namai field respons | Panel baca defensif (`generatedPassword ?? password`); minor |
 | R-15 | `isOnline` tak terverifikasi klien | C13 — proyeksi TTL, tapi `DeviceResponse` tak bawa `lastSeenAt` yang dapat diverifikasi | **TERJAWAB (E21) — premis salah: `DeviceResponse` membawa `lastSeenAt` (§E:~412); klien dapat memverifikasi proyeksi TTL; verifikasi saat Real E2E** | Klien terima `isOnline` jadi; minor |
+
+### Item tindak lanjut baru R-16–R-23 (didefinisikan E21, `docs/BACKEND_SYNC_CLOSURE.md` §5.3)
+
+| # | Item | Asal | Yang diminta ke backend | Dampak implementasi |
+|---|---|---|---|---|
+| R-16 | `acknowledgeUnvalidated` | B41 | Tetapkan di §3.3b: kapan wajib, error bila absen, apakah dihormati — atau nyatakan resmi field itu tidak ada (0 kemunculan di 2100 baris api_docs) | Apply config versi unvalidated |
+| R-17 | PUT `/operators` ADMIN-only vs D-7 | R-4 nuansa baru (§H.4:940) | Konfirmasi apakah PUT memang ADMIN-only sementara POST/PATCH ADMIN/SUPERVISOR; D-7 ditinjau ulang untuk PUT bila ya | Gating update operator |
+| R-18 | `machine_id` di list/ekspor global operational-events | B23 | Konfirmasi apakah ketiadaan `machine_id` di list global (:1007–1018) + ekspor global (:1085–1091) itu sengaja (arahkan ke `/system/audit`) atau kelalaian dokumen | Builder endpoint global |
+| R-19 | Filter `acknowledged` di `/system/audit` | B22 residual | Konfirmasi apakah `acknowledged` didukung di `/system/audit` (:1072) + export-nya (:1082) atau hanya di operational-events | Filter Audit Trail |
+| R-20 | Skema body sub-op dynsec + skema objek klien | B31–B37 (kecuali B34 → R-14) | Publikasikan skema body `POST /clients/{name}/roles`, `POST /roles/{name}/acls`, `POST /groups/{name}/clients`, `POST /groups/{name}/roles` (K-05), aturan password klien dynsec min-8/auto-generate (B33), dan bentuk objek klien `enabled`/`disabled` (B35) | Seluruh mutasi dynsec; K-05/K-06 tidak terkonfirmasi dokumen baru |
+| R-21 | Skema `GET /info` + `GET /access-control/audit` | B6/B11/B12 | Daftar field + contoh respons; limit + paginasi/cursor audit IAM; bentuk baris audit tempat `reason` terlihat; kode 404 inspector + perilaku operator tanpa assignment | Halaman Access Control |
+| R-22 | Filter `operatorId`/`roleId` user-roles/policies | B17 | Konfirmasi apakah `GET /user-roles?operatorId=` dan `GET /policies?roleId=` didukung; apakah kedua list tanpa paginasi di semua ukuran data | Filter IAM |
+| R-23 | Salinan api_docs baru (memuat amandemen 09:23) | `docs/BACKEND_SYNC_CLOSURE.md` §7 | Salinan yang memuat `authorize(...)`, cURL §M diperbaiki, dan `GET /api/v1/system/access-mode` — menutup definitif R-3/C8/C21/R-9 dan memverifikasi endpoint access-mode | Penutupan definitif butir amandemen |
 
 ## 3. Sudah terjawab oleh api_docs baru (bukan lagi terbuka)
 
@@ -89,3 +103,29 @@ keputusannya (E19, tabel status 50/50) dan api_docs baru kini sumber kebenaran;
 dokumen gaps dipertahankan sebagai **riwayat** keputusan backend 18 Nov 2026 +
 delegasi E18. Dokumen kerja aktif penggantinya: `docs/API_SYNC_DIFF.md` (diff
 panel vs api_docs) + dokumen ini (tinjau-ulang).
+
+## 5. Ringkasan status E21 (19 November 2026)
+
+Sumber: `docs/BACKEND_SYNC_CLOSURE.md` §5.1/§5.3.
+
+| Kelompok | Terjawab | Berubah | Masih terbuka |
+|---|---|---|---|
+| R-1–R-15 | 3 (R-7, R-11, R-15) | 2 (R-3, R-9 — sebagian, bersandar amandemen 09:23) | 10 (R-1, R-2, R-4, R-5, R-6, R-8, R-10, R-12, R-13, R-14) |
+| R-16–R-23 (baru, E21) | 0 | 0 | 8 (R-16–R-23, lihat §2) |
+| **Total R-1–R-23** | **3** | **2** | **18** |
+
+**Koreksi penilaian E20 awal (diterapkan di §2):**
+- **R-7 terjawab** — aturan null `oeePct` saat Performance null sudah tertulis
+  §K:1163 + §K.3c:1194; D-8 didukung dokumen.
+- **R-11 terjawab** — kedua guard ekspor tertulis eksplisit (§I:1081 vs
+  :1085–1087); bukan kontradiksi, memang dua guard berbeda.
+- **R-15 premisnya salah** — `DeviceResponse` membawa `lastSeenAt` (§E:~412);
+  klien dapat memverifikasi proyeksi TTL `isOnline` (§7E:2061).
+- **R-3 dan R-9 berubah** — keduanya bersandar amandemen api_docs 09:23 yang
+  **tidak ada di salinan file** (0 hit `access-mode`/`authorize("cancel"`,
+  baris 1340 masih `/clients/provision`); penutupan definitif menunggu
+  salinan api_docs baru (**R-23**).
+
+**Prioritas tindak lanjut backend (E21, §5.4 dokumen penutupan):** P0 — R-1,
+R-2, R-4+R-17, R-6, R-20, R-23; P1 — R-9/R-3, R-8, R-10, R-5, R-18, R-19,
+R-16, R-21, R-22; P2 — R-12, R-13, R-14.

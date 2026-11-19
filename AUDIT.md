@@ -1487,3 +1487,76 @@ baru (R-23). Tidak ada gap B yang verdictnya semata-mata amandemen.
 Todo tersisa: 14 SYS-B terbuka + E13 (FAT-71) + V8.1–V8.5 + A10.2 (FAT-40)
 + E8 (FAT-7). LINEAR.md + seed v21. Pemetaan E21:
 `~/workspace/tmp-e21-mapping.json`.
+
+## 26. Pembaruan dokumen pasca-E20/E21 — arsip + sinkronisasi dokumen live (2026-11-19, FAT-168)
+
+Koordinator FAT-168. **Tanpa ubah kode panel, tanpa push.** Semua perubahan
+adalah file `.md` di bawah; commit lokal `5560c2d` (verifikasi parent +
+penutupan di commit terpisah).
+
+### 26.1 Dokumen yang diarsipkan (3 dokumen, ke `docs/archive/`)
+
+| Dokumen | Alasan pengarsipan |
+|---|---|
+| `docs/TELEMETRY_AUDIT.md` → `docs/archive/TELEMETRY_AUDIT.md` | Audit telemetry/OEE 2026-11-16 (25 gap G1–G25); 19 usulan sudah dikerjakan di sisi panel pada E11/E12; sisa sisi server kini dilacak sebagai Fase 8 di `docs/BACKEND_UPGRADE_PLAN.md` dan item R-1–R-23. Dipertahankan sebagai riwayat audit. |
+| `docs/BACKEND_DECISIONS_REALITY_CHECK.md` → `docs/archive/BACKEND_DECISIONS_REALITY_CHECK.md` | Analisis relevansi keputusan backend 18 Nov 2026 (E17, FAT-139–143); keputusannya sudah tercatat di decision log `BACKEND_UPGRADE_PLAN.md` Lampiran C §C.1a dan ditutup E19/E21. Dipertahankan sebagai riwayat analisis. |
+| `docs/E12_PROPOSAL.md` → `docs/archive/E12_PROPOSAL.md` | Proposal Epic E12 Telemetry & OEE; E12 selesai + ditutup 2026-11-17 (FAT-50 + 19 child Done). Dipertahankan sebagai riwayat proposal. |
+
+Sebelumnya sudah diarsipkan (E20/P20.7): `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` →
+`docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md` (50 gap SYS-B1–SYS-B50; keputusan
+tertutup E19, verdict vs api_docs di `docs/BACKEND_SYNC_CLOSURE.md`).
+
+### 26.2 Dokumen yang diperbarui (7 dokumen)
+
+| Dokumen | Ringkasan perubahan |
+|---|---|
+| `docs/BACKEND_UPGRADE_PLAN.md` (v1.1 → v1.2) | Header/status E21: 36/50 gap tercermin di api_docs, 14 terbuka, R-16–R-23 baru, K-11 digantikan `POST /devices/provision`, registry 137, tests 368/368, Linear 163 = 140/1/22. Semua acuan ke dokumen gap/telemetry/reality-check diarahkan ke `docs/archive/`. Koreksi isi Fase 1–9 yang E21 putuskan: K-05/K-06 tidak terkonfirmasi (R-20), K-02 masih 3 varian (R-2), K-08 global belum terkonfirmasi (R-10); item 1.2 tanpa `severity`; item 2.3 provisioning kanonis baru; item 4.4 `severity` tidak didukung + `acknowledged` didukung; item 4.5 `machine_id` hanya di `/system/audit` (B23 dibalik sebagian); item 5.4 `acknowledgeUnvalidated` 0 hit (R-16); item 5.5 `POST /backups` diputuskan tidak ada; item 6.1 filter schedule hanya snake_case; item 7.7/7.13: 137 operasi + `GET /system/access-mode` ada (amandemen 09:23, JWT wajib). Roadmap Fase 1–9 TETAP — tidak dihapus. |
+| `docs/API_SYNC_DIFF.md` | Catatan kepala baru: E21 memverifikasi diff ini (`docs/BACKEND_SYNC_CLOSURE.md`); koreksi R-7 (terjawab §K:1163) dan R-15 (premis salah — `DeviceResponse` membawa `lastSeenAt`); koreksi enum `event_type` 33 → **32** (sisa terakhir, §16); caveat amandemen 09:23 tidak ada di salinan file (R-23). |
+| `docs/API_SYNC_REVIEW.md` | Status disamakan dengan E21: R-1–R-15 = 3 terjawab (R-7, R-11, R-15) / 2 berubah (R-3, R-9) / 10 terbuka; R-11 dikoreksi terbuka → **terjawab** (dua guard ekspor tertulis eksplisit §I:1081 vs :1085–1087); tabel R-16–R-23 ditambahkan (§2); ringkasan status baru §5. |
+| `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` | Status 19 Nov 2026: `GET /api/v1/system/access-mode` (B13) sudah ada menurut amandemen 09:23 dan sudah dikonsumsi panel (E20 P20.5) — dengan koreksi JWT wajib (bukan tanpa auth); B16 ditandai sudah dikerjakan sisi panel; B7 132 → 137 operasi; checklist V1–V12 masih pending. **A10.2 keseluruhan tetap Blocked** (FAT-40) — enforcement server-side B7/B11 belum ada; seluruh persyaratan B1–B25 tetap berlaku, tidak ada yang dihapus. |
+| `docs/admin-panel/ADMIN_PANEL_DOCUMENTATION.md` | **Perubahan terbesar.** Catatan kepala E20/E21 + koreksi: (a) status WO + `PENDING_CLOSE`; (b) `/system/audit` = alias feed operasional, `/access-control/audit` = audit IAM terpisah; (c) `GET /operational-events` global ada (tanpa `machine_id`); (d) mode AUTHZ hanya `shadow`/`enforce`, tanpa `"partial"`; (e) role operator string bebas, default `UNASSIGNED`; (f) provisioning kanonis `POST /devices/provision`; (g) gerbang `mustChangePassword` → `403 PASSWORD_ROTATION_REQUIRED` + `/force-change-password` (§3.1a baru); (h) `GET /devices/:id/health` + `GET /health/detail` + `GET /system/access-mode` + `AUTH_ME`/`AUTH_PASSWORD_CHANGE`; (i) klaim salah dihapus: dispatch/complete/validate-zone/initiate HMI-only (bukan endpoint panel), `POST /permissions` didukung (bukan read-only), hanya `ADMIN` immutable, wildcard `*` diizinkan, `401 AUTHZ_STALE` (bukan `AUTHZ_VERSION_STALE`), dynsec enable via `PATCH /clients/{name}/enable`, tanpa ekspor downtime global, field device-health `heapFree/tasksHealthy/...`, apply/rollback 202 + polling, tanpa `severity`. |
+| `PAGE_DOCUMENTATION.md` (21 → 25 halaman) | Verifikasi ulang ke-21 halaman terhadap `src/app/Router.tsx` + komponen; 4 halaman baru: §22 Force Change Password, §23 Production Lines, §24 Shifts, §25 Shift Schedules. Isi yang diperbarui E20: Login (tanpa lockout lokal, throttle server + `Retry-After`, preset demo env-gated, redirect gerbang); Shell (tanpa pemilih role, access-mode dari server); Overview §D (list global, tanpa severity); Work Orders (`PENDING_CLOSE`, dispatch/complete HMI-only, tanpa wizard — hanya Detail + resolve preview + Cancel ADMIN); Operational Events (enum 32, tanpa severity, ack note 1000, list global); Devices (provision/revoke/rotasi kredensial, `enrollmentState`); Operators (role string bebas, `UNASSIGNED`, `isActive`, ADM-001 400/403); Shift Analytics (bucket 5m, null `*Pct`); Broker Overview (`READY`, count `null`); Dynamic Security (3 tab, tanpa modal provision); Broker Config (5 tab, apply/rollback 202 + polling, tanpa `POST /backups`); System Health (`/health/detail`); Access Control (`/access-control/info` dibaca, hanya ADMIN immutable, `POST /permissions` didukung, tab Inspector, audit IAM berfilter); Audit Trail (sumber `GET /system/audit` + ekspor); System Info (mode `shadow`/`enforce`). |
+| `ADMIN_PANEL_DESIGN_SPEC.md` | **Hanya catatan status singkat di kepala** — bodi spec v1.0 (12 Nov 2026) tidak ditulis ulang: dokumen dipertahankan utuh sebagai arsip desain historis; kontrak otoritatif kini `docs/admin-panel/ADMIN_PANEL_DOCUMENTATION.md` (19 Nov 2026) + `AUDIT.md` §23–§25. |
+
+### 26.3 Status dokumen live vs arsip sesudah tugas ini
+
+**Live (dokumen kerja aktif):** `AUDIT.md`, `docs/API_SYNC_DIFF.md`,
+`docs/API_SYNC_REVIEW.md`, `docs/BACKEND_SYNC_CLOSURE.md`,
+`docs/BACKEND_UPGRADE_PLAN.md` (v1.2, roadmap Fase 1–9),
+`docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`,
+`docs/admin-panel/ADMIN_PANEL_DOCUMENTATION.md` (kontrak Spec 025),
+`PAGE_DOCUMENTATION.md` (25 halaman), `ADMIN_PANEL_DESIGN_SPEC.md` (arsip
+desain historis — bodi beku, hanya catatan kepala),
+`docs/API_DOCUMENTATION.md` (salinan lama, berheader "sudah digantikan
+api_docs terupdate"), `docs/LINEAR.md`, `docs/DIRECTORY_STRUCTURE.md`.
+
+**Arsip (`docs/archive/`, riwayat — jangan dijadikan acuan kontrak aktif):**
+`BACKEND_GAPS_SYSTEM_ADMIN.md`, `TELEMETRY_AUDIT.md`,
+`BACKEND_DECISIONS_REALITY_CHECK.md`, `E12_PROPOSAL.md`.
+
+Catatan: penyebutan path asli ketiga dokumen yang diarsipkan di bagian
+historis bertanggal — AUDIT.md §13–§22 dan LINEAR.md §8 — sengaja dibiarkan
+apa adanya sebagai rekaman; file-file itu kini berada di `docs/archive/`.
+
+### 26.4 Keputusan parent (verifikasi 2026-11-19)
+
+- **`docs/linear-seed.json` dibiarkan sebagai snapshot historis.**
+  27 kemunculan path lama ada di dalam array `issues` (deskripsi issue saat
+  dibuat); menulis ulang berarti mengubah rekaman historis. Yang diperbarui
+  hanya `created.issueMap` + `verified` (FAT-168 masuk, seed v22).
+- **Referensi internal di dalam file arsip dibiarkan** sebagai isi historis
+  (preseden E20 — hanya header arsip yang ditambahkan).
+- **Komentar kode `src/services/api/http/mappers/monitoring.ts:313`**
+  ("TELEMETRY_AUDIT F-7") dibiarkan — di luar cakupan tugas dokumen, dan
+  tugas ini tanpa ubah kode panel.
+
+**Yang tidak diputuskan dalam tugas ini (butuh keputusan/konfirmasi lain):**
+- Verifikasi definitif butir amandemen 09:23 (`GET /system/access-mode`,
+  otorisasi `authorize(...)`, cURL §M) menunggu salinan api_docs baru (R-23)
+  — semua penanda "(amandemen 09:23, belum terverifikasi di dokumen)"
+  dipertahankan apa adanya di dokumen yang diperbarui.
+- R-1–R-23 (18 masih terbuka) tetap menunggu jawaban backend; tidak ada
+  R-item yang ditutup atau diputuskan dalam tugas ini.
+- `GET /mqtt/configuration/status`: bentuk pasti JSON-nya tidak sepenuhnya
+  dispesifikasi api_docs (AUDIT.md §24.1) — mapper panel membaca defensif;
+  verifikasi melawan backend sungguhan.

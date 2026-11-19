@@ -10,6 +10,25 @@
 
 **Legenda verdict:** **OK** = sudah cocok dengan dokumen baru · **CHANGE** = ada tapi method/path/body/response berbeda · **NEW** = ada di dokumen, belum ada di panel · **REMOVE** = ada di panel, tidak ada/dilarang di dokumen. Nomor baris dokumen = baris `pasted-text.txt`; nomor baris panel = file repo.
 
+> **Catatan kepala — verifikasi E21 (19 Nov 2026, `docs/BACKEND_SYNC_CLOSURE.md`):**
+> diff ini sudah diverifikasi baris-per-barissebagai dasar penutupan gap E21 —
+> 34 gap **TERSELESAIKAN** + 2 **BERUBAH/DIGANTIKAN** (B13, B30) = 36/50
+> ditutup di Linear; 14 masih terbuka (B3, B6, B11, B12, B17, B23, B31–B37,
+> B41). **Koreksi terhadap penilaian E20 awal:** (1) **R-7 terjawab** — aturan
+> null `oeePct` saat Performance null sudah tertulis di api_docs §K:1163 +
+> §K.3c:1194 (D-8 didukung dokumen; C14 bukan lagi kontradiksi terbuka);
+> (2) **R-15 premisnya salah** — `DeviceResponse` membawa `lastSeenAt`
+> (§E:~412), jadi klien dapat memverifikasi proyeksi TTL `isOnline`
+> (§7E:2061); C13 bukan lagi kontradiksi terbuka; (3) **enum `event_type`
+> eksplisit = 32, bukan 33** — terverifikasi hitung token (§I:1073–1075);
+> implementasi panel sudah benar 32. **Caveat amandemen 09:23:** salinan
+> `pasted-text.txt` di disk adalah upload asli 07:47 WIB — amandemen 09:23
+> TIDAK ada di file (0 hit `access-mode` / `authorize("cancel"`, baris 1340
+> masih `/clients/provision`); penutupan definitif butir amandemen (R-3,
+> R-9, endpoint `GET /api/v1/system/access-mode`) menunggu salinan api_docs
+> baru = **R-23**. Lihat `docs/API_SYNC_REVIEW.md` §2 untuk status
+> R-1–R-23 terkini.
+
 **Fakta yang sudah diputuskan (dicatat, tidak diputuskan ulang):**
 - **K-11 E18 DIGANTIKAN:** `POST /clients` (provision dynsec) digantikan oleh **`POST /devices/provision`** per §E dokumen baru (spec 015, ADR-009) — dikonfirmasi §E.3a (dok baris 442–478).
 - **P-I (`GET /health/detail`) kini tidak terblokir** — endpoint ada di dokumen baru (§A baris 95–149).
@@ -371,7 +390,7 @@ Registry 109/132 kunci OK (seluruh production lines/shifts/schedules/products 20
 
 - **Batas riset:** diff ini membandingkan panel terhadap salinan dokumen `pasted-text.txt` (2100 baris). Bila salinan dan dokumen asli berbeda (lihat C20 — nilai terredaksi), dokumen asli menang. Tidak ada kode yang diubah dalam riset ini; tidak ada commit/push.
 - **Demo bukan bukti:** banyak perilaku demo (filter lokal severity/`acknowledged`, guard demo, seed fabrikasi) berbeda dari Real — acceptance tiap perubahan di atas harus diuji melawan backend sungguhan, bukan Demo (prinsip yang sama dengan AUDIT.md §4).
-- **Urutan implementasi yang disarankan (di luar P20.1, untuk epic implementasi):** (1) provision kanonis + hapus cabang lama (D1/D2 — dampak terbesar, satu alur); (2) gerbang `mustChangePassword` + hapus lockout lokal + `Retry-After` (A1–A3); (3) tulis IAM camelCase + `roles` + kunci capability kanonis (I1–I13); (4) mapper op-events + enum 33 + hapus severity (O1–O3); (5) `health/detail` + hapus sintesis (H1–H2); (6) null `*Pct` + `mapDevice` + `mapWorkOrder` (T1–T4, D7, W6–W7); (7) ekspor system-audit + filter builder (O4, O9–O10); (8) WS event names + 204/error-code fallback + apply/rollback 202.
+- **Urutan implementasi yang disarankan (di luar P20.1, untuk epic implementasi):** (1) provision kanonis + hapus cabang lama (D1/D2 — dampak terbesar, satu alur); (2) gerbang `mustChangePassword` + hapus lockout lokal + `Retry-After` (A1–A3); (3) tulis IAM camelCase + `roles` + kunci capability kanonis (I1–I13); (4) mapper op-events + enum 32 + hapus severity (O1–O3); (5) `health/detail` + hapus sintesis (H1–H2); (6) null `*Pct` + `mapDevice` + `mapWorkOrder` (T1–T4, D7, W6–W7); (7) ekspor system-audit + filter builder (O4, O9–O10); (8) WS event names + 204/error-code fallback + apply/rollback 202.
 
 ## 17. Keputusan D-1–D-14 — 19 November 2026 (mengikuti api_docs, P20.7)
 

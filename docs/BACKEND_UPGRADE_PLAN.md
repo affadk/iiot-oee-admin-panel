@@ -3,14 +3,16 @@
 | | |
 | --- | --- |
 | **Dokumen** | Rencana Upgrade Backend — IIoT OEE Admin Panel |
-| **Tanggal** | 17 November 2026 |
-| **Versi** | 1.1 |
-| **Status** | Panduan kerja untuk tim backend — belum ada satu pun item yang dikerjakan |
+| **Tanggal** | 17 November 2026 (diperbarui 19 November 2026 — v1.2) |
+| **Versi** | 1.2 |
+| **Status** | Panduan kerja untuk tim backend — Fase 1–9 masih pending; Fase 0 selesai diputuskan, 36/50 gap tercermin di api_docs terupdate (E21), 14 gap masih terbuka |
 | **Cakupan** | Backend aplikasi IIoT OEE Admin Panel (bukan infra jaringan, bukan panel) |
 | **Epic Linear** | E13 — Backend gaps System Admin (FAT-71); A10.2 Mode Akses (FAT-40); V8.2/V8.3/V8.4/V8.5 (FAT-28/30/29/27) |
-| **Dokumen acuan** | `API_DOCUMENTATION.md` ("API"), `ADMIN_PANEL_BUILD_GUIDE.md` ("Guide"), `AUDIT.md` §14–§18, `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md` |
+| **Dokumen acuan** | `API_DOCUMENTATION.md` ("API"), `ADMIN_PANEL_BUILD_GUIDE.md` ("Guide"), `AUDIT.md` §14–§18, `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/archive/TELEMETRY_AUDIT.md` |
 
 *v1.1 (17 Nov 2026 sore): sinkronisasi pasca-E14/E15 — decision log Fase 0 15/15, registry 132 operasi, tests 335/335, Linear 129 issue, referensi AUDIT.md §14–§18.*
+
+*v1.2 (19 Nov 2026, E21): 36/50 gap SYS-B1–SYS-B50 tercermin di api_docs terupdate (`~/workspace/user/files/pasted-text.txt`), 14 gap masih terbuka; item tindak lanjut backend R-1–R-23 (`docs/BACKEND_SYNC_CLOSURE.md` §5); K-11 digantikan `POST /devices/provision` (spec 015); registry panel 137 operasi; tests 368/368; Linear 163 issue (140 Done / 1 In Progress / 22 Todo). Fase 1–9 tetap pending — dokumen ini TIDAK dihapus, hanya statusnya diperbarui.*
 
 > **Catatan 19 Nov 2026 (E20/P20.7):** `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`
 > diarsipkan ke `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`. Sumber kebenaran
@@ -18,6 +20,17 @@
 > panel vs api_docs di `docs/API_SYNC_DIFF.md`, diff yang perlu ditinjau
 > kembali di `docs/API_SYNC_REVIEW.md`. Keputusan Fase 0 (K-01–K-15) kini
 > terkonfirmasi api_docs; K-11 digantikan `POST /devices/provision` (spec 015).
+>
+> **Catatan 19 Nov 2026 (E21, FAT-160):** `docs/BACKEND_SYNC_CLOSURE.md` —
+> 34 gap **TERSELESAIKAN** + 2 **BERUBAH/DIGANTIKAN** (B13: `reason` hanya di
+> audit IAM; B30: provisioning → `POST /devices/provision`) = **36/50 gap
+> ditutup di Linear**; **14 masih terbuka** (B3, B6, B11, B12, B17, B23,
+> B31–B37, B41 — DynSec paling belum selesai, 7/10 terbuka). Item tindak
+> lanjut backend baru **R-16–R-23** (`docs/BACKEND_SYNC_CLOSURE.md` §5.3). Koreksi:
+> enum `event_type` eksplisit = **32** (bukan 33). Caveat: salinan
+> `pasted-text.txt` di disk adalah upload asli 07:47 WIB — amandemen 09:23
+> TIDAK ada di file; penutupan definitif butir amandemen menunggu salinan
+> api_docs baru (R-23).
 
 ---
 
@@ -31,12 +44,14 @@ diverifikasi di sisi backend** agar panel admin yang sudah jadi dapat berjalan
 dalam mode Real — bukan hanya mode Demo.
 
 Panel sudah selesai dan terverifikasi di sisi klien (TypeScript 0 error,
-335/335 test, build OK, preview HTTP 200). Yang belum ada adalah backend itu
+368/368 test, build OK, preview HTTP 200). Yang belum ada adalah backend itu
 sendiri. Audit terhadap panel menemukan 50 gap kontrak System Admin
 (SYS-B1–SYS-B50), 25 kebutuhan mode akses (B1–B25), dan sejumlah item sisi
 server pada telemetry/OEE. Dokumen ini menyusun semuanya menjadi rencana
 bertahap — Fase 0 sampai Fase 9 — dengan referensi yang bisa dilacak kembali
-ke dokumen sumber.
+ke dokumen sumber. **Pembaruan E21 (19 Nov 2026):** 36 dari 50 gap kini
+tercermin di api_docs terupdate (`docs/BACKEND_SYNC_CLOSURE.md` §2); 14 gap
+masih terbuka dan menjadi isi kerja Fase 1–8 yang tersisa.
 
 ### 1.2 Audiens
 
@@ -61,7 +76,7 @@ karena tanpa ketetapan itu panel tidak bisa dibuat benar di mode Real.
   lihat Fase 0"**, bukan menebak.
 - Bagian "Tidak ada gap" (daftar endpoint yang sudah cocok) tidak diulang di
   sini kecuali sebagai konteks; daftar lengkapnya ada di
-  `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` bagian "Tidak ada gap".
+  `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md` bagian "Tidak ada gap".
 
 ### 1.4 Status saat ini — tulis apa adanya
 
@@ -76,11 +91,12 @@ karena tanpa ketetapan itu panel tidak bisa dibuat benar di mode Real.
   field/kode error, health sintetis, apply sinkron. **Tidak satu pun
   acceptance criteria di dokumen ini boleh diuji melawan Demo** — semuanya
   harus diuji melawan backend sungguhan di mode Real.
-- **Status Linear (17 November 2026):** 129 issue (70 Done / 1 In Progress /
-  58 Todo). E13 (FAT-71) dan seluruh child SYS-B1–SYS-B50 (FAT-72–FAT-121)
-  masih Todo. A10.2 (FAT-40), V8.2 (FAT-28), V8.3 (FAT-30), V8.4 (FAT-29),
-  V8.5 (FAT-27) juga masih Todo. E14 (FAT-122) dan E15 (FAT-128) — tindak
-  lanjut panel keputusan Fase 0 — sudah Done.
+- **Status Linear (19 November 2026, E21):** 163 issue (140 Done / 1 In
+  Progress / 22 Todo). E13 (FAT-71): 36 child SYS-B1–SYS-B50 ditutup
+  (34 terselesaikan + 2 berubah/digantikan), 14 masih Todo (B3, B6, B11,
+  B12, B17, B23, B31–B37, B41). A10.2 (FAT-40), V8.2 (FAT-28), V8.3
+  (FAT-30), V8.4 (FAT-29), V8.5 (FAT-27) masih Todo/Blocked. E14 (FAT-122)
+  dan E15 (FAT-128) — tindak lanjut panel keputusan Fase 0 — sudah Done.
 - **Yang dikecualikan dari rencana ini:** infra jaringan (konfigurasi Nginx,
   dual-vhost, port, TLS, tunnel — V8.4, butuh target server, bukan bagian
   backend aplikasi) dan pekerjaan sisi panel (dicatat terpisah di dokumen
@@ -97,8 +113,8 @@ karena tanpa ketetapan itu panel tidak bisa dibuat benar di mode Real.
 | Gap backend System Admin (SYS-B1–SYS-B50) | **50 gap: 12 High, 23 Medium, 15 Low** |
 | Kebutuhan backend mode akses (B1–B25) | **25 kebutuhan** + checklist verifikasi V1–V12 |
 | Gap telemetry/OEE dengan item sisi server | **25 gap (G1–G25)**; item server: F-2, F-7/G8, G25, default server 72/500 |
-| Endpoint admin di registry panel | **132 operasi** (59 kunci di irisan System Admin) — **tidak ada endpoint yang hilang** |
-| Pertanyaan terbuka yang tidak bisa diputuskan dari dokumen saja | **22** (lihat `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` bagian akhir) |
+| Endpoint admin di registry panel | **137 operasi** (59 kunci di irisan System Admin) — **tidak ada endpoint yang hilang** (naik dari 132 pasca-E20: +provision/revoke/credentials device, +`GET /health/detail`, +`GET /system/audit/export`, +`GET /system/access-mode`) |
+| Pertanyaan terbuka yang tidak bisa diputuskan dari dokumen saja | **23** (R-1–R-23: status per item di `docs/API_SYNC_REVIEW.md` §2 dan `docs/BACKEND_SYNC_CLOSURE.md` §5.1/§5.3 — 3 terjawab, 2 berubah, 18 terbuka) |
 
 Poin terpenting dari angka di atas: **tidak ada satu pun endpoint yang belum
 didaftarkan**. Hampir semua gap adalah ketidaksesuaian **bentuk kontrak**
@@ -109,7 +125,7 @@ fitur dari nol.
 
 ### 2.2 Enam tema lintas-gap
 
-Tema-tema ini diangkat langsung dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`
+Tema-tema ini diangkat langsung dari `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`
 bagian Ringkasan:
 
 1. **Skema respons tidak tertulis** untuk hampir seluruh permukaan admin
@@ -209,7 +225,7 @@ capability kanonis, filter audit IAM.
 | --- | --- | --- |
 | P-1 | Akses ke `API_DOCUMENTATION.md` dan `ADMIN_PANEL_BUILD_GUIDE.md` versi terbaru | Kedua dokumen adalah acuan; bila ada versi yang lebih baru dari yang dipakai audit (API 1780 baris, Guide 1553 baris), audit ulang selisihnya |
 | P-2 | Akses ke repo panel (`iiot-oee-admin-panel`) | Untuk membaca transport/mapper yang dirujuk tiap gap (`src/services/api/http/*`, `src/services/api/endpoints/*`) |
-| P-3 | Akses ke `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/TELEMETRY_AUDIT.md`, `AUDIT.md` §14–§18 | Dokumen sumber rencana ini |
+| P-3 | Akses ke `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`, `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md`, `docs/archive/TELEMETRY_AUDIT.md`, `AUDIT.md` §14–§18 | Dokumen sumber rencana ini |
 | P-4 | Environment staging dengan backend yang bisa dijalankan | Acceptance criteria diuji melawan backend sungguhan, bukan Demo; butuh staging yang bisa dimatikan broker-nya, diubah mode-nya, dan diisi data >1 halaman |
 | P-5 | Akses ke broker Mosquitto dengan plugin Dynamic Security | Untuk Fase 2 dan Fase 5; tanpa ini bentuk dynsec dan config tidak bisa diverifikasi |
 | P-6 | Akses Linear (project P-FAT-1) | Untuk memperbarui status issue E13/A10.2/V8.x saat pekerjaan selesai dan terverifikasi |
@@ -247,13 +263,15 @@ dokumen API/Guide yang bertentangan sudah dikoreksi.
 | K-08 | Kebijakan query param tak dikenal | (a) Diabaikan; (b) ditolak 400 (Zod strict) | (a) diabaikan — paling kecil risikonya terhadap filter panel yang sudah berjalan; bila memilih (b), semua filter panel harus divalidasi dulu | Menentukan dampak SYS-B22, B23, B24, B45: filter yang tidak didukung diam-diam diabaikan vs gagal 400 |
 | K-09 | Status `POST /permissions` (SYS-B10) | (a) Didukung (skema body ditetapkan); (b) katalog seed-only, endpoint dihapus dari dokumen | Putuskan dan dokumentasikan; bila (a), tetapkan casing body (`resource_type` vs `resourceType`) | Admin tidak bisa mendaftarkan permission untuk guard baru; atau panel memanggil endpoint yang tidak ada |
 | K-10 | Sumber kebenaran method PATCH vs PUT | (a) Hanya PUT (dokumen) untuk `/roles/:id` dan `/policies/:id`; hanya PATCH (dokumen) untuk rotasi password dan enable/disable dynsec; (b) terima keduanya | (a) — dokumen konsisten di sini; panel yang harus berubah | Mutasi IAM dan dynsec gagal 404/405 di Real mode |
-| K-11 | D-1b — Rute provisioning (SYS-B30) | (a) `POST /clients` dengan body `{deviceId, access, ...}` (API §M, Guide §9.1/§14.13); (b) `POST /clients/provision` (contoh cURL API §M) | (a) — Guide tegas tidak ada rute `/clients/provision` | Pembuatan klien mode device gagal 404 atau terbentuk dengan grant yang salah |
+| K-11 | D-1b — Rute provisioning (SYS-B30) | (a) `POST /clients` dengan body `{deviceId, access, ...}` (API §M, Guide §9.1/§14.13); (b) `POST /clients/provision` (contoh cURL API §M) | (a) — Guide tegas tidak ada rute `/clients/provision`. **DIGANTIKAN E20/E21: kedua opsi gugur — jalur kanonis kini `POST /api/v1/devices/provision` (spec 015, api_docs §E.3a); panel sudah mengimplementasikannya (E20 P20.2), B30 ditutup sebagai "berubah/digantikan"** | Pembuatan klien mode device gagal 404 atau terbentuk dengan grant yang salah |
 | K-12 | Aturan naiknya `authz_version` | (a) API §3.4: setiap mutasi menaikkan; (b) Guide §8: perubahan katalog permission atau deskripsi role tidak menaikkan | Putuskan dan selaraskan kedua dokumen | Token lama ditolak 401 di saat yang salah (atau tidak ditolak saat seharusnya) |
-| K-13 | Cakupan feed `/system/audit` dan enum `event_type` | (a) `/system/audit` alias harfiah seluruh feed operational events; (b) subset hanya event mutasi; plus: tetapkan enum `event_type` dan nyatakan status `severity` (tidak muncul di dokumen sama sekali) | Putuskan; dokumentasikan enum dan filter yang didukung | Filter `event_type` di `/system/audit` tidak jelas diterima/diabaikan/ditolak; nilai di luar enum bisa 400 atau hasil kosong |
+| K-13 | Cakupan feed `/system/audit` dan enum `event_type` | (a) `/system/audit` alias harfiah seluruh feed operational events; (b) subset hanya event mutasi; plus: tetapkan enum `event_type` dan nyatakan status `severity` (tidak muncul di dokumen sama sekali) | Putuskan; dokumentasikan enum dan filter yang didukung. **E21: (a) terkonfirmasi — `/system/audit` alias feed operasional (§I:1069–1077); enum tertutup 32 nilai eksplisit (§I:1073–1075); `severity` TIDAK ADA di skema FR-034-01 dan filter-nya tidak didukung (§I:1076)** | Filter `event_type` di `/system/audit` tidak jelas diterima/diabaikan/ditolak; nilai di luar enum bisa 400 atau hasil kosong |
 | K-14 | Ack operational event: `operatorId` wajib atau tidak (SYS-B21) | (a) Turunkan operator dari JWT, body `{note?}` saja; (b) salah satu ID wajib (Guide §6.7) | (a) — endpoint terotentikasi, server sudah tahu pemanggil | Setiap ack dari panel gagal 400 di Real mode bila backend mengikuti Guide |
 | K-15 | Definisi availability untuk jam planned penuh (G8, sisi server) | (a) Jam yang sepenuhnya planned downtime dikeluarkan dari penyebut availability (ditandai "planned", bukan 0%); (b) dilaporkan 0% | (a) — sesuai praktik OEE; panel hanya menampilkan apa yang dikirim server | Jam istirahat tampil sebagai jam "gagal total" (OEE 0%, availability 0%) |
 
 **Status keputusan — 17 November 2026:** 15 dari 15 baris diputuskan oleh Fathur dan tercatat di decision log (Lampiran C); K-05, K-06, dan K-07 diputuskan menyusul dengan arahan "ikuti desain API_DOCUMENTATION" — panel sudah disesuaikan (E15, FAT-128–133). Dua keputusan menyimpang dari rekomendasi rencana: K-03 memilih (a) wajib slash (bukan (c) terima keduanya) dan K-11 memilih (b) `POST /clients/provision` (bukan (a) `POST /clients`); keduanya menimbulkan tindak lanjut sisi panel (E14). Sisa pekerjaan K-05/K-06/K-07 ada di sisi backend: dokumentasikan nama field password sekali tampil (item 2.5), skema respons dynsec lengkap dengan contoh JSON (item 2.6), dan skema JSON config terstruktur (item 5.1). Fase 2 dan Fase 5 tidak lagi tertunda oleh keputusan — tertunda oleh penulisan dokumen/skema backend. **Perubahan 18 November 2026 (delegasi Fathur ke Muse, Lampiran C §C.1a):** backend membalik K-03 → (c) terima keduanya, K-04 → dual `issues[]`+`details`, K-09 → (a) didukung+guard, K-11 → (a) `POST /clients`; K-01/K-02/K-12/K-15 dikonfirmasi tetap (a); tujuh keputusan gap baru diputuskan (B1 camelCase, B3 ABAC minimal, B4 alur paksa, B6 skema IAM, B7 409, B16 5/60+`Retry-After`, enum `event_type` tertutup).
+
+**Pembaruan 19 November 2026 (E21, `docs/BACKEND_SYNC_CLOSURE.md` §3.1):** K-01, K-03 (c), K-04 (dual), K-07, K-09 (a), K-10, K-12, K-13, K-14, K-15 **terkonfirmasi** api_docs terupdate; K-11 **dibalik lagi** — kedua pilihan lama digantikan `POST /devices/provision` (§E.3a); K-02 **tidak terkonfirmasi** — bentuk `/auth/me` masih 3 varian (R-2); K-05/K-06 **tidak terkonfirmasi** — api_docs tidak memuat skema body sub-op dynsec maupun skema objek klien, keputusan itu bersandar pada Guide lama (R-20); K-08 global **belum terkonfirmasi** — klausul abaikan param tak dikenal hanya tertulis untuk `/system/audit` (R-10).
 
 **Urutan di dalam Fase 0:** K-05, K-06, K-08, dan K-10 dulu (menentukan
 bentuk dynsec dan kebijakan filter — memblokir Fase 1–6); lalu K-01, K-02,
@@ -274,7 +292,7 @@ menebak.
 | # | Item pekerjaan | Referensi | Kriteria selesai |
 | --- | --- | --- | --- |
 | 1.1 | Publikasikan skema respons eksplisit (field + tipe + contoh JSON) untuk `GET /info`, `GET /roles`, `GET /permissions`, `GET /user-roles`, `GET /policies`, `GET /subjects/:operatorId/effective-permissions` (API §3.4). Nyatakan eksplisit field yang **tidak** ada (mis. `privilege_level`, `policy_count`). | SYS-B6 (FAT-77) | Setiap endpoint punya contoh respons di dokumen; respons live cocok field-per-field; panel tidak lagi menampilkan "Level 1" atau tombol hapus ADMIN |
-| 1.2 | Dokumentasikan dan kembalikan skema item audit lengkap untuk `GET /system/audit` dan `GET /operational-events[/:deviceId]`: `id`, `timestamp`/`createdAt`, `deviceId`, `machineId`, `machineName`, `eventType`, `action` (atau nyatakan `action` = `eventType`), `operatorId`, `operatorName`, `resourceType`, `resourceId`, `details`/`message`, `clientIp`, `accessMode`, `severity`, plus field ack (`acknowledged`, `acknowledgedBy`, `acknowledgedAt`, `ackNote`). | SYS-B19 (FAT-90) | `GET /system/audit?limit=20&envelope=true` mengembalikan baris yang memuat semua field di atas; tabel audit Real mode menampilkan aktor/aksi/resource/IP/mode tanpa default mapper yang terpicu (periksa respons mentah) |
+| 1.2 | Dokumentasikan dan kembalikan skema item audit lengkap untuk `GET /system/audit` dan `GET /operational-events[/:deviceId]`: `id`, `timestamp`/`createdAt`, `deviceId`, `machineId`, `machineName`, `eventType`, `action` (atau nyatakan `action` = `eventType`), `operatorId`, `operatorName`, `resourceType`, `resourceId`, `details`/`message`, `clientIp`, `accessMode`, plus field ack (`acknowledged`, `acknowledgedBy`, `acknowledgedAt`, `ackNote`). **Koreksi E21: `severity` DIHAPUS dari daftar ini — skema FR-034-01 (§I:1020–1047) tidak mengenal `severity`; filter `severity` tidak didukung (§I:1076). B19 ditutup.** | SYS-B19 (FAT-90) | `GET /system/audit?limit=20&envelope=true` mengembalikan baris yang memuat semua field di atas; tabel audit Real mode menampilkan aktor/aksi/resource/IP/mode tanpa default mapper yang terpicu (periksa respons mentah) |
 | 1.3 | Dokumentasikan skema envelope list: `{data: OperationalEventItem[], meta: {limit, next_cursor: string\|null, has_more: boolean, total_count?: number}}` (atau nyatakan array polos + cursor di header sebagai alternatif). | SYS-B25 (FAT-96) | Dengan >1 halaman data, tombol next pada `/audit` dan `/admin/system-audit` muncul dan mengembalikan halaman berikutnya; `total_count` (bila ditampilkan) cocok dengan jumlah server |
 | 1.4 | Terapkan keputusan K-08 (query param tak dikenal) secara konsisten di semua endpoint list, dan selaraskan dokumen. | SYS-B22, B23, B24, B45; K-08 | Perilaku terdokumentasi dan konsisten: param tak dikenal diabaikan (atau 400) di semua endpoint, bukan berbeda-beda |
 | 1.5 | Terapkan keputusan K-03: terima `GET /mqtt/configuration` dan `GET /mqtt/configuration/` (keduanya 200, model yang sama), atau tegaskan satu bentuk di dokumen dan samakan dengan panel. **(Diputuskan 18 Nov — delegasi: terima keduanya; cabang "tegaskan satu bentuk" gugur.)** | SYS-B38 (FAT-109); K-03 | Kedua bentuk URL mengembalikan 200 dengan model terstruktur yang sama |
@@ -297,7 +315,7 @@ dynsec dari panel berhasil di Real mode dengan nilai yang benar.
 | --- | --- | --- | --- |
 | 2.1 | Tetapkan satu bentuk body sub-operasi dynsec dan dokumentasikan (lihat K-05 — diputuskan 17 Nov 2026: (a) objek tunggal dokumen; panel sudah diubah — E15). | SYS-B31 (FAT-102), B32 (FAT-103), B36 (FAT-107), B37 (FAT-108); K-05 | `POST /clients/:name/roles {rolename:"edge_publisher", priority:1}` → 201 dan `GET /clients/:name` memuat peran tersebut; hal yang sama untuk ACL ke peran, klien ke grup, peran ke grup |
 | 2.2 | Dokumentasikan bentuk ACL yang diterima secara eksplisit: apakah `allow` dan `priority` didukung; objek tunggal atau `{acls:[...]}`. | SYS-B32 (FAT-103) | `POST /roles/:name/acls` dengan bentuk yang didokumentasikan → 201; `GET /roles/:name` menampilkan ACL baru dengan `acltype/topic/allow/priority` yang sama seperti dikirim |
-| 2.3 | Terima nilai `access` verbatim `publish` / `subscribe` / `readwrite` pada provisioning, dan bentuk peran `device-<username>` + grant `oee/device/<deviceId>/#`. Panel harus menghapus `accessMap` (`telemetry` / `telemetry+state`) dan mengirim `access` apa adanya. **(K-11 diputuskan 18 Nov — delegasi: (a) `POST /clients`; rute `/clients/provision` tidak ada; provisioning panel di-revert — P-A.)** | SYS-B30 (FAT-101) | `POST /clients {username, deviceId:"STM32-03", access:"readwrite"}` → 201 + password sekali tampil; peran `device-<username>` terbentuk dengan grant publish+subscribe di `oee/device/STM32-03/#`; ulangi untuk `publish` saja dan `subscribe` saja dan pastikan grant-nya berbeda |
+| 2.3 | **DIGANTIKAN E20/E21 (B30):** provisioning kanonis kini `POST /api/v1/devices/provision` (spec 015, ADR-009, api_docs §E.3a) — satu aksi membuat identitas broker + baris registry, password 32 char dibuat backend dan hanya dikembalikan sekali; body `{deviceId, machineId?, model?}` **tanpa field `access`**; peran `device-<deviceId>` dengan grant eksplisit. Keputusan 18 Nov (`POST /clients` + `access` verbatim) dan keputusan 17 Nov (`POST /clients/provision`) keduanya gugur; panel sudah mengimplementasikan rute baru dan menghapus `accessMap` (E20 P20.2). Sisa usang di dokumen: §M :1319 masih menulis `POST /clients {deviceId, access, …}` dan cURL :1339–1340 masih `/clients/provision` (R-9). | SYS-B30 (FAT-101) | `POST /api/v1/devices/provision {deviceId:"STM32-03", machineId:"...", model:"..."}` → 201 + kredensial sekali tampil `{credential:{username, password, clientId, topicPrefix}}`; peran `device-STM32-03` terbentuk dengan grant publish+subscribe di `oee/device/STM32-03/#` |
 | 2.4 | Aturan password pada `POST /clients` — DIPUTUSKAN 17 Nov 2026 (K-06): (ii) `password` wajib min 8 → panel sudah mewajibkan input (E15 P15.2). Sisa backend: nyatakan apakah `textname` / `textdescription` / `groups` / `clientid` diterima. | SYS-B33 (FAT-104) | `POST /clients` dengan `password:"pendek"` → 400 `VALIDATION_ERROR` / `WEAK_PASSWORD`; tanpa `password` → 400; dengan password ≥8 → 201 + password sekali tampil yang langsung bisa dipakai login MQTT |
 | 2.5 | Tetapkan dan dokumentasikan bentuk respons `POST /clients` (password sekali tampil), mis. `201 {client: {...}, generatedPassword: "..."}` atau yang setara, dan pastikan nama field konsisten. | SYS-B34 (FAT-105); K-06 | Buat klien via `POST /clients` di Real mode → respons memuat password pada field yang didokumentasikan; panel menampilkannya di modal sekali tampil tepat satu kali; `GET /clients/:name` sesudahnya tidak lagi memuat password |
 | 2.6 | Dokumentasikan bentuk objek klien (nama field status + bentuk `roles`/`groups`: string atau objek `{rolename/priority}` / `{groupname}`). Panel: mapper `enabled` sudah diperbaiki agar benar untuk kedua bentuk (E15 P15.3). | SYS-B35 (FAT-106); K-06 | Buat klien, nonaktifkan via `PATCH …/enable {enabled:false}`, lalu `GET /clients/:name` → panel menampilkan nonaktif; aktifkan kembali → tampil aktif |
@@ -361,8 +379,8 @@ diekspor.
 | 4.1 | Terapkan skema item audit dari Fase 1 (item 1.2) di implementasi `GET /system/audit` dan `GET /operational-events[/:deviceId]`. | SYS-B19 (FAT-90) | Lihat kriteria item 1.2 |
 | 4.2 | Perluas `GET /health` dengan objek `backend{status,label,environment,latency_ms}`, `database{engine,latency_ms}`, `mqtt{status,connected_clients,dynamic_security}`, `websocket{status}` (nilai nyata, diukur server); ATAU dokumentasikan secara eksplisit bahwa field-field itu tidak tersedia dan panel harus menyembunyikan kartu tersebut di Real mode. Field yang didokumentasikan hari ini (API §A) hanya: `status`, `uptime`, `timestamp`, `ws_clients`, `db_connected`, `buffer_pending`, `buffer_dropped`, `metrics{totalReceived, validIngested, invalidDiscarded, lastIngestedAt}`. | SYS-B20 (FAT-91) | Di Real mode, matikan broker MQTT (atau simulasikan) → kartu broker menampilkan `DOWN` / jumlah klien nyata, bukan `UP`; latensi menampilkan angka ukur nyata (>0) atau kartu disembunyikan; tidak ada lagi nilai hardcode `'production'` / `'enabled'` / `0` di respons yang dirender |
 | 4.3 | Terapkan keputusan K-14 (ack `operatorId`) dan selaraskan API §I dengan Guide §6.7 soal aturan body ack. | SYS-B21 (FAT-92); K-14 | Ack dari panel di Real mode mengembalikan `200 {id, acknowledgedAt, acknowledgedBy, ackNote}`; API §I dan Guide §6.7 menyatakan aturan body yang sama |
-| 4.4 | Tambahkan query param `severity` dan `acknowledged` (atau `ack_status`) pada `GET /api/v1/operational-events[/:deviceId]`, dokumentasikan nilainya; ATAU nyatakan resmi tidak didukung — maka panel harus menghapus kedua filter dari UI Real mode (atau memfilter client-side dengan catatan paginasi menjadi tidak akurat). | SYS-B22 (FAT-93) | `GET /api/v1/operational-events/?severity=ALARM&acknowledged=false&limit=50` di Real mode hanya mengembalikan baris yang cocok; atau, bila diputuskan tidak didukung, UI tidak lagi menawarkan kedua filter tersebut |
-| 4.5 | Selaraskan kedua dokumen dan implementasi: dukung `machine_id` pada list global + `machine_id` / `event_type` pada ekspor global (seperti Guide), atau hapus dari Guide dan panel. | SYS-B23 (FAT-94) | `GET /api/v1/operational-events/?machine_id=CNC-MILLING-01&envelope=true` dan ekspor global dengan `machine_id`+`event_type` di Real mode hanya mengembalikan baris yang cocok; API §I dan Guide §6.7/Lampiran A I mencantumkan parameter yang sama |
+| 4.4 | **DIPUTUSKAN E21 (B22 — ditutup):** filter `severity` **tidak didukung** — parameter tak dikenal diabaikan dengan `200` (§I:1076); panel sudah menghapus filter/kolom/tipe `severity` (E20 P20.4). Filter `acknowledged` (`true`/`false`) **didukung** di `GET /api/v1/operational-events[/:deviceId]` (§I:1014, 1097–1098) dan panel sudah mengirimnya. Sisa: `acknowledged` tidak terdaftar di daftar query `GET /system/audit` maupun export-nya — R-19. | SYS-B22 (FAT-93) | `GET /api/v1/operational-events/?acknowledged=false&limit=50` di Real mode hanya mengembalikan baris yang belum di-ack; `?severity=ALARM` diabaikan dengan 200 (bukan 400); UI tidak lagi menawarkan filter `severity` |
+| 4.5 | **DIBALIK SEBAGIAN E21 (B23 — masih Todo):** keputusan 18 Nov tidak tercermin penuh di api_docs — hanya `GET /system/audit` (:1069–1072) dan `/system/audit/export` (:1082) yang memuat `machine_id`; list global `GET /operational-events` (:1007–1018) dan ekspor global (:1085–1091) **tanpa** `machine_id` dan tanpa `event_type`. Backend: konfirmasikan apakah ketiadaan itu sengaja (arahkan ke `/system/audit`) atau kelalaian dokumen (R-18). Panel sudah mengirim `machine_id` hanya ke `/system/audit` (E20 P20.4). | SYS-B23 (FAT-94) | `GET /api/v1/system/audit/?machine_id=CNC-MILLING-01&envelope=true` dan ekspor system-audit dengan `machine_id`+`event_type` di Real mode hanya mengembalikan baris yang cocok; status `machine_id` di endpoint global dinyatakan tertulis (didukung atau resmi tidak didukung) |
 | 4.6 | Tambahkan `event_type` ke `GET /system/audit` secara terdokumentasi, ATAU nyatakan resmi bahwa parameter tak dikenal diabaikan (bukan 400). Selaraskan demo untuk memfilter `event_type` seperti halnya backend. | SYS-B24 (FAT-95); K-08, K-13 | `GET /api/v1/system/audit?event_type=MASTER_DATA_MUTATION&envelope=true` mengembalikan hanya baris yang cocok, atau dokumen menyatakan parameter diabaikan dan respons tetap 200; demo berperilaku sama |
 | 4.7 | Tambahkan `GET /system/audit/export` (`from`, `to`, `event_type`, `format`, `limit` ≤100000, retensi + rate limit seperti export operational-events, ADMIN+LAN) ATAU dokumentasikan resmi bahwa `GET /operational-events/export` adalah jalur ekspor yang didukung untuk feed ini. | SYS-B26 (FAT-97) | Tombol ekspor di `/admin/system-audit` mengunduh file CSV/NDJSON/JSON berisi feed yang sama dengan yang tampil di tabel; 400 `RETENTION_EXCEEDED` di luar 90 hari dan 429 pada rate limit berperilaku sama dengan ekspor operational-events |
 | 4.8 | (Opsional) Tambahkan `version` (dan bila perlu `build` / `name`) ke respons `GET /health`, atau sediakan `GET /api/v1/system/info`. | SYS-B27 (FAT-98) | SystemInfoPage menampilkan versi backend yang diambil dari server (bukan hardcode); sebelum endpoint ada, halaman tidak perlu diubah |
@@ -388,8 +406,8 @@ dan tanpa operasi async yang dilaporkan selesai sebelum waktunya.
 | 5.1 | Publikasikan skema JSON konfigurasi terstruktur (field, tipe, satuan, default, field yang diredaksi), enum `status` versi dan `type`/`status` operasi, dan contoh `GET /` + `GET /configurations/:versionId`. (Keputusan K-07 — diputuskan 17 Nov 2026: ikuti API doc; panel mempertahankan skema asumsinya sampai skema dipublikasikan. Panel: overview `configuration: null` sudah ditampilkan UNAVAILABLE — E15 P15.4.) | SYS-B43 (FAT-114); K-07 | `GET /api/v1/mqtt/configuration/` dan `GET /configurations` di Real mode mengembalikan field yang sama dengan skema yang didokumentasikan; edit `max_connections` di UI → stage → `GET /configurations/:versionId` menunjukkan nilai baru; tidak ada field yang hilang dalam round-trip |
 | 5.2 | Dokumentasikan dan terima field yang panel kirim pada stage, atau nyatakan bahwa `summary` adalah alias `reason`/`comment` dan `baseVersionId` boleh kosong (default = versi aktif). | SYS-B39 (FAT-110) | `POST /configurations {config, summary:"…"}` → 201 dengan `version_id`, `parent_version_id` = versi aktif, dan `summary`/`reason` yang sama seperti dikirim, terlihat di `GET /configurations` |
 | 5.3 | Terapkan keputusan K-04 untuk error 422 staging (lihat Fase 1, item 1.6). | SYS-B40 (FAT-111); K-04 | Lihat kriteria item 1.6 |
-| 5.4 | Dokumentasikan kapan `acknowledgeUnvalidated` wajib, status apa saja yang mungkin (`PENDING`/`RUNNING`/`SUCCEEDED`/`FAILED`), dan apakah `GET /operations/:id` boleh di-poll berulang. | SYS-B41 (FAT-112) | Apply versi staged → 202 + `operation_id`; polling `GET /operations/:id` hingga terminal; UI menampilkan status terminal yang benar; apply versi unvalidated tanpa `acknowledgeUnvalidated` → error yang jelas, dengan `acknowledgeUnvalidated:true` → lanjut |
-| 5.5 | Putuskan nasib `POST /backups`: (i) hapuskan/tidak usah mengimplementasikan (dan panel menghapus method-nya), ATAU (ii) bila diinginkan, daftarkan `POST /backups` (+ bila perlu `GET /backups/:id/download` dan restore) di dokumen; (iii) nyatakan apakah apply otomatis membuat backup. Hari ini dokumen hanya mengenal `GET /backups` (inventaris metadata saja). | SYS-B42 (FAT-113) | `GET /backups` → inventaris metadata; `POST /backups` → 404 yang terdokumentasi (bila tidak diimplementasikan) atau 201 (bila diimplementasikan); tidak ada aksi UI yang memanggil endpoint yang tidak ada |
+| 5.4 | Dokumentasikan kapan `acknowledgeUnvalidated` wajib, status apa saja yang mungkin (`PENDING`/`RUNNING`/`SUCCEEDED`/`FAILED`), dan apakah `GET /operations/:id` boleh di-poll berulang. **E21 (B41 — masih Todo, R-16):** apply/rollback async + polling terkonfirmasi (§3.3b:1418–1421, 1466), tetapi `acknowledgeUnvalidated` = **0 kemunculan** di seluruh 2100 baris api_docs — kapan wajib, error bila absen, apakah dihormati, semuanya tidak dinyatakan. | SYS-B41 (FAT-112) | Apply versi staged → 202 + `operation_id`; polling `GET /operations/:id` hingga terminal; UI menampilkan status terminal yang benar; apply versi unvalidated tanpa `acknowledgeUnvalidated` → error yang jelas, dengan `acknowledgeUnvalidated:true` → lanjut |
+| 5.5 | **DIPUTUSKAN E21 (B42 — ditutup):** `POST /backups` **tidak disediakan** (`404`); backup dibuat otomatis saat apply/rollback (§3.3b:1467). Panel sudah menghapus method-nya (E20 P20.5). (i) hapuskan/tidak usah mengimplementasikan — dan panel menghapus method-nya — adalah yang berlaku; opsi (ii)/(iii) gugur. `GET /backups` tetap inventaris metadata. | SYS-B42 (FAT-113) | `GET /backups` → inventaris metadata; `POST /backups` → 404 yang terdokumentasi (bila tidak diimplementasikan) atau 201 (bila diimplementasikan); tidak ada aksi UI yang memanggil endpoint yang tidak ada |
 | 5.6 | Dokumentasikan field dalam kedua objek overview (`dynamicSecurity` dan `configuration`) + perilaku saat plugin nonaktif. | SYS-B44 (FAT-115) | `GET /mqtt/overview` dengan plugin nonaktif → panel menampilkan "tidak tersedia" (bukan `IN_SYNC` + 0); dengan plugin aktif → angka clients/roles/groups sama dengan `GET /dynamic-security/clients|roles|groups` |
 
 **Catatan:** Item 5.4 menyangkut perilaku async yang hari ini ditutupi demo
@@ -408,7 +426,7 @@ dan tanpa kode error yang berbeda antara demo dan dokumen.
 
 | # | Item pekerjaan | Referensi | Kriteria selesai |
 | --- | --- | --- | --- |
-| 6.1 | Terapkan keputusan K-08 untuk filter Shift Schedules: terima kedua bentuk (`line_id`, `day_of_week`, `shift_id`, `is_active` — API §P.1 — dan `lineId`, `dayOfWeek`, `shiftId`, `isActive` — Guide Lampiran N), atau tetapkan satu dan perbaiki dokumen yang salah. | SYS-B45 (FAT-116); K-08 | `GET /shift-schedules?line_id=LINE-01&day_of_week=1` dan bentuk camelCase yang setara mengembalikan himpunan yang sama (atau salah satunya terdokumentasi sebagai satu-satunya yang benar dan panel disesuaikan) |
+| 6.1 | **DIPUTUSKAN E21 (B45 — ditutup):** filter Shift Schedules **hanya bentuk snake_case** `line_id`, `day_of_week`, `shift_id`, `is_active` (§P:1676, Q-036-05); **tidak ada alias camelCase**. Panel sudah mengirim snake_case. | SYS-B45 (FAT-116); K-08 | `GET /shift-schedules?line_id=LINE-01&day_of_week=1` mengembalikan himpunan yang benar; bentuk camelCase tidak didukung dan tidak dikirim panel |
 | 6.2 | Sertakan `startTime` dan `endTime` (dari shift yang dirujuk) pada list dan detail schedule, atau dokumentasikan bahwa panel harus join dengan `GET /shifts`. | SYS-B46 (FAT-117) | `GET /shift-schedules?line_id=LINE-01` → tiap item memuat `shiftName, shiftCode, startTime, endTime` yang konsisten dengan `GET /shifts/:shiftId` |
 | 6.3 | Nyatakan apakah `isActive` diterima di `POST /operators`; pastikan penonaktifan `ADM-001` → 400 `PROTECTED_ACCOUNT`, hapus `ADM-001` → 403 `PROTECTED_ACCOUNT` (sesuai Guide §7.3). | SYS-B47 (FAT-118) | `POST /operators` tanpa `isActive` → 201 `isActive:true`; `PATCH /operators/ADM-001/status {isActive:false}` → 400 `PROTECTED_ACCOUNT`; `DELETE /operators/ADM-001` → 403 `PROTECTED_ACCOUNT` |
 | 6.4 | Dokumentasikan apakah list dynsec (`clients`/`roles`/`groups`) dan `GET /operators` selalu lengkap (array polos) atau memakai cursor pagination + `limit` maksimum; bila berpaginasi, panel harus mengikuti `nextCursor`. | SYS-B48 (FAT-119) | Buat >100 klien dynsec (atau >50 operator) → panel menampilkan semuanya atau memaginasi dengan benar, bukan terpotong diam-diam |
@@ -455,7 +473,7 @@ memproyeksikannya). Gating di panel hanya UX/pertahanan lapis pertama.
 
 | # | Item pekerjaan | Kriteria selesai |
 | --- | --- | --- |
-| 7.7 | Tolak mutasi dari tunnel saat mode `private`: semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 132 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. | B7; V1: `POST /api/v1/products` via tunnel, mode `private` → 403 `FORBIDDEN`, tidak ada data berubah |
+| 7.7 | Tolak mutasi dari tunnel saat mode `private`: semua operasi tulis — `POST`/`PUT`/`PATCH`/`DELETE` pada 137 operasi admin (termasuk `POST /auth/password/change`, ack operational event, classify downtime, trigger reconciliation, semua mutasi IAM & MQTT) — WAJIB mengembalikan **403** bila `channel=tunnel` dan `mode=private`. Tanpa pengecualian. | B7; V1: `POST /api/v1/products` via tunnel, mode `private` → 403 `FORBIDDEN`, tidak ada data berubah |
 | 7.8 | Baca tetap diizinkan dari tunnel: `GET` (termasuk ekspor & history) tetap boleh dari tunnel di kedua mode — tunnel memang dibuat untuk observasi jarak jauh. | B8; V4: `GET /api/v1/devices` via tunnel, mode `private` → 200 |
 | 7.9 | Login dari tunnel mengikuti mode: `POST /auth/login` dari tunnel diizinkan di mode `public`; di mode `private` **ditolak 403** (konsisten dengan panel — login demo pun dijaga). Alasan: sesi yang lahir dari tunnel di mode private tidak boleh ada. | B9; V5/V6 |
 | 7.10 | WebSocket telemetri read-only: `GET /ws/telemetry` boleh dari kedua kanal di kedua mode, tetapi **hanya stream baca**. Tidak ada pesan tulis/aktuasi lewat WS (ADR-003). | B10; V12 |
@@ -466,7 +484,7 @@ memproyeksikannya). Gating di panel hanya UX/pertahanan lapis pertama.
 
 | # | Item pekerjaan | Kriteria selesai |
 | --- | --- | --- |
-| 7.13 | Endpoint status akses: `GET /api/v1/system/access-mode` (atau perluasan `GET /health`) mengembalikan minimal `{ "mode": "private" \| "public", "channel": "lan" \| "tunnel", "mutations_allowed": true \| false }`. Endpoint ini **tidak butuh auth** (atau butuh auth minimal) supaya banner panel bisa tampil benar sebelum login. | B13; V8 |
+| 7.13 | Endpoint status akses: `GET /api/v1/system/access-mode` (atau perluasan `GET /health`) mengembalikan minimal `{ "mode": "private" \| "public", "channel": "lan" \| "tunnel", "mutations_allowed": true \| false }`. Endpoint ini **tidak butuh auth** (atau butuh auth minimal) supaya banner panel bisa tampil benar sebelum login. **Koreksi E20 (amandemen api_docs 09:23, belum terverifikasi di salinan file — R-23): endpoint ini ADA dan JWT wajib (tanpa token → 401); panel sudah mengonsumsinya (E20 P20.5). A10.2 keseluruhan tetap Blocked — enforcement server-side (B7/B11) belum ada.** | B13; V8 |
 | 7.14 | Sertakan di `GET /auth/me`: respons menyertakan `access_mode` + `mutations_allowed` untuk sesi berjalan, supaya panel tidak perlu menebak dari port. | B14 |
 | 7.15 | (Opsional, pelengkap) Setiap respons membawa header `X-Access-Channel: lan | tunnel` dan `X-Access-Mode: private | public` untuk debugging/observabilitas. | B15 |
 | 7.16 | Panel memakai data server bila tersedia (tugas frontend, sudah disiapkan: `resolveEffectiveAccess` — bila B13/B14 tersedia, panel memakai nilai server dan hanya memakai env sebagai fallback). | B16 |
@@ -507,7 +525,7 @@ mengirim field yang dibutuhkan kartu ringkasan, dan mendefinisikan perilaku
 yang hari ini hanya diputuskan di sisi panel/demo.
 
 **Usaha:** M. **Dependensi:** Fase 0 (K-15); Fase 1. Dokumen sumber:
-`docs/TELEMETRY_AUDIT.md` (audit 2026-11-16, 25 gap G1–G25; 19 usulan
+`docs/archive/TELEMETRY_AUDIT.md` (audit 2026-11-16, 25 gap G1–G25; 19 usulan
 sudah dikerjakan di sisi panel pada E11/E12 — AUDIT.md §14–§15).
 
 **Konteks:** E11/E12 menyelesaikan semua yang bisa diselesaikan dari sisi
@@ -526,7 +544,7 @@ tanggung jawab server.
 | 8.6 | Terapkan default server yang didokumentasikan: limit hourly 72, limit rollup 500 (fallback transport), bucket aggregate 5m, bucket timeline 5m, groupBy rollup `day`, timeout ekspor 120.000 ms. Panel sudah menyamakan default-nya (T12.18/U-4) — **perilaku default di sisi server belum terverifikasi**. Satu deviasi dipertahankan di panel: ukuran paginasi UI rollup tetap 50 (konstanta bersama halaman lain). | G15; AUDIT.md §15 (T12.18) | Server mengembalikan 72 bucket hourly dan 500 baris rollup bila pemanggil tidak mengirim `limit`; bucket default sesuai dokumen |
 | 8.7 | Pastikan rollup (`GET /api/v1/telemetry/rollup`, §K.3c, CAgg `oee_daily_summary`) dan aggregate (§K.4, `time_bucket` server) memakai definisi server yang konsisten: `*Pct` = rasio dari total SUM (bukan AVG), `good = max(0, output − reject)`, performance = kapasitas berbobot waktu (`target_per_hour × operating_sec / 3600`), kapasitas 0/unknown → `null`. Rollup bukan SUM hourly di klien — dua respons server independen. | G2, G4, G6; AUDIT.md §13–§15 | Σ hourly, summary, dan rollup untuk satu shift yang sama bisa direkonsiliasi (selisih parts 334 vs 350 sudah diselesaikan di sisi panel via Opsi A, T12.6a — server harus konsisten dengan basis yang sama) |
 | 8.8 | Ekspor (raw/hourly/rollup) menghormati `from`/`to` untuk isi data, bukan hanya kolomnya. Panel sudah menyamakan kolom ekspor dengan layar (T12.7/F-8) — isi ekspor demo hourly masih mengabaikan `from`/`to`. | G5, G22; AUDIT.md §15 (T12.7) | Ekspor pada rentang tertentu hanya berisi baris dalam rentang itu; kolom ekspor bisa dipetakan 1:1 ke layar |
-| 8.9 | Dokumentasikan rumus A/P/Q eksplisit (pembilang/penyebut) dan perilaku bucketing server (penyejajaran kalender vs sliding, pemotongan segmen lintas bucket, pengisian bucket kosong — "state terakhir / `UNCONFIGURED`"). Hari ini rumus eksplisit tidak tertulis di kedua dokumen — hanya pct = rasio SUM, `good = max(0, output − reject)`, dan kapasitas performance. | TELEMETRY_AUDIT.md (d); AUDIT.md §13 | Rumus dan aturan bucketing tertulis di dokumen API; perilaku server bisa diverifikasi terhadap dokumen tanpa menebak |
+| 8.9 | Dokumentasikan rumus A/P/Q eksplisit (pembilang/penyebut) dan perilaku bucketing server (penyejajaran kalender vs sliding, pemotongan segmen lintas bucket, pengisian bucket kosong — "state terakhir / `UNCONFIGURED`"). Hari ini rumus eksplisit tidak tertulis di kedua dokumen — hanya pct = rasio SUM, `good = max(0, output − reject)`, dan kapasitas performance. | `docs/archive/TELEMETRY_AUDIT.md` (d); AUDIT.md §13 | Rumus dan aturan bucketing tertulis di dokumen API; perilaku server bisa diverifikasi terhadap dokumen tanpa menebak |
 | 8.10 | Kirim flag `provisional` secara konsisten: hourly, rollup, aggregate, dan segmen timeline (hari ini segmen timeline tidak punya field-nya; contoh respons §Q.3 juga tidak memuatnya). CAgg refresh 5 menit, end_offset 1 menit. | G12 | Data yang belum final ditandai di semua tampilan; tidak ada lagi keputusan dari data yang masih akan berubah tanpa peringatan |
 | 8.11 | Satuan field berdasarkan nama field: `cycle_time_ms` dalam milidetik, `*_sec` dalam detik — jangan mengandalkan urutan fallback klien. | G20 | Nilai cycle time di layar Raw benar berapa pun field yang dikirim server |
 | 8.12 | Zona waktu tunggal `Asia/Jakarta` untuk kunci hari/bulan dan semua label waktu; segmen timeline memakai ISO 8601 (`start`/`end`) dengan `window.tz`. | G11 | Batas hari/shift tidak bergeser menurut zona waktu mesin yang membuka panel; timeline bisa dibaca tanpa tooltip |
@@ -624,9 +642,12 @@ checklist verifikasi akhir.
 
 ## Lampiran A — Indeks gap SYS-B1–SYS-B50
 
-Sumber: `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` (detail lengkap tiap gap) dan
-`docs/LINEAR.md` §1.3/§8 (pemetaan kunci → nomor Linear). Semua 50 issue
-berstatus Todo di bawah Epic E13 (FAT-71). Judul di bawah ini dipersingkat;
+Sumber: `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md` (detail lengkap tiap gap) dan
+`docs/LINEAR.md` §1.3/§8 (pemetaan kunci → nomor Linear). **Pembaruan E21
+(19 Nov 2026):** 36 dari 50 issue ditutup (34 terselesaikan + 2
+berubah/digantikan — B13, B30); 14 masih Todo (B3, B6, B11, B12, B17, B23,
+B31–B37, B41). Verdict per gap dengan bukti pasal + baris api_docs ada di
+`docs/BACKEND_SYNC_CLOSURE.md` §2. Judul di bawah ini dipersingkat;
 judul lengkap ada di dokumen gap dan di Linear.
 
 | ID | Judul singkat | Severity | Fase | Linear |
@@ -770,7 +791,7 @@ E10 — A10.2 (FAT-40).
 
 ### C.1a Perubahan keputusan — 18 November 2026 (delegasi Fathur ke Muse)
 
-> **Sumber:** keputusan backend 18 Nov 2026 (SYS-B8–B50, `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`) + analisis relevansi E17 (`docs/BACKEND_DECISIONS_REALITY_CHECK.md`). Fathur mendelegasikan seluruh keputusan penutupan gap ke Muse pada 18 Nov 2026 malam, dengan syarat: merujuk kebutuhan real-case, menutup gap backend–panel, **tanpa duplikasi flow dan tanpa flow deprecated** — satu alur kanonis per item. Baris C.1 di atas dipertahankan sebagai riwayat; tabel ini adalah keputusan yang berlaku.
+> **Sumber:** keputusan backend 18 Nov 2026 (SYS-B8–B50, `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`) + analisis relevansi E17 (`docs/archive/BACKEND_DECISIONS_REALITY_CHECK.md`). Fathur mendelegasikan seluruh keputusan penutupan gap ke Muse pada 18 Nov 2026 malam, dengan syarat: merujuk kebutuhan real-case, menutup gap backend–panel, **tanpa duplikasi flow dan tanpa flow deprecated** — satu alur kanonis per item. Baris C.1 di atas dipertahankan sebagai riwayat; tabel ini adalah keputusan yang berlaku.
 
 | # | Keputusan 17 Nov (Fathur) | Keputusan 18 Nov (delegasi) | Alasan / dasar | Diputuskan oleh |
 | --- | --- | --- | --- | --- |
@@ -815,8 +836,9 @@ E10 — A10.2 (FAT-40).
 
 ---
 
-*Dokumen ini disusun 17 November 2026 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md`
+*Dokumen ini disusun 17 November 2026 dari `docs/archive/BACKEND_GAPS_SYSTEM_ADMIN.md`
 (50 gap SYS-B1–SYS-B50), `docs/BACKEND_REQUIREMENTS_ACCESS_MODE.md` (B1–B25,
-V1–V12), `docs/TELEMETRY_AUDIT.md` (G1–G25), `AUDIT.md` §14–§18, dan
+V1–V12), `docs/archive/TELEMETRY_AUDIT.md` (G1–G25), `AUDIT.md` §14–§18, dan
 `docs/LINEAR.md` §1.3/§8. Backend belum ada saat dokumen ini ditulis; mode
-Real belum pernah terverifikasi end-to-end.*
+Real belum pernah terverifikasi end-to-end. Diperbarui 19 November 2026 (v1.2,
+E21): status gap, registry 137, tests 368/368, Linear 163 issue.*

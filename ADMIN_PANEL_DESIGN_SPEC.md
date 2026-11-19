@@ -1,5 +1,14 @@
 # Spesifikasi Desain Admin Panel — IIoT OEE
 
+> **Catatan status (19 Nov 2026):** dokumen ini dipertahankan **utuh sebagai arsip
+> desain historis** (v1.0, 12 Nov 2026) — bodinya tidak ditulis ulang. Kontrak
+> otoritatif kini adalah `docs/admin-panel/ADMIN_PANEL_DOCUMENTATION.md`
+> (diperbarui 19 Nov 2026, E20+E21 — sinkron ke api_docs terupdate) +
+> `AUDIT.md` §23–§25. Bila isi dokumen ini bertentangan dengan kedua dokumen
+> itu (mis. status WO tanpa `PENDING_CLOSE`, provisioning via dynsec, mode
+> AUTHZ `"partial"`, dispatch/complete di panel), yang berlaku adalah kontrak
+> yang diperbarui.
+
 | Kontrol dokumen | Nilai |
 |---|---|
 | Versi | 1.0 |

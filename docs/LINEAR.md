@@ -201,7 +201,7 @@ dianggap selesai penuh.
 | E16 | Sinkronisasi dokumen panduan upgrade backend (plan + gaps + terkait) | — | Done | High | `real-backend`, `docs` |
 | P16.1 | BACKEND_UPGRADE_PLAN.md: angka + status (Linear 129, registry 132, tests 335/335, AUDIT §14–§18, v1.1) | E16 | Done | High | `real-backend`, `docs` |
 | P16.2 | BACKEND_GAPS_SYSTEM_ADMIN.md: status panel pasca-audit E14/E15 + registry 132 | E16 | Done | High | `real-backend`, `docs` |
-| P16.3 | BACKEND_REQUIREMENTS_ACCESS_MODE.md (B7: 131→132) + TELEMETRY_AUDIT.md (pointer status panel) | E16 | Done | High | `real-backend`, `docs` |
+| P16.3 | BACKEND_REQUIREMENTS_ACCESS_MODE.md (B7: 131→132) + docs/archive/TELEMETRY_AUDIT.md (pointer status panel) | E16 | Done | High | `real-backend`, `docs` |
 | P16.4 | Verifikasi E16 + LINEAR.md + seed v15 | E16 | Done | High | `verification`, `docs` |
 | E17 | Analisis relevansi keputusan Fase 0 vs keputusan backend 18 Nov & real-case industri | K-01–K-15 | Done | High | `real-backend`, `docs` |
 | P17.1 | Pull + baca keputusan backend 18 Nov (SYS-B8..B50) + decision log Fase 0 | E17 | Done | High | `real-backend`, `docs` |
@@ -232,6 +232,7 @@ dianggap selesai penuh.
 | P21.5 | Verifikasi Master Data (B45–B50) vs api_docs baru | E21 | Done | High | `real-backend` |
 | P21.6 | R-items + kontradiksi → tindak lanjut backend (R-16–R-23 baru) | E21 | Done | High | `real-backend`, `docs` |
 | P21.7 | Verifikasi E21 + AUDIT §25 + LINEAR.md + seed v21 | E21 | Done | High | `verification`, `docs` |
+| FAT-168 | Arsip dokumen gap tertutup + perbarui dokumentasi admin panel | — | Done | High | `docs` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -425,8 +426,8 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **163 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **140 Done, 1 In Progress, 22 Todo**, 21 Epic tanpa parent, 142 child dengan
+- Issue: **164 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
+  **141 Done, 1 In Progress, 22 Todo**, 21 Epic tanpa parent, 143 child dengan
   `parentId` — E21 Done 2026-11-19 (36 gap SYS-B ditutup: 34 terselesaikan +
   2 berubah; 14 tetap Todo). Todo tersisa: 14 SYS-B terbuka + E13 (FAT-71) +
   V8.1–V8.5 (FAT-31/28/30/29/27) + A10.2 (FAT-40) + E8 (FAT-7); satu-satunya
@@ -438,7 +439,7 @@ tapi status implementasi yang berlaku adalah status di Linear.
   2026-11-17 dari `docs/E12_PROPOSAL.md` — admin-panel saja, infra Nginx +
   backend dikecualikan, Done 2026-11-17 — AUDIT.md §15, Epic E12 ditutup
   2026-11-17, di-push `af5011f`; T12.6a (Opsi A, FAT-70) dibuat 2026-11-17
-  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15; E13/SYS-B1–SYS-B50 dibuat 2026-11-17 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` — gap backend System Admin, belum dikerjakan, Epic E13 Todo; E14/P14.1–P14.5 dibuat 2026-11-17 dari keputusan Fase 0 Fathur (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §17, Epic E14 ditutup 2026-11-17; E15/P15.1–P15.5 dibuat 2026-11-17 dari keputusan Fathur mengikuti desain API_DOCUMENTATION untuk K-05/K-06/K-07 (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §18, Epic E15 ditutup 2026-11-17; E16/P16.1–P16.4 dibuat 2026-11-17 dari permintaan Fathur menyinkronkan dokumen panduan upgrade backend — Done 2026-11-17 — AUDIT.md §19, Epic E16 ditutup 2026-11-17; E17/P17.1–P17.4 dibuat 2026-11-18 dari permintaan Fathur menganalisis relevansi keputusan Fase 0 vs keputusan backend 18 Nov (SYS-B8–B50, Fathur) & real-case industri — Done 2026-11-18 — AUDIT.md §20, Epic E17 ditutup 2026-11-18; E18/P18.1–P18.4 dibuat 2026-11-18 dari delegasi Fathur menutup seluruh keputusan gap (22 item: 4 pembalikan diterima, 4 Fase 0 dikonfirmasi tetap, 7 gap baru, 7 arah panel) — Done 2026-11-18 — AUDIT.md §21, Epic E18 ditutup 2026-11-18; E19/P19.1–P19.2 dibuat 2026-11-18 dari permintaan Fathur memperbarui gaps doc agar semua gap tertutup + push — tabel status 50/50 (39 backend 18 Nov, 6 delegasi E18, 5 panel-side); "tertutup" = keputusan tercatat, SYS-B1–B50 tetap Todo — Done 2026-11-18 — AUDIT.md §22, Epic E19 ditutup 2026-11-18; E20/P20.1 dibuat 2026-11-19 dari API docs terupdate Fathur (diff 294 entri, P20.1 Done) + P20.7 dibuat 2026-11-19 dari permintaan Fathur mengikuti api_docs (D-1–D-14 diputuskan, dokumen tinjau-ulang baru, gaps lama diarsipkan) — AUDIT.md §23, Epic E20 masih berjalan (implementasi batch menunggu kata Fathur); implementasi 4 batch SELESAI + terverifikasi independen 2026-11-19 (AUDIT.md §24) — Epic E20 ditutup 2026-11-19, 2 temuan verifikasi diperbaiki parent (test tanggal PeriodRangePicker + pola terlarang /clients/provision).
+  atas keputusan Fathur, Done 2026-11-17 — AUDIT.md §15; E13/SYS-B1–SYS-B50 dibuat 2026-11-17 dari `docs/BACKEND_GAPS_SYSTEM_ADMIN.md` — gap backend System Admin, belum dikerjakan, Epic E13 Todo; E14/P14.1–P14.5 dibuat 2026-11-17 dari keputusan Fase 0 Fathur (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §17, Epic E14 ditutup 2026-11-17; E15/P15.1–P15.5 dibuat 2026-11-17 dari keputusan Fathur mengikuti desain API_DOCUMENTATION untuk K-05/K-06/K-07 (decision log Lampiran C `docs/BACKEND_UPGRADE_PLAN.md`) — tindak lanjut panel, Done 2026-11-17 — AUDIT.md §18, Epic E15 ditutup 2026-11-17; E16/P16.1–P16.4 dibuat 2026-11-17 dari permintaan Fathur menyinkronkan dokumen panduan upgrade backend — Done 2026-11-17 — AUDIT.md §19, Epic E16 ditutup 2026-11-17; E17/P17.1–P17.4 dibuat 2026-11-18 dari permintaan Fathur menganalisis relevansi keputusan Fase 0 vs keputusan backend 18 Nov (SYS-B8–B50, Fathur) & real-case industri — Done 2026-11-18 — AUDIT.md §20, Epic E17 ditutup 2026-11-18; E18/P18.1–P18.4 dibuat 2026-11-18 dari delegasi Fathur menutup seluruh keputusan gap (22 item: 4 pembalikan diterima, 4 Fase 0 dikonfirmasi tetap, 7 gap baru, 7 arah panel) — Done 2026-11-18 — AUDIT.md §21, Epic E18 ditutup 2026-11-18; E19/P19.1–P19.2 dibuat 2026-11-18 dari permintaan Fathur memperbarui gaps doc agar semua gap tertutup + push — tabel status 50/50 (39 backend 18 Nov, 6 delegasi E18, 5 panel-side); "tertutup" = keputusan tercatat, SYS-B1–B50 tetap Todo — Done 2026-11-18 — AUDIT.md §22, Epic E19 ditutup 2026-11-18; E20/P20.1 dibuat 2026-11-19 dari API docs terupdate Fathur (diff 294 entri, P20.1 Done) + P20.7 dibuat 2026-11-19 dari permintaan Fathur mengikuti api_docs (D-1–D-14 diputuskan, dokumen tinjau-ulang baru, gaps lama diarsipkan) — AUDIT.md §23, Epic E20 masih berjalan (implementasi batch menunggu kata Fathur); implementasi 4 batch SELESAI + terverifikasi independen 2026-11-19 (AUDIT.md §24) — Epic E20 ditutup 2026-11-19, 2 temuan verifikasi diperbaiki parent (test tanggal PeriodRangePicker + pola terlarang /clients/provision); FAT-168 (arsip dokumen gap + perbarui dokumentasi admin panel) dibuat 2026-11-19, Done 2026-11-19 — AUDIT.md §26.
 - Status tim: `Backlog`, `Todo`, `In Progress`, `In Review`, `Done`,
   `Canceled`, `Duplicate` — dipakai apa adanya (lihat §2).
 
