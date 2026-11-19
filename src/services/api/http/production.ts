@@ -231,7 +231,7 @@ export const httpProduction = {
 
   async updateShiftSchedule(
     scheduleId: string,
-    patch: { lineId?: string; shiftId?: string; dayOfWeek?: number; isActive?: boolean },
+    patch: { shiftId?: string; dayOfWeek?: number; isActive?: boolean },
   ): Promise<ShiftSchedule> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -239,7 +239,16 @@ export const httpProduction = {
       {
         method: 'PATCH',
         path: ADMIN_ENDPOINTS.SHIFT_SCHEDULES_UPDATE.buildPath(scheduleId),
-        body: { ...patch },
+        // E23 Batch 2 (FAT-187, N-18): body spec live PATCH hanya
+        // `{shiftId?, dayOfWeek?, isActive?}` — TANPA `lineId`. Lini
+        // TIDAK bisa diubah via PATCH; `lineId` tidak pernah dikirim
+        // (dulu `{...patch}` membocorkan lineId → risiko 400 bila server
+        // validasi strict). Tipe patch tidak lagi menerima lineId.
+        body: {
+          ...(patch.shiftId !== undefined ? { shiftId: patch.shiftId } : {}),
+          ...(patch.dayOfWeek !== undefined ? { dayOfWeek: patch.dayOfWeek } : {}),
+          ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+        },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
         endpointKey: 'SHIFT_SCHEDULES_UPDATE',

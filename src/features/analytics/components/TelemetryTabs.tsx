@@ -69,6 +69,7 @@ export const TelemetryTabs: React.FC<TelemetryTabsProps> = ({
           className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
         >
           <option value="machine">Group by: Mesin</option>
+          <option value="line">Group by: Lini</option>
           <option value="day">Group by: Harian</option>
           <option value="month">Group by: Bulanan</option>
         </select>

@@ -166,7 +166,7 @@ export const SystemHealthPage: React.FC = () => {
                 </div>
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
                   <div className="font-semibold text-slate-900 dark:text-slate-100">
-                    Basis Data · <span className={detail.database.status === 'UP' ? 'text-emerald-600' : 'text-red-600'}>{detail.database.status}</span>
+                    Basis Data · <span className={detail.database.status === 'UP' ? 'text-emerald-600' : detail.database.status === 'DEGRADED' ? 'text-amber-600' : 'text-red-600'}>{detail.database.status}</span>
                   </div>
                   <div className="text-slate-500">
                     Latensi SELECT 1: {detail.database.latencyMs !== null ? `${detail.database.latencyMs} ms` : '—'}
@@ -177,15 +177,21 @@ export const SystemHealthPage: React.FC = () => {
                 </div>
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
                   <div className="font-semibold text-slate-900 dark:text-slate-100">
-                    MQTT Admin · <span className={detail.mqtt.status === 'UP' ? 'text-emerald-600' : 'text-red-600'}>{detail.mqtt.status}</span>
+                    MQTT Admin · <span className={detail.mqtt.status === 'UP' ? 'text-emerald-600' : detail.mqtt.status === 'DEGRADED' ? 'text-amber-600' : 'text-red-600'}>{detail.mqtt.status}</span>
                   </div>
                   <div className="text-slate-500">
-                    Koneksi admin: {detail.mqtt.adminConnection.connected === null ? '—' : detail.mqtt.adminConnection.connected ? 'Terhubung' : 'Terputus'}
-                    {' · '}Plugin siap: {detail.mqtt.adminConnection.pluginReady === null ? '—' : detail.mqtt.adminConnection.pluginReady ? 'Ya' : 'Tidak'}
+                    {detail.mqtt.adminConnection === null
+                      ? 'Koneksi admin: — (tidak dilaporkan server)'
+                      : (
+                        <>
+                          Koneksi admin: {detail.mqtt.adminConnection.connected === null ? '—' : detail.mqtt.adminConnection.connected ? 'Terhubung' : 'Terputus'}
+                          {' · '}Plugin siap: {detail.mqtt.adminConnection.pluginReady === null ? '—' : detail.mqtt.adminConnection.pluginReady ? 'Ya' : 'Tidak'}
+                        </>
+                      )}
                   </div>
                   <div className="text-slate-500">
                     Klien: {detail.mqtt.clientsCount ?? '—'}
-                    {detail.mqtt.adminConnection.lastError ? ` · Galat terakhir: ${detail.mqtt.adminConnection.lastError}` : ''}
+                    {detail.mqtt.adminConnection?.lastError ? ` · Galat terakhir: ${detail.mqtt.adminConnection.lastError}` : ''}
                   </div>
                   <div className="text-slate-400">
                     Diukur: {detail.mqtt.measuredAt ? new Date(detail.mqtt.measuredAt).toLocaleString() : '—'}

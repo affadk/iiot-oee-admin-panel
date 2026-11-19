@@ -73,10 +73,10 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     assert.equal(normalizeMacAddress('aa-bb-cc-dd-ee-ff'), 'AA:BB:CC:DD:EE:FF');
 
     // A3: CREATE device valid (with '-' MAC normalized to uppercase ':') + IPv6
+    // E23 Batch 4 (FAT-206, N-37): spec live POST /devices tanpa
+    // model/serial_number — keduanya tidak lagi dikirim.
     const created = await apiClient.registerDevice({
       device_id: 'STM32-TEST-90',
-      model: 'STM32H743-Edge-Pro',
-      serial_number: 'SN-TEST-90',
       mac_address: 'aa-bb-cc-11-22-90',
       ip_address: '2001:db8::90',
       firmware_version: 'v2.5.0',

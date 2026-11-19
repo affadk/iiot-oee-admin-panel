@@ -93,7 +93,7 @@ dianggap selesai penuh.
 | F7.1 | WebSocket telemetry + reconnect + simulasi demo 5 dtk | E7 | Done | Medium | `fase-7`, `demo`, `real-backend` |
 | E8 | Verifikasi, Testing & Go-live (§11–15) | — | **Todo** | High | `verification` |
 | V8.1 | Verifikasi visual di browser sungguhan (3 halaman baru + Topbar) | E8 | **Todo** | High | `verification` |
-| V8.2 | Verifikasi Mode Real end-to-end vs backend | E8 | **Todo — Blocked** | High | `verification`, `real-backend`, `blocked` |
+| V8.2 | Verifikasi Mode Real end-to-end vs backend | E8 | **In Progress** | High | `verification`, `real-backend` |
 | V8.3 | Uji integrasi LAN per modul (Guide §12, 1 alur E2E/modul) | E8 | **Todo — Blocked** | High | `verification`, `real-backend`, `blocked` |
 | V8.4 | Deployment Nginx §13 (Vite statis, port 80/8080, CSP, no-store) | E8 | **Todo** | Medium | `deployment` |
 | V8.5 | Definition of Done §15 — checklist per modul | E8 | **Todo** | High | `verification`, `docs` |
@@ -233,6 +233,48 @@ dianggap selesai penuh.
 | P21.6 | R-items + kontradiksi → tindak lanjut backend (R-16–R-23 baru) | E21 | Done | High | `real-backend`, `docs` |
 | P21.7 | Verifikasi E21 + AUDIT §25 + LINEAR.md + seed v21 | E21 | Done | High | `verification`, `docs` |
 | FAT-168 | Arsip dokumen gap tertutup + perbarui dokumentasi admin panel | — | Done | High | `docs` |
+| E22 | Live API audit Fase 1: gap baru (N-2–N-5) | API_LIVE_AUDIT.md | Todo | Medium | `verification`, `real-backend` |
+| N-2 | Panel: default device hardcoded STM32-OEE-01 — ambil dari daftar live | E22 | Todo | Low | `verification`, `real-backend` |
+| N-3 | Backend: urutan gate auth-vs-validasi tidak konsisten pada mutasi | E22 | Todo | Low | `verification`, `real-backend` |
+| N-4 | Backend: dua teks pesan 401 berbeda | E22 | Todo | Low | `verification`, `real-backend` |
+| N-5 | Produk live tanpa sku/isActive — panel tampilkan productId sebagai SKU | E22 | Todo | Low | `verification`, `real-backend` |
+| E23 | Audit endpoint vs api_docs live (OpenAPI): gap baru N-6–N-41 | API_DOCS_AUDIT.md | Todo | High | `verification`, `real-backend` |
+| N-6 | CORS origin panel Vercel tidak diizinkan — blokir semua akses browser | E23 | Todo | Urgent | `security`, `real-backend`, `verification` |
+| N-7 | Inspector effective-permissions: roles string[] dibaca sebagai objek | E23 | Done | High | `verification`, `real-backend` |
+| N-8 | Reconciliation refresh: body {from,to} vs spec {startWindow,endWindow} | E23 | Done | High | `verification`, `real-backend` |
+| N-9 | 7 sub-op DynSec kembalikan {success} saja; panel petakan jadi objek penuh | E23 | Done | High | `verification`, `real-backend` |
+| N-10 | MQTT config status: bentuk spec bertentangan total dengan mapper panel | E23 | Done | High | `verification`, `real-backend` |
+| N-11 | Telemetry aggregate: delta vs count — total_parts selalu 0 | E23 | Done | High | `verification`, `real-backend` |
+| N-12 | Config stage: bridges butuh password + validation/impact/diff dibuang | E23 | Done | High | `verification`, `real-backend` |
+| N-13 | Config diff: lines[] diabaikan — tampilan diff selalu kosong | E23 | Done | High | `verification`, `real-backend` |
+| N-14 | Machines: lineId tidak pernah dikirim | E23 | Done | Medium | `verification`, `real-backend` |
+| N-15 | PUT device: null untuk IP/firmware yang dikosongkan → 400 | E23 | Done | Medium | `verification`, `real-backend` |
+| N-16 | Shifts: ShiftSchema HH:MM ketat vs spec string polos | E23 | Done | Medium | `verification`, `real-backend` |
+| N-17 | Shift schedules: dayOfWeek 1..7 vs spec number tanpa konvensi | E23 | Done | Medium | `verification`, `real-backend` |
+| N-18 | PATCH shift-schedule mengirim lineId yang tak ada di body spec | E23 | Done | Medium | `verification`, `real-backend` |
+| N-19 | Filter WO ID diam-diam tidak berfungsi | E23 | Done | Medium | `verification`, `real-backend` |
+| N-20 | /health/detail: DEGRADED hilang + adminConnection difabrikasi | E23 | Done | Medium | `verification`, `real-backend` |
+| N-21 | Telemetry history: 4 field spec dilewatkan mapper | E23 | Done | Medium | `verification`, `real-backend` |
+| N-22 | Reconciliation jobs: mapper baca field yang tak ada | E23 | Done | Medium | `verification`, `real-backend` |
+| N-23 | Query limit wajib di spec tapi panel tak selalu mengirim | E23 | Done | Medium | `verification`, `real-backend` |
+| N-24 | Encoding ekspor: spec JSON-string vs panel baca teks mentah | E23 | Done | Medium | `verification`, `real-backend` |
+| N-25 | Downtime mapper: kategori selalu OTHER + param tak terdaftar + tipe operator | E23 | Done | Medium | `verification`, `real-backend` |
+| N-26 | Telemetry rollup: group_by='line' tak dikenal + envelope=true | E23 | Done | Medium | `verification`, `real-backend` |
+| N-27 | OEE shift-summary: counts + nama tak ada — parts selalu 0 | E23 | Done | Medium | `verification`, `real-backend` |
+| N-28 | MQTT overview: status di-hardcode + lastOperation + reason | E23 | Done | Medium | `verification`, `real-backend` |
+| N-29 | Config GET: unmanaged[] objek + default fabrikasi | E23 | Done | Medium | `verification`, `real-backend` |
+| N-30 | Config raw: dokumen JSON ditampilkan sebagai teks config | E23 | Done | Medium | `verification`, `real-backend` |
+| N-31 | Config operations: type salah petakan + timestamp epoch | E23 | Done | Medium | `verification`, `real-backend` |
+| N-34 | Ekspor op-events: filter event_type tidak dikirim padahal spec menerimanya | E23 | Done | Medium | `verification`, `real-backend` |
+| N-32 | Device health eventFlags: asumsi bit belum terverifikasi | E23 | Todo | Low | `verification`, `real-backend` |
+| N-33 | DynSec status: bentuk spec bertentangan total, laten | E23 | Done | Low | `verification`, `real-backend` |
+| N-35 | WO cancel/resolve: fabrikasi respons | E23 | Done | Low | `verification`, `real-backend` |
+| N-36 | IAM info: catalogueVersion dibuang | E23 | Done | Low | `verification`, `real-backend` |
+| N-37 | Legacy POST /devices: model/serial dibuang + mac_address diwajibkan | E23 | Done | Low | `verification`, `real-backend` |
+| N-38 | Halaman login tanpa badge mode API / indikator koneksi | E23 | Todo (parsial: badge + label akses selesai 6d54f97; indikator koneksi tersisa) | Low | `verification`, `real-backend` |
+| N-39 | MQTT_CONFIG_GET: trailing slash di template registry | E23 | Done | Low | `verification`, `real-backend` |
+| N-40 | Spec OpenAPI tidak mendeklarasikan respons error 401/400 (17 op Access Control) | E23 | Todo | Low | `verification`, `real-backend` |
+| N-41 | Perilaku 404 vs [] untuk device tak dikenal tidak konsisten | E23 | Todo | Low | `verification`, `real-backend` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -426,12 +468,27 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **164 issue terverifikasi** via `list_issues` (project `P-FAT-1`):
-  **141 Done, 1 In Progress, 22 Todo**, 21 Epic tanpa parent, 143 child dengan
-  `parentId` — E21 Done 2026-11-19 (36 gap SYS-B ditutup: 34 terselesaikan +
-  2 berubah; 14 tetap Todo). Todo tersisa: 14 SYS-B terbuka + E13 (FAT-71) +
-  V8.1–V8.5 (FAT-31/28/30/29/27) + A10.2 (FAT-40) + E8 (FAT-7); satu-satunya
-  In Progress tetap E10 (FAT-34).
+- Issue: **210 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
+  paginasi penuh, 19 Nov 2026 pasca-E23): **172 Done, 2 In Progress, 36 Todo**,
+  28 tanpa parent, 182 child dengan `parentId`. Koreksi hitungan: total ini
+  mencakup 4 issue onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja
+  proyek) yang tidak masuk hitungan 169/206 sebelumnya; tanpa keempatnya,
+  total proyek = 206. Todo tersisa (36): 4 onboarding + 14 SYS-B terbuka +
+  E13 (FAT-71) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27) + A10.2 (FAT-40) +
+  E8 (FAT-7) + E22 (FAT-169) + N-2–N-5 (FAT-170/171/173/172) + E23 (FAT-174) +
+  N-6 (FAT-175) + N-32 (FAT-202) + N-38 parsial (FAT-207) + N-40/N-41
+  (FAT-209/210). E23 Batch 1–4 (19 Nov 2026) menutup 31 issue panel
+  (FAT-176–182, 183–191, 192–201, 203–206, 208).
+  In Progress: E10 (FAT-34) + V8.2 (FAT-28, tidak lagi Blocked sejak API
+  live 19 Nov 2026 — AUDIT.md §27; tes browser-nya parkir menunggu perbaikan N-6).
+  E22 (FAT-169, Todo, Medium) + 4 anak N-2–N-5 dari audit API live Fase 1,
+  19 Nov 2026 (API_LIVE_AUDIT.md). N-1 (502 PATCH dynsec enable) TIDAK
+  dijadikan issue — tidak terreproduksi pada verifikasi ulang parent
+  16:03 WIB; transien restart backend ~15:52 WIB.
+  E23 (FAT-174, Todo, High) + 36 anak N-6–N-41 dari audit endpoint vs api_docs
+  live (OpenAPI), 19 Nov 2026 (API_DOCS_AUDIT.md). N-6 (FAT-175, Urgent) =
+  CORS origin Vercel tidak diizinkan — blokir semua tes browser sampai backend
+  memperbaikinya.
   Riwayat: 28 issue awal + E9/R9.1–R9.6 dibuat 2026-11-16 ~14:20 WIB
   (R9.2–R9.6 Done malam itu); E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
   audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —

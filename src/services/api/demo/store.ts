@@ -89,6 +89,8 @@ class MemoryStore {
     mode: 'enforce',
     authzVersion: 7,
     effectiveInMode: 'ABAC + Scope Enforcement Active',
+    // E23 Batch 4 (FAT-205, N-36): `catalogueVersion` wajib di spec live.
+    catalogueVersion: '1.0.0',
     enforcedDomains: ['work_orders', 'operators', 'assets', 'mqtt', 'access_control', 'audit'],
   };
   iamRoles = [...INITIAL_IAM_ROLES];

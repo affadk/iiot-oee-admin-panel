@@ -78,6 +78,7 @@ export const OeeRollupTable: React.FC<OeeRollupTableProps> = ({
           className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
         >
           <option value="machine">Per Mesin</option>
+          <option value="line">Per Lini</option>
           <option value="day">Per Hari</option>
           <option value="month">Per Bulan</option>
         </select>
@@ -88,7 +89,14 @@ export const OeeRollupTable: React.FC<OeeRollupTableProps> = ({
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <th className="py-2.5 px-4">
-                {rollupGroupBy === 'machine' ? 'Mesin / Perangkat' : rollupGroupBy === 'day' ? 'Tanggal' : 'Bulan'}
+                {/* E23 Batch 3 (FAT-195, N-26): header 'line' = Lini. */}
+                {rollupGroupBy === 'machine'
+                  ? 'Mesin / Perangkat'
+                  : rollupGroupBy === 'line'
+                    ? 'Lini'
+                    : rollupGroupBy === 'day'
+                      ? 'Tanggal'
+                      : 'Bulan'}
               </th>
               <th className="py-2.5 px-4 text-right">OEE</th>
               <th className="py-2.5 px-4 text-right">Avail</th>

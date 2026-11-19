@@ -10,13 +10,14 @@ export function useTelemetryRollupColumns(groupBy: TelemetryRollupGroupBy) {
       {
         id: 'groupKey',
         header:
-          groupBy === 'machine' ? 'Mesin / Perangkat' : groupBy === 'day' ? 'Tanggal' : 'Bulan',
+          // E23 Batch 3 (FAT-195, N-26): header 'line' = Lini.
+          groupBy === 'machine' ? 'Mesin / Perangkat' : groupBy === 'line' ? 'Lini' : groupBy === 'day' ? 'Tanggal' : 'Bulan',
         cell: ({ row }) => {
           const item = row.original;
           return (
             <div className="text-xs">
               <div className="font-semibold text-slate-900 dark:text-slate-100">
-                {item.machine_name ?? item.groupKey}
+                {item.machine_name ?? item.lineId ?? item.groupKey}
                 {item.provisional && (
                   <span className="ml-1.5 text-[11px] font-sans font-medium text-amber-600 dark:text-amber-400">
                     (Provisional)

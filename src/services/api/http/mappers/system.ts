@@ -6,10 +6,16 @@
  */
 import { num, str, bool, iso, pick, splitList } from '../primitives';
 import { mapReject } from './monitoring';
+import { mapBrokerConfigLastOperation } from './mqttConfig';
 import { AuthMeResponse, AuthMeCapabilityEntry } from '../../../../types/auth';
 import { RejectParetoItem } from '../../../../types/analytics';
-import { MqttClient, MqttRole, MqttAcl, MqttGroup, BrokerOverviewInfo, BrokerConfigSchema, BrokerConfigVersion, BrokerOperation, BrokerOperationStep } from '../../../../types/mqtt';
+import { MqttClient, MqttRole, MqttAcl, MqttGroup, MqttDynsecStatus, BrokerOverviewInfo, BrokerOperation, BrokerOperationStep } from '../../../../types/mqtt';
 import { IamInfo, IamRole, IamPermission, IamAssignment, IamPolicyRule, IamAuditDecision, IamEffectivePermissions, ScopeLevel } from '../../../../types/iam';
+
+// E23 Batch 1: mapper konfigurasi broker dipindah ke ./mqttConfig (R9.2) —
+// system.ts menyentuh hard cap 600 baris. Re-export agar import lama
+// (`./system`, barrel `./mappers`) tetap jalan.
+export { mapBrokerConfigVersion, mapBrokerConfigDiff, mapBrokerConfigStatus, mapBrokerConfigLastOperation } from './mqttConfig';
 
 export function mapMqttClient(raw: unknown): MqttClient {
   const r = (raw ?? {}) as Record<string, unknown>;
@@ -67,28 +73,6 @@ export function mapMqttGroup(raw: unknown): MqttGroup {
     roles: roles.map((x) => (typeof x === 'string' ? x : str((x as Record<string, unknown>).rolename))),
   };
 }
-
-export function mapBrokerConfigVersion(raw: unknown): BrokerConfigVersion {
-  const r = (raw ?? {}) as Record<string, unknown>;
-  // E20 P20.5 (FAT-157): status versi panel hanya STAGED/ACTIVE/ROLLED_BACK
-  // (§3.3b); nilai domain asli (mis. 'APPLIED' dari server lama) masuk
-  // `domainStatus`, bukan `status`.
-  const rawStatus = pick(r.status) as string | undefined;
-  const panelStatus: BrokerConfigVersion['status'] =
-    rawStatus === 'STAGED' || rawStatus === 'ACTIVE' || rawStatus === 'ROLLED_BACK' ? rawStatus : 'STAGED';
-  return {
-    version_id: str(pick(r.version_id, r.versionId, r.id)),
-    parent_version_id: (pick(r.parent_version_id, r.parentVersionId) as string | null) ?? null,
-    applied_at: iso(pick(r.applied_at, r.appliedAt, r.created_at, r.createdAt)),
-    applied_by: str(pick(r.applied_by, r.appliedBy), 'system'),
-    summary: str(pick(r.summary, r.reason, r.comment), ''),
-    operation_type: (pick(r.operation_type, r.operationType) as BrokerConfigVersion['operation_type']) ?? 'NO_OPERATION',
-    status: panelStatus,
-    domainStatus: (pick(r.domainStatus, r.domain_status) as string | null) ?? (rawStatus !== panelStatus ? rawStatus ?? null : null),
-    config: (pick(r.config) as BrokerConfigSchema) ?? ({} as BrokerConfigSchema),
-  };
-}
-
 export function mapBrokerOperation(raw: unknown): BrokerOperation {
   const r = (raw ?? {}) as Record<string, unknown>;
   const steps = ((pick(r.steps) as unknown[]) ?? []).map((s) => {
@@ -96,24 +80,44 @@ export function mapBrokerOperation(raw: unknown): BrokerOperation {
     return {
       step: str(pick(st.step, st.name)),
       status: (pick(st.status) as BrokerOperationStep['status']) ?? 'PENDING',
-      message: str(pick(st.message), undefined) || undefined,
+      message: str(pick(st.message, st.detail), undefined) || undefined,
+      startedAt: (pick(st.startedAt, st.started_at) as string | null) ?? null,
+      finishedAt: (pick(st.finishedAt, st.finished_at) as string | null) ?? null,
+      detail: (pick(st.detail) as string | undefined) ?? undefined,
     };
   });
-  // E20 P20.5 (FAT-157): `type` = `operation_type` kanonis (§3.3b) —
-  // NO_OPERATION/RELOAD/RESTART; `null` untuk aksi RECOVERY. Nilai aksi
-  // lama (STAGE/APPLY/ROLLBACK/DISCARD) dipetakan ke operation_type-nya:
-  // STAGE → NO_OPERATION (belum ada aksi broker), APPLY/ROLLBACK → RELOAD.
-  // `pick` membuang null, jadi RECOVERY dicek langsung dari field mentah.
-  const rawType = pick(r.operation_type, r.operationType, r.type) as string | undefined;
+  // E23 Batch 3 (FAT-200, N-31): spec live `type` = APPLY/ROLLBACK/
+  // DISCARD|null — dipetakan apa adanya (bukan lagi dipaksa 'RELOAD').
+  // Nilai legacy `operation_type` (NO_OPERATION/RELOAD/RESTART, STAGE)
+  // hanya fallback bila field `type` tak ada. `type: null` eksplisit
+  // (aksi RECOVERY) tetap null — `pick` membuang null, jadi dicek
+  // langsung dari field mentah.
+  const specType = pick(r.type) as string | undefined;
+  const rawType = pick(r.operation_type, r.operationType) as string | undefined;
   const action = pick(r.action) as string | undefined;
   const type: BrokerOperation['type'] =
-    r.type === null || r.operation_type === null || action === 'RECOVERY'
+    r.type === null || action === 'RECOVERY'
       ? null
-      : rawType === 'NO_OPERATION' || rawType === 'RELOAD' || rawType === 'RESTART'
-        ? rawType
-        : rawType === 'STAGE'
-          ? 'NO_OPERATION'
-          : 'RELOAD';
+      : specType === 'APPLY' || specType === 'ROLLBACK' || specType === 'DISCARD'
+        ? specType
+        : rawType === 'NO_OPERATION' || rawType === 'RELOAD' || rawType === 'RESTART'
+          ? rawType
+          : rawType === 'STAGE'
+            ? 'NO_OPERATION'
+            : specType === 'NO_OPERATION' || specType === 'RELOAD' || specType === 'RESTART'
+              ? specType
+              : 'RELOAD';
+  // E23 Batch 3 (FAT-200, N-31): field spec yang dulu dibuang —
+  // domainStatus/domainAction/phase/actor/startedAt/finishedAt/error/
+  // result. Spec TIDAK punya `timestamp`/`created_at` — sumber kanonis
+  // adalah `startedAt`; absen → '' (JANGAN `iso()` → epoch 1970).
+  // `completed_at` ← `finishedAt`.
+  const startedAt = (pick(r.startedAt, r.started_at) as string | null) ?? null;
+  const finishedAt = (pick(r.finishedAt, r.finished_at) as string | null) ?? null;
+  const errorRaw = (pick(r.error) as Record<string, unknown> | null) ?? null;
+  const resultRaw = (pick(r.result) as Record<string, unknown> | null) ?? null;
+  const domainStatus = pick(r.domainStatus, r.domain_status) as BrokerOperation['domainStatus'];
+  const domainAction = pick(r.domainAction, r.domain_action) as BrokerOperation['domainAction'];
   return {
     operation_id: str(pick(r.operation_id, r.operationId, r.id)),
     type,
@@ -121,8 +125,31 @@ export function mapBrokerOperation(raw: unknown): BrokerOperation {
     status: (pick(r.status) as BrokerOperation['status']) ?? 'PENDING',
     reason: str(pick(r.reason), undefined) || undefined,
     steps,
-    timestamp: iso(pick(r.timestamp, r.created_at, r.createdAt)),
-    completed_at: (pick(r.completed_at, r.completedAt) as string | null) ?? null,
+    timestamp: startedAt ?? str(pick(r.timestamp, r.created_at, r.createdAt), ''),
+    completed_at: finishedAt ?? (pick(r.completed_at, r.completedAt) as string | null) ?? null,
+    domainStatus:
+      domainStatus === 'QUEUED' || domainStatus === 'RUNNING' || domainStatus === 'SUCCEEDED' || domainStatus === 'FAILED' || domainStatus === 'ROLLED_BACK' || domainStatus === 'INTERRUPTED'
+        ? domainStatus
+        : null,
+    domainAction:
+      domainAction === 'APPLY' || domainAction === 'ROLLBACK' || domainAction === 'RECOVERY' ? domainAction : null,
+    phase: (pick(r.phase) as string | null) ?? null,
+    actorId: (pick(r.actorId, r.actor_id) as string | null) ?? null,
+    actorName: (pick(r.actorName, r.actor_name) as string | null) ?? null,
+    startedAt,
+    finishedAt,
+    error:
+      errorRaw && typeof errorRaw.code === 'string'
+        ? { code: errorRaw.code, message: str(pick(errorRaw.message)) }
+        : null,
+    result: resultRaw
+      ? {
+          previousVersionId: (pick(resultRaw.previousVersionId, resultRaw.previous_version_id) as string | null) ?? null,
+          appliedVersionId: (pick(resultRaw.appliedVersionId, resultRaw.applied_version_id) as string | null) ?? null,
+          rollbackAttempted: bool(pick(resultRaw.rollbackAttempted, resultRaw.rollback_attempted), false),
+          rollbackSucceeded: bool(pick(resultRaw.rollbackSucceeded, resultRaw.rollback_succeeded), false),
+        }
+      : null,
   };
 }
 
@@ -208,17 +235,27 @@ export function mapBrokerOverview(raw: unknown): BrokerOverviewInfo {
   // tidak aktif; tampilkan UNAVAILABLE, bukan IN_SYNC.
   const cfgRaw = r.configuration as Record<string, unknown> | null | undefined;
   const cfg = (cfgRaw ?? {}) as Record<string, unknown>;
-  // E20 P20.5 (FAT-157): bentuk §3.3a — status dynsec `"READY"`;
-  // count `null` dipertahankan (bukan 0, FR-035-51); petakan
-  // `available`/`lastError`/`measuredAt`/`lastOperation`.
+  // E20 P20.5 (FAT-157): bentuk §3.3a — count `null` dipertahankan
+  // (bukan 0, FR-035-51); petakan `available`/`lastError`/`measuredAt`/
+  // `lastOperation`.
+  // E23 Batch 3 (FAT-197, N-28): spec live — `status` enum
+  // READY/CONNECTING/DISCONNECTED (bukan hardcode 'READY'); varian
+  // `available=false` membawa `reason` (tanpa `status` → fallback
+  // 'DISCONNECTED'); `lastOperation` berupa OBJEK (bentuk
+  // `BrokerConfigLastOperation`)|null — bukan string (dipetakan lewat
+  // `mapBrokerConfigLastOperation` yang sama dengan status config).
   const countOrNull = (v: unknown): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null;
   const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+  const statusRaw = pick(ds.status) as string | undefined;
+  const status: BrokerOverviewInfo['dynamicSecurity']['status'] =
+    statusRaw === 'READY' || statusRaw === 'CONNECTING' || statusRaw === 'DISCONNECTED' ? statusRaw : 'DISCONNECTED';
   return {
     dynamicSecurity: {
       available: bool(pick(ds.available), false),
       enabled: bool(pick(ds.enabled), false),
-      status: 'READY',
+      status,
+      reason: strOrNull(pick(ds.reason)),
       clientsCount: countOrNull(pick(ds.clientsCount, ds.clients_count)),
       rolesCount: countOrNull(pick(ds.rolesCount, ds.roles_count)),
       groupsCount: countOrNull(pick(ds.groupsCount, ds.groups_count)),
@@ -230,65 +267,59 @@ export function mapBrokerOverview(raw: unknown): BrokerOverviewInfo {
       activeVersionId: (pick(cfg.activeVersionId, cfg.active_version) as string | null) ?? null,
       lastAppliedAt: (pick(cfg.lastAppliedAt, cfg.last_applied_at) as string | null) ?? null,
       mutationLocked: bool(pick(cfg.mutationLocked, cfg.mutation_locked), false),
-      lastOperation: strOrNull(pick(cfg.lastOperation, cfg.last_operation)),
+      lastOperation: mapBrokerConfigLastOperation(pick(cfg.lastOperation, cfg.last_operation) ?? null),
       measuredAt: strOrNull(pick(cfg.measuredAt, cfg.measured_at)),
     },
   };
 }
 
-export function mapMqttDynsecStatus(raw: unknown): {
-  enabled: boolean;
-  status: 'CONNECTED' | 'DISCONNECTED';
-  clients_count: number;
-  roles_count: number;
-  groups_count: number;
-} {
+export function mapMqttDynsecStatus(raw: unknown): MqttDynsecStatus {
+  // E23 Batch 4 (FAT-203, N-33): spec live GET /mqtt/dynamic-security/status
+  // = {connected, subscribed, connecting, pluginReady, brokerUrl,
+  // adminUsername, lastError, lastConnectedAt}. Bentuk lama panel
+  // (enabled/status/clients_count/roles_count/groups_count) tak satu pun
+  // ada di spec — mapper lama selalu menghasilkan {enabled:false,
+  // status:'DISCONNECTED', 0,0,0}. `lastError`/`lastConnectedAt` nullable.
   const r = (raw ?? {}) as Record<string, unknown>;
+  const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
   return {
-    enabled: bool(pick(r.enabled), false),
-    status: (pick(r.status, 'DISCONNECTED') as 'CONNECTED' | 'DISCONNECTED'),
-    clients_count: num(pick(r.clients_count, r.clientsCount), 0),
-    roles_count: num(pick(r.roles_count, r.rolesCount), 0),
-    groups_count: num(pick(r.groups_count, r.groupsCount), 0),
+    connected: bool(pick(r.connected), false),
+    subscribed: bool(pick(r.subscribed), false),
+    connecting: bool(pick(r.connecting), false),
+    pluginReady: bool(pick(r.pluginReady, r.plugin_ready), false),
+    brokerUrl: str(pick(r.brokerUrl, r.broker_url), ''),
+    adminUsername: str(pick(r.adminUsername, r.admin_username), ''),
+    lastError: strOrNull(pick(r.lastError, r.last_error)),
+    lastConnectedAt: strOrNull(pick(r.lastConnectedAt, r.last_connected_at)),
   };
 }
-
-export function mapBrokerConfigStatus(raw: unknown): {
-  active_version: string;
-  sync_state: 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED';
-  last_applied_at: string;
-  mutation_locked: boolean;
-} {
-  const r = (raw ?? {}) as Record<string, unknown>;
-  return {
-    active_version: str(pick(r.active_version, r.activeVersionId, r.activeVersion), ''),
-    sync_state: (pick(r.sync_state, r.syncState, r.status, 'IN_SYNC') as 'IN_SYNC' | 'DRIFT' | 'APPLYING' | 'FAILED'),
-    last_applied_at: iso(pick(r.last_applied_at, r.lastAppliedAt)),
-    mutation_locked: bool(pick(r.mutation_locked, r.mutationLocked), false),
-  };
-}
-
 export function mapIamInfo(raw: unknown): IamInfo {
   const r = (raw ?? {}) as Record<string, unknown>;
+  // E23 Batch 4 (FAT-205, N-36): spec live GET /access-control/info
+  // mewajibkan {mode, effectiveInMode, enforcedDomains, catalogueVersion,
+  // authzVersion}; `catalogueVersion` (string) dulu dibuang mapper, dan
+  // `enforcedDomains` dulu opsional. `enforcedDomains` default [] bila
+  // absen (toleransi terhadap respons lama); non-array → [].
+  const domains = r.enforcedDomains ?? r.enforced_domains;
   return {
     mode: (pick(r.mode, 'shadow') as IamInfo['mode']),
     authzVersion: num(pick(r.authzVersion, r.authz_version), 0),
     effectiveInMode: str(pick(r.effectiveInMode, r.effective_in_mode), ''),
-    enforcedDomains: (r.enforcedDomains ?? r.enforced_domains) as string[] | undefined,
+    catalogueVersion: str(pick(r.catalogueVersion, r.catalogue_version), ''),
+    enforcedDomains: Array.isArray(domains) ? domains.filter((d): d is string => typeof d === 'string') : [],
   };
 }
 
 export function mapIamSubjectEffectivePermissions(raw: unknown, operatorId: string): IamEffectivePermissions {
   const r = (raw ?? {}) as Record<string, unknown>;
-  // §3.4: `roles` adalah satu-satunya nama field (tanpa alias `effectiveRoles`).
-  const roles = ((r.roles ?? []) as unknown[]).map((x) => {
-    const e = (x ?? {}) as Record<string, unknown>;
-    return {
-      roleName: str(pick(e.roleName, e.role_name)),
-      scopeType: (pick(e.scopeType, e.scope_type, 'ORGANIZATION') as ScopeLevel),
-      scopeId: (pick(e.scopeId, e.scope_id) as string | null) ?? null,
-    };
-  });
+  // E23 Batch 1 (FAT-176, N-7): spec live — `roles` adalah string[]
+  // (mis. ["ADMIN","OPERATOR"]); objek {roleName, roleId, scopeType,
+  // scopeId} hidup di `assignments[]`, bukan di `roles[]`. Bentuk lama
+  // membaca tiap elemen `roles` sebagai objek → `roleName` ''.
+  // Toleransi: elemen objek lama tetap dibaca `roleName`-nya.
+  const roles = ((r.roles ?? []) as unknown[]).map((x) =>
+    typeof x === 'string' ? x : str(pick((x as Record<string, unknown>).roleName, (x as Record<string, unknown>).role_name)),
+  ).filter((name) => name !== '');
   const assignments = ((r.assignments ?? []) as unknown[]).map((x) => {
     const e = (x ?? {}) as Record<string, unknown>;
     return {
@@ -309,7 +340,9 @@ export function mapIamSubjectEffectivePermissions(raw: unknown, operatorId: stri
       resourceType: str(pick(e.resourceType, e.resource_type)),
       resourcePattern: str(pick(e.resourcePattern, e.resource_pattern)),
       effect: (pick(e.effect, 'ALLOW') as 'ALLOW' | 'DENY'),
-      sourceRole: str(pick(e.sourceRole, e.source_role)),
+      // E23 Batch 1 (FAT-176, N-7): spec live — izin membawa `roleName`
+      // sebagai sumber peran (bukan `sourceRole`).
+      sourceRole: str(pick(e.roleName, e.role_name, e.sourceRole, e.source_role)),
       abacCondition: (pick(e.abacCondition, e.abac_condition) as Record<string, unknown> | null) ?? null,
     };
   });

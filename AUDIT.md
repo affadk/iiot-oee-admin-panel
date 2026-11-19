@@ -1560,3 +1560,366 @@ apa adanya sebagai rekaman; file-file itu kini berada di `docs/archive/`.
 - `GET /mqtt/configuration/status`: bentuk pasti JSON-nya tidak sepenuhnya
   dispesifikasi api_docs (AUDIT.md §24.1) — mapper panel membaca defensif;
   verifikasi melawan backend sungguhan.
+
+## 27. Aktivasi Real mode vs API live oee.fadik.web.id (2026-11-19)
+
+Fathur: "API sudah berjalan di oee.fadik.web.id. fungsikan admin-panel
+dengan endpoint api tersebut." V8.2 (FAT-28) tidak lagi Blocked — backend
+ada dan menjawab; A10.2 (FAT-40) juga tidak lagi Blocked (label `blocked`
+dihapus dari keduanya; FAT-28 → In Progress, FAT-40 tetap Todo menunggu
+verifikasi terautentikasi).
+
+### 27.1 Konfigurasi panel (lokal, `.env` — gitignored, TIDAK ter-commit)
+
+```env
+VITE_API_MODE=real
+VITE_API_URL=https://oee.fadik.web.id/api/v1
+VITE_WS_URL=wss://oee.fadik.web.id/ws/telemetry
+```
+
+Catatan implementasi (dibaca dari `src/services/api/mode.ts`):
+`VITE_API_URL` dipakai apa adanya — harus lengkap termasuk `/api/v1`
+(origin saja akan salah rute). `VITE_WS_URL` wajib diisi eksplisit bila
+panel dijalankan dari dev server lokal, karena bila kosong WS diturunkan
+dari origin panel (`ws://localhost:5173/ws/telemetry`), bukan dari API.
+`VITE_NETWORK_MODE` dibiarkan kosong (deteksi port → LAN di dev server);
+kewenangan mutasi pasca-login berasal dari server
+(`GET /system/access-mode` → `mutations_allowed`, E20 P20.5).
+Untuk deploy Vercel, ketiga nilai di atas diisi sebagai env vars dashboard
+(Fathur) — bukan dari file ini.
+
+### 27.2 Hasil probe API live (curl, 19 Nov 15:08–15:10 WIB)
+
+| Endpoint | Hasil | Arti |
+|---|---|---|
+| `GET /health` | 200 `{status:"ok", uptime:~8266 dtk, db_connected:true, ws_clients:0, buffer 0/0, metrics totalReceived 0}` | Backend hidup ~2,3 jam; DB terhubung; **belum ada telemetri masuk** (0 sampel) |
+| `GET /api/v1/health` | 404 `Route GET:/api/v1/health not found` | Benar per dokumen — health ada di root, bukan `/api/v1` |
+| `GET /api/v1/system/access-mode` | 401 `UNAUTHORIZED` (Bearer wajib) | Endpoint **ada** dan butuh JWT — amandemen 09:23 terkonfirmasi HIDUP di backend, meski tidak ada di salinan api_docs |
+| `GET /api/v1/auth/me` | 401 | Ada, butuh JWT |
+| `GET /api/v1/live-state` | 200 array (STM32-OEE-01 RUNNING, oee 100.00, total 100/100/0) | Public (tanpa auth); data seed, bukan perangkat live |
+| `GET /api/v1/machines` | 200 (CNC-ZTPH-01, CNC-MILLING-SIM, `boundDevice` + `macAddress`, `isOnline:false`) | Public; data seed 12–15 Nov |
+| `GET /api/v1/products` | 200 (PRD-019-FX-01, PRD-COUPLING-M10, PRD-FLANGE-HUB-15) | Public; data seed |
+| `GET /api/v1/operators` | 401 `Authentication required` | Tergating benar |
+| `GET /api/v1/devices` | **500 `INTERNAL_SERVER_ERROR`** (tanpa token MAUPUN dengan Bearer invalid) | **Bug backend** — seharusnya 401 untuk token hilang/tidak valid, per kontrak |
+| `GET /api/v1/work-orders` | **500 `INTERNAL_SERVER_ERROR`** (idem) | **Bug backend** — sama; perlu kabar ke tim backend |
+| `GET /health/detail` | **403 `FORBIDDEN` "Health detail is not available through remote tunnel ingress."** | **Bukti enforcement server-side**: domain publik = kanal tunnel; endpoint ADMIN+LAN ditolak dari tunnel. A10.2 terkonfirmasi sebagian |
+| `POST /api/v1/auth/login` (kredensial salah) | 401 `{"error":"UNAUTHORIZED","message":"Invalid operator credentials"}` | Rute login ada, envelope benar, kredensial salah ditolak (1 percobaan; limit 5/60) |
+| `POST /api/v1/auth/login` (body kosong) | 400 `VALIDATION_ERROR` (Zod: `operator_id`/`password` wajib) | Validasi jalan |
+
+### 27.3 Verifikasi panel
+
+- `npm run build` hijau (peringatan chunk-size sudah ada sebelumnya).
+  Bundle mengandung `oee.fadik.web.id` (API + WS). Preview lokal HTTP 200.
+- **Cek visual halaman login GAGAL karena infra, bukan aplikasi:**
+  browser cloud berjalan di VM terpisah dan tidak dapat mencapai preview
+  lokal `http://127.0.0.1:4173` (connection refused); tidak ada Chromium
+  headless di VM ini. Halaman login (badge mode Real, tanpa preset demo)
+  dan percobaan login TEST-000 **tidak terlaksana** — tidak ada kredensial
+  yang dimasukkan di mana pun. Yang butuh tangan Fathur: jalankan
+  `npm run dev` lalu buka `http://localhost:5173/login` di browser sendiri,
+  atau minta panel di-deploy publik (Vercel) agar verifikasi visual bisa
+  dilakukan dari sisi saya.
+- Implikasi kanal: panel yang diakses via domain publik berada di kanal
+  tunnel. Selama access mode backend = private, mutasi dari panel publik
+  akan 403 (server final); panel menampilkan nilai server
+  (`mutations_allowed`) setelah login. Login penuh + uji mutasi menunggu
+  kredensial operator sungguhan (Fathur: login sendiri, atau berikan via
+  Secure Vault bila ingin saya yang menguji).
+
+### 27.4 Linear
+
+- FAT-28 (V8.2 Real E2E) Todo Blocked → **In Progress** (label `blocked`
+  dihapus; blok "tidak ada backend" gugur).
+- FAT-40 (A10.2) tetap Todo, label `blocked` dihapus — enforcement tunnel
+  sudah terbukti (§27.2); verifikasi lengkap butuh sesi terautentikasi.
+- E10 (FAT-34) tetap satu-satunya epic In Progress selain V8.2.
+
+## 28. Audit API live Fase 1 — pemeriksaan menyeluruh tanpa auth (2026-11-19)
+
+Atas permintaan Fathur ("backend api sudah diperbarui. jalankan
+pemeriksaan menyeluruh api terhadap admin-panel ... jalankan tes
+fungsional penuh"). Fase 1 = tanpa autentikasi (koordinator + 4 worker,
+144 probe: 137 operasi registry + 7 discovery). Dokumen lengkap:
+`docs/API_LIVE_AUDIT.md` (commit `8466d02`, koreksi parent `b73e6fa`).
+
+### 28.1 Hasil utama
+
+- **Registry 137/137 ada** — tidak satu pun operasi panel hilang di live.
+  Status probe: 401×58, 400×47, 200×14, 404×17, 403×4, 502×1 (N-1,
+  lihat koreksi di bawah).
+- **Regresi §27 TERPERBAIKI (2):** `GET /devices` 500 → **200**,
+  `GET /work-orders` 500 → **200**. Tidak ada lagi 500 di irisan B.
+- **Shape 9/9 endpoint publik KOMPATIBEL** — 0 memecahkan mapper
+  (persentase string, `stdCycleTimeSec` string, bare array, field opsional
+  absen — semua ditoleransi).
+- **Suite panel penuh:** `npm test` 368/368, `tsc` 0, build OK,
+  `check:structure` 0 FAIL.
+- **Yang terkonfirmasi benar:** penghapusan E20 hidup (`/clients/provision`
+  404, `POST /backups` 404); aktuasi HMI-only 403 tunnel; apply/rollback
+  403 tunnel; OEE butuh `machine_id`/`device_id` (400); audit feed live
+  aktif (50 event, terbaru `SECURITY_REJECTION` dari `PERIMETER_GATEWAY`).
+
+### 28.2 Gap baru (E22, FAT-169)
+
+| Gap | Isi | Severity | Sisi |
+|---|---|---|---|
+| N-2 (FAT-170) | Default device panel hardcoded `STM32-OEE-01` — ambil dari daftar live | Low | Panel |
+| N-3 (FAT-171) | Urutan gate auth-vs-validasi tidak konsisten pada mutasi | Low | Backend |
+| N-4 (FAT-173) | Dua teks pesan 401 berbeda (dua auth guard) | Low | Backend |
+| N-5 (FAT-172) | Produk live tanpa `sku`/`isActive` | Low | Backend + panel |
+
+**N-1 TIDAK dijadikan issue.** PATCH dynsec enable → 502 `text/plain`
+hanya muncul sekali dalam sweep; verifikasi ulang parent 16:03 WIB
+menghasilkan 400 (tanpa body) / 401 (dengan body) — tidak terreproduksi.
+Penyebab paling mungkin: jendela restart backend ~15:52 WIB (uptime
+687 dtk pada 16:03; restart sebelumnya ~15:27 WIB). Tercatat sebagai
+transien di API_LIVE_AUDIT.md §11; bila Fase 2 ber-auth mereproduksinya,
+buka kembali.
+
+**N-2 turun Medium → Low.** Pada jam probe (sebelum 15:54 WIB) hanya ada
+`STM32-OEE-SIM`; pada 15:54:40 WIB backend men-seed `STM32-OEE-01` +
+`CNC-MILLING-01` + `WO-001` (operator ADM-001), dan telemetri -01 mengalir
+(08:04–08:54Z, OEE 92.80, RUNNING). Gap berubah menjadi hardening panel
+saja. `/health` metrics masih 0 — counter in-memory yang ter-reset oleh
+restart 15:52 WIB, bukan tidak ada telemetri.
+
+### 28.3 Fase 2 — tes fungsional penuh terautentikasi (MENUNGGU KEPUTUSAN FATHUR)
+
+Kredensial operator sudah tersimpan di Secure Vault (Fathur, 15:58 WIB).
+Yang TIDAK bisa diperiksa tanpa auth (API_LIVE_AUDIT.md §7): semua bentuk
+respons GET tergating, `MQTT_OVERVIEW` + `MQTT_CONFIG_STATUS`, handshake WS,
+alur login/refresh/change-password, akar N-1, 4 endpoint WO HMI-only,
+mutasi apa pun, `mutations_allowed` tunnel vs LAN + `/system/access-mode`
+ber-auth.
+
+**Blokir Fase 2 bukan kredensial, melainkan jangkauan panel:** browser cloud
+saya tidak dapat mencapai preview lokal (`127.0.0.1:4173` — sudah terbukti
+gagal 15:12 WIB) dan tidak ada Chromium headless di VM ini. Opsi untuk
+Fathur: (a) deploy panel ke Vercel (publik, login-gated; env vars di
+dashboard) agar saya bisa menguji lewat browser; (b) jalankan panel di
+browser sendiri (`npm run dev` → `localhost:5173/login`) dan uji login
+sendiri, atau pasang Muse for Chrome supaya saya bisa memakai browsernya;
+(c) expose preview lokal via tunnel. Fase 2 jalan setelah salah satu opsi
+dipilih.
+
+### 28.4 Linear
+
+- E22 (FAT-169, Todo, Medium) + N-2–N-5 (FAT-170/171/173/172, Low, Todo).
+- Linear kini 169 issue: 141 Done / 2 In Progress / 26 Todo; seed v24.
+- FAT-28 (V8.2) tetap In Progress — Fase 2 adalah kelanjutannya.
+
+## 29. Audit endpoint vs api_docs live (OpenAPI) — Fase 2a (2026-11-19)
+
+Atas permintaan Fathur ("catat setiap temuan endpoint dan fitur frontend
+dengan yang ada di api docs https://oee.fadik.web.id/docs ke linear,
+pastikan seluruh endpoint di test dari sisi api docs langsung ataupun
+melalui admin-panel"). Spec diunduh dari
+`https://oee.fadik.web.id/docs/openapi.json` (OpenAPI 3.0.3, 104 paths,
+141 operasi; dump Zod mentah tanpa operationId). Dokumen lengkap:
+`docs/API_DOCS_AUDIT.md` (commit `8e07d73`; koordinator + 5 worker).
+
+### 29.1 Hasil utama
+
+- **Cakupan: LENGKAP.** 141 operasi spec − 5 excluded-by-design (aktuasi
+  `/command` + 4 WO HMI-only) = 136 HTTP + 1 WS = 137 registry.
+  **MISSING = 0, registry HTTP usang = 0.** Satu mismatch path: trailing
+  slash `MQTT_CONFIG_GET` (N-39). Nama parameter identik di semua 75
+  pasangan berparameter.
+- **Kontrak: 67 OK / 55 MISMATCH / 19 KNOWN** (14 BREAKS / 37 ERROR-PRONE /
+  4 COSMETIC). Panel statis: 121 WIRED_UI / 16 TRANSPORT_ONLY /
+  0 UNREFERENCED; endpoint baru E20 semuanya terhubung UI.
+- **Probe live 138 operasi (tanpa auth): 0 rute hilang, 0 5xx**
+  (200×14, 401×58, 403×4, 400×52, 404×10). 121/138 cocok dengan spec;
+  17 anomali = endpoint Access Control yang spec-nya tak deklarasikan
+  respons error (N-40). N-1 (502) tidak muncul lagi — konsisten transien
+  restart (backend di-restart 3× hari ini: ~15:27, ~15:52, ~16:18 WIB).
+
+### 29.2 Gap baru (E23, FAT-174): N-6 Critical + N-7–N-41 (35)
+
+| Severity | Gap |
+|---|---|
+| Critical (1) | N-6 (FAT-175) — CORS origin panel Vercel tidak diizinkan; blokir semua akses browser + tes fungsional |
+| High (7) | N-7 (FAT-176) roles string[] dibaca objek; N-8 (FAT-177) refresh {from,to} vs {startWindow,endWindow} — membalikkan keputusan E20; N-9 (FAT-178) 7 sub-op DynSec {success} saja; N-10 (FAT-179) config status bentuk spec baru; N-11 (FAT-180) aggregate delta vs count; N-12 (FAT-181) config stage bridges + validation/impact/diff; N-13 (FAT-182) config diff lines[] |
+| Medium (19) | N-14–N-31 (FAT-183–FAT-200) + N-34 (FAT-201): lineId mesin, PUT device null, ShiftSchema HH:MM, dayOfWeek, lineId di PATCH schedule, filter WO ID, health/detail DEGRADED, telemetry history, reconciliation jobs, limit wajib, encoding ekspor, downtime mapper, rollup 'line', shift-summary counts, MQTT overview, config unmanaged/raw/operations, ekspor op-events event_type |
+| Low (9) | N-32 (FAT-202) eventFlags, N-33 (FAT-203) DynSec status laten, N-35 (FAT-204) WO cancel/resolve fabrikasi, N-36 (FAT-205) catalogueVersion, N-37 (FAT-206) legacy POST /devices, N-38 (FAT-207) login tanpa badge mode, N-39 (FAT-208) trailing slash, N-40 (FAT-209) spec tanpa 401/400, N-41 (FAT-210) 404 vs [] inkonsisten |
+
+Verifikasi parent atas klaim High (langsung ke spec mentah): N-7 `roles`
+= array-of-string + `assignments[]` objek; N-8 body `{startWindow?,
+endWindow?}`; N-10 `runtime{mode, available, validation, …}`;
+N-11 item aggregate punya `outputDelta/goodDelta/rejectDelta` tanpa
+`totalCount` — semua terkonfirmasi. N-8 membalikkan keputusan E20
+(R11/T9/X29); spec live menang.
+
+### 29.3 Yang masih terblokir
+
+- **N-6 (CORS):** tes panel via browser TERBLOKIR; seluruh verifikasi
+  runtime halaman terautentikasi menunggu perbaikan backend. Tanpa auth:
+  bentuk respons GET tergating hanya statis; handshake WS, mutasi, perilaku
+  exact N-8, encoding ekspor N-24, dan data shift/shift-schedule live belum
+  terverifikasi.
+- **vercel.json (ae3424a) benar tapi BELUM berlaku di live** — remote masih
+  `9653612`; `/login` tetap 404 sampai di-push + redeploy. Keputusan push
+  (sekarang vs tunggu perbaikan CORS) masih menunggu jawaban Fathur
+  (ditanyakan 16:26 WIB).
+
+### 29.4 Linear
+
+- E23 (FAT-174, Todo, High) + 36 anak N-6–N-41 (FAT-175–FAT-210).
+- Linear kini 206 issue: 141 Done / 2 In Progress / 63 Todo; seed v25.
+- FAT-28 (V8.2) tetap In Progress — kelanjutannya menunggu perbaikan N-6.
+
+## 30. Debugging ulang — konsumsi API frontend (2026-11-19 16:45 WIB)
+
+Atas permintaan Fathur ("ulangi debugging ... periksa konsumsi api di
+frontend"). Hasil: SAMA seperti sebelumnya — tidak ada perubahan di sisi
+backend maupun deployment.
+
+### 30.1 Re-verifikasi (curl, 16:45 WIB)
+
+- OPTIONS `/api/v1/auth/login` + Origin Vercel → **403**
+  `{"statusCode":403,"error":"Forbidden","message":"CORS origin not allowed:
+  https://iiot-oee-admin-panel.vercel.app"}` — CORS BELUM diperbaiki.
+- GET `/health` + Origin Vercel → 403; tanpa Origin → 200 (backend jalan).
+- Vercel `/login` → masih **404** (vercel.json belum live — belum di-push).
+
+### 30.2 Uji ulang browser (16:45–16:47 WIB, 2 percobaan login)
+
+- Login ADM-001 (Secure Vault) gagal 2× dengan pesan yang sama persis:
+  "Koneksi jaringan terputus atau backend tidak terjangkau." — bukan
+  kredensial salah, bukan lockout, bukan OTP.
+- Backend terbukti HIDUP dari browser yang sama (direct GET `/api/v1` dan
+  `/api/v1/auth/login` menjawab JSON 404 yang diharapkan) — jadi bukan
+  "backend down", melainkan kegagalan cross-origin.
+- Batasan jujur: DevTools browser tidak bisa dibuka di sesi itu, jadi baris
+  CORS persis di Console / status OPTIONS tidak tertangkap dari browser.
+  Bukti langsung penolakan preflight tetap dari curl §30.1 (403 eksplisit).
+  Hipotesis "base URL salah" SUDAH gugur: bundle deployment terverifikasi
+  memuat `VITE_API_URL=https://oee.fadik.web.id/api/v1`.
+
+### 30.3 Konsumsi API di frontend (inspeksi kode)
+
+- Base URL: `fullUrl()` = `resolveOriginBaseUrl()` + path absolut
+  (`https://oee.fadik.web.id` + `/api/v1/...`) — benar; mode Real memilih
+  `httpApiClient`, bukan demo (`client.ts`, `mode.ts`).
+- Login: `httpAuth.login()` → POST `/api/v1/auth/login` body JSON
+  `{operator_id, password, station_id}`, timeout 15 dtk, tanpa retry.
+  `assertLanForMutation()` lolos (networkMode LAN di Vercel).
+- Transport (`http/transport.ts`, `fetchRaw`): native `fetch`, mode CORS
+  default, tanpa cookies; header `Accept: application/json` selalu,
+  `Content-Type: application/json` bila ada body, `Authorization: Bearer`
+  setelah login; token hanya di memori (D5).
+- Rantai kegagalan: body JSON → browser wajib preflight OPTIONS → backend
+  menjawab 403 "CORS origin not allowed" → `fetch` reject (TypeError) →
+  ditangkap sebagai `ApiError NETWORK` (`transport.ts:243`) → pesan generik
+  di atas. GET pun akan gagal sama (backend 403-kan juga simple GET dengan
+  Origin Vercel). Pesan generik itu by design tak terhindarkan: browser
+  sengaja tidak memberi tahu alasan fetch gagal.
+- **Kesimpulan: tidak ada yang perlu diperbaiki di frontend.** Satu-satunya
+  penghalang tetap N-6 (allowlist CORS backend, FAT-175). Alternatif bila
+  backend belum bisa diubah: deploy panel di origin yang SUDAH diizinkan
+  (isi allowlist saat ini tidak diketahui panel — tanyakan ke tim backend).
+
+## 31. Debugging ulang #2 — CORS diklaim diperbaiki, ternyata belum (2026-11-19 16:54–16:56 WIB)
+
+Atas permintaan Fathur ("CORS sudah diperbaiki, sekarang ulangi
+pengetesan, periksa kebutuhan env admin-panel untuk bisa menggunakan api").
+Hasil: **CORS BELUM teratasi untuk origin panel Vercel** — klaim perbaikan
+tidak terbukti dari sisi curl maupun browser.
+
+### 31.1 Bukti curl (16:55 WIB, pasca-restart backend ~16:41)
+
+- OPTIONS preflight `/api/v1/auth/login` + Origin Vercel → **403**
+  `{"statusCode":403,"error":"Forbidden","message":"CORS origin not allowed:
+  https://iiot-oee-admin-panel.vercel.app"}`.
+- POST `/auth/login` + header Origin Vercel (request asli, bukan preflight)
+  → **403** yang sama. GET `/health` + Origin → **403**.
+- Tanpa Origin: `/health` → 200; POST login dummy → 401 (backend sehat).
+- `/health` uptime 839 dtk pada 16:55:21 → backend restart ~16:41 WIB
+  (deploy perbaikan kemungkinan sudah jalan), TAPI allowlist tetap tidak
+  memuat origin Vercel. Respons membawa header Cloudflare (CF-RAY), namun
+  body 403 adalah JSON aplikasi sendiri — penolakan datang dari aplikasi,
+  bukan dari Cloudflare.
+
+### 31.2 Uji ulang browser (16:55–16:56 WIB, 2 percobaan login)
+
+- Login ADM-001 gagal 2×, pesan sama: "Koneksi jaringan terputus atau
+  backend tidak terjangkau." Bukan kredensial salah, bukan lockout, dan
+  TIDAK ada pesan tunnel/mode observasi/read-only di layar — request login
+  tetap tidak mencapai backend. Dashboard tidak pernah tampil.
+- Yang perlu dicek di backend: origin PERSIS apa yang masuk allowlist
+  (browser mengirim `https://iiot-oee-admin-panel.vercel.app`, https, tanpa
+  trailing slash), dan apakah perubahan allowlist sudah ter-deploy ke
+  instance yang melayani domain ini.
+
+### 31.3 Kebutuhan env panel untuk memakai API (diperiksa 16:55 WIB)
+
+Wajib (build-time, `VITE_*` dibakar ke bundle — ubah = deploy ulang):
+- `VITE_API_MODE=real` — tanpa ini panel jalan mode Demo.
+- `VITE_API_URL=https://oee.fadik.web.id/api/v1` — HARUS lengkap dengan
+  `/api/v1` (dipakai apa adanya); bila kosong, panel memakai origin-nya
+  sendiri + `/api/v1` (salah di Vercel).
+- `VITE_WS_URL=wss://oee.fadik.web.id/ws/telemetry` — bila kosong, WS ikut
+  alamat panel (salah di Vercel).
+Ketiganya SUDAH ada di bundle Vercel yang live (deploy 9653612, terverifikasi
+dari bundle) — dari sisi env tidak ada yang perlu diubah.
+Perhatian pasca-CORS: `VITE_ACCESS_MODE` default `private`; server
+memperlakukan trafik internet publik sebagai tunnel — mutasi dari panel
+Vercel dapat ditolak 403 oleh server meski CORS lolos (gerbang mode akses,
+bukan CORS). Login adalah mutasi pertama yang akan menguji gerbang ini.
+
+## 32. Implementasi perbaikan frontend E23 (2026-11-19 17:09–17:55 WIB)
+
+Atas perintah Fathur ("hentikan proses berjalan untuk backend ... lakukan
+perbaikan di frontend", lalu "tunda pengecekan backend", "fokus perbaikan
+frontend"): koordinator backend dihentikan; pengecekan backend DITUNDA
+(catatan: worker backend sempat mengklaim selesai, tetapi tidak ada file
+bukti yang tersimpan di disk dan dokumen gabungannya tidak ada — bila
+dilanjutkan nanti, sweep harus diulang dari awal). Implementasi frontend
+dikerjakan koordinator + 4 worker berurutan, satu commit per batch.
+
+### 32.1 Verifikasi independen parent
+
+- Git: `21a72b7` → `32fb9b4` (Batch 1 High) → `30d9bd5` (Batch 2 Medium 1)
+  → `fad898a` (Batch 3 Medium 2) → `6d54f97` (Batch 4 Low); tree bersih.
+- `npx tsc --noEmit`: **0 error**. `npm test`: **428 pass / 0 fail**
+  (dari 368 sebelum E23, +60 test baru). `npm run build`: OK.
+  `npm run check:structure`: **0 FAIL** (311 file, 39 WARN lunak).
+- Spot-check parent: N-8 `{startWindow, endWindow}` di `http/telemetry.ts`
+  + anotasi pembalikan keputusan E20 di `API_SYNC_REVIEW.md` §5 dan
+  `API_SYNC_DIFF.md` (footnote `[^n8]`); N-7 mapper `assignments[]`;
+  N-10 `BrokerConfigStatus {runtime, lock, current, lastOperation,
+  lastAppliedVersionId}`; N-38 badge mode API + label akses di LoginPage;
+  N-39 template tanpa trailing slash; N-25 kategori `'UNKNOWN'`. Semua
+  terkonfirmasi.
+- Koreksi worker yang dicatat (mengikuti spec live, bukan audit): N-12
+  password bridge ternyata opsional (hanya `remote_address` wajib); N-15
+  `firmwareVersion` juga opsional; N-20 enum DEGRADED hanya untuk
+  database/mqtt; N-21 `actualCycleTimeSec` string nullable; N-22 respons
+  jobs array polos, `jobId` numerik; N-31 spec tidak punya field `timestamp`
+  di operasi config; N-36 mode IAM spec hanya `shadow|enforce`.
+
+### 32.2 Yang ditutup (31 issue → Done di Linear)
+
+- Batch 1 (High): FAT-176–182 (N-7–N-13). Batch 2: FAT-183–191
+  (N-14–N-22). Batch 3: FAT-192–201 (N-23–N-31 + N-34). Batch 4:
+  FAT-203–206, 208 (N-33, N-35–N-37, N-39). Mode Demo tetap jalan.
+- **FAT-207 (N-38) tetap Todo (parsial):** badge mode API + label mode
+  akses di LoginPage selesai; indikator status koneksi backend TIDAK
+  dibuat — keputusan worker yang dicatat (di Demo tidak ada backend untuk
+  di-ping; saat itu ping `/health` akan gagal karena CORS). CORS sudah
+  diperbaiki live 17:06 WIB, jadi indikator itu kini layak — dicatat di
+  deskripsi issue sebagai sisa pekerjaan.
+- Tidak disentuh: N-6 (FAT-175, backend CORS — sudah diperbaiki live),
+  N-32 (FAT-202, eventFlags — butuh jawaban backend soal definisi bit),
+  N-40/N-41 (FAT-209/210, backend/spec).
+
+### 32.3 Hitungan Linear (terverifikasi live, paginasi penuh)
+
+**210 issue: 172 Done / 2 In Progress / 36 Todo**; 28 tanpa parent, 182
+child. Koreksi: total ini mencakup 4 issue onboarding bawaan Linear
+(FAT-1–FAT-4, Todo, bukan kerja proyek) yang tidak masuk hitungan 169/206
+sebelumnya; tanpa keempatnya, total proyek = 206. Seed v25 → v26.
+Belum terverifikasi: Real-mode E2E + visual di browser untuk batch ini,
+dan perilaku live N-8 (400 vs jendela default) — butuh probe ber-auth.
+Push 4 commit E23 + vercel.json menunggu perintah Fathur (snapshot-push;
+remote masih `9653612`).

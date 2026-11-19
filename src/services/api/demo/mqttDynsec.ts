@@ -48,12 +48,19 @@ export const demoMqttDynsec = {
     checkAbort(signal);
     assertCapability('mqtt.dynsec.read', ['ADMIN'], { requireLan: false });
     store.recordEndpoint('MQTT_DYNSEC_STATUS', ADMIN_ENDPOINTS.MQTT_DYNSEC_STATUS.buildPath());
+    // E23 Batch 4 (FAT-203, N-33): demo meniru bentuk spec live —
+    // {connected, subscribed, connecting, pluginReady, brokerUrl,
+    // adminUsername, lastError, lastConnectedAt}; bentuk lama
+    // (enabled/status/clients_count/…) sudah tidak dipakai.
     return {
-      enabled: true,
-      status: 'CONNECTED' as const,
-      clients_count: store.mqttClients.length,
-      roles_count: store.mqttRoles.length,
-      groups_count: store.mqttGroups.length,
+      connected: true,
+      subscribed: true,
+      connecting: false,
+      pluginReady: true,
+      brokerUrl: 'mqtt://localhost:1883',
+      adminUsername: 'admin',
+      lastError: null,
+      lastConnectedAt: new Date().toISOString(),
     };
   },
 

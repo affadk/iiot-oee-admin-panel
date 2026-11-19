@@ -28,6 +28,23 @@
 > R-9, endpoint `GET /api/v1/system/access-mode`) menunggu salinan api_docs
 > baru = **R-23**. Lihat `docs/API_SYNC_REVIEW.md` §2 untuk status
 > R-1–R-23 terkini.
+>
+> **Anotasi E23 Batch 1 — 19 Nov 2026 (N-8, FAT-177):** keputusan E20
+> R-11/T9/X29 — body refresh rekonsiliasi `{from, to}` mengikuti api_docs
+> §K.6 — **DIGANTIKAN oleh spec live** (`~/workspace/oee-live-openapi.json`,
+> `POST /api/v1/telemetry/reconciliation/refresh`: body wajib
+> `{startWindow?, endWindow?}`). Panel kini mengirim
+> `{startWindow, endWindow}` (`http/telemetry.ts`,
+> `ReconciliationRefreshRequest`, `ReconciliationRefreshSchema`, demo +
+> `DataReconciliationPage.tsx`). Jejak keputusan lama di bawah
+> dipertahankan sebagai riwayat; marker [^n8] menandai baris yang
+> digantikan. Audit: `docs/API_DOCS_AUDIT.md` §6 N-8.
+
+[^n8]: **Digantikan spec live (E23 Batch 1, 19 Nov 2026, N-8/FAT-177):**
+api_docs §K.6 menulis `{from, to}`, tetapi OpenAPI live (sumber
+kebenaran yang lebih baru, diverifikasi langsung dari
+`oee-live-openapi.json`) mendefinisikan body `{startWindow?,
+endWindow?}`. Panel mengikuti spec live.
 
 **Fakta yang sudah diputuskan (dicatat, tidak diputuskan ulang):**
 - **K-11 E18 DIGANTIKAN:** `POST /clients` (provision dynsec) digantikan oleh **`POST /devices/provision`** per §E dokumen baru (spec 015, ADR-009) — dikonfirmasi §E.3a (dok baris 442–478).
@@ -100,7 +117,7 @@ Registry 109/132 kunci OK (seluruh production lines/shifts/schedules/products 20
 | R8 | `WORK_ORDERS_RESOLVE` | `device_id` opsional di panel; dokumen: **required** | `http/workOrders.ts` | §C.3 |
 | R9 | `OPERATIONAL_EVENTS_LIST` | Trailing slash `/operational-events/`; dokumen menulis tanpa slash dan hanya menyatakan `ignoreTrailingSlash` untuk mqtt configuration | `endpoints/monitoring.ts` | §I 1007; §3.3b 1406 |
 | R10 | `SYSTEM_AUDIT` | Filter `machine_id` tidak dikirim | `http/monitoring.ts:156-180` | §I 1069–1077 |
-| R11 | `RECONCILIATION_REFRESH` | Body `{startWindow, endWindow}`; dokumen: `{from, to}` | `http/telemetry.ts:85-104` | §K.6 1207–1218 |
+| R11 | `RECONCILIATION_REFRESH` | Body `{startWindow, endWindow}`; dokumen: `{from, to}` | `http/telemetry.ts:85-104` | §K.6 1207–1218 [^n8] |
 | R12 | `OEE_SHIFT_TIMELINE` | Default bucket `'15m'`; dokumen: default `5m` | `http/telemetry.ts:44-72` | §Q.3 1755–1758 |
 | R13 | `IAM_PERMISSIONS_CREATE` | Body `{action, resource_type}`; kanon: `resourceType` | `http/iam.ts:99-114` | §3.4 ~1485 |
 | R14 | `IAM_POLICIES_CREATE` | Body snake_case + `reason` (lihat §6) | `http/iam.ts:229-244` | §3.4 ~1512–1530 |
@@ -260,7 +277,7 @@ Registry 109/132 kunci OK (seluruh production lines/shifts/schedules/products 20
 | T6 | `HourlyOeePoint` tanpa `deviceId`/`machineId`/`woId` | `types/analytics.ts:29-46` | §Q.2 1749 | NEW |
 | T7 | Timeline default bucket `15m` | `http/telemetry.ts:44`, `demo/telemetry/oee.ts:224` | §Q.3 1758; §7I 2091: bucket default `5m` (`1m|5m|15m|1h`) | CHANGE |
 | T8 | HTTP OEE/telemetri minta auth | `http/telemetry.ts:21,52` + `http/monitoring.ts:193,218,303` panggil `assertAuthenticatedHttp()` | §Q 1708: "Agregat OEE read-only (tunnel-safe, tanpa auth)"; §7H 2075: `/live-state, /telemetry/*, /quality/*, /oee/*` read `open` | CHANGE |
-| T9 | Body refresh rekonsiliasi | `{startWindow, endWindow}` (`http/telemetry.ts:92-107`) | Body `{from, to}` (§K.6 1215–1224) | CHANGE |
+| T9 | Body refresh rekonsiliasi | `{startWindow, endWindow}` (`http/telemetry.ts:92-107`) | Body `{from, to}` (§K.6 1215–1224) [^n8] | CHANGE |
 | T10 | Demo hourly tanpa `bucket` ISO | `buildDemoHourlyPoints` kembalikan `hour: '07:00'` (`HH:MM`), tanpa field `bucket` (`demo/telemetry/oee.ts:96-120`); `mapHourly` baca `bucket` dulu → `bucket: undefined` | §7B 2038–2050: bucket hourly/aggregate ber-kunci `bucket` ISO string; §K.2 1175: tiap item memuat `provisional` | CHANGE |
 | T11 | Demo shift-summary hardcode | `planned_production_time_min: 480, operating_time_min: 420, run_time_min: 388, unplanned_downtime_min: 32, planned_downtime_min: 60` hardcode; `target_per_hour: derived?.targetPerHour ?? 64` — fallback 64 bertentangan nilai turunan demo sendiri (50) | §Q.1 1717–1731: `target_per_hour` datang dari server | CHANGE |
 | T12 | Demo `oeePct: 0` saat kapasitas unknown | `demo/telemetry/helpers.ts:191`, `demo/telemetry/rollup.ts:85` | §K.3c 1194: kapasitas nol/unknown → `null` untuk Performance; nilai OEE pada kondisi itu **tidak ditegaskan dokumen** — 0 adalah fabrikasi (lihat kontradiksi C14) | CHANGE |
@@ -329,7 +346,7 @@ Registry 109/132 kunci OK (seluruh production lines/shifts/schedules/products 20
 | X26 | Seed IAM level + reason; seed op-events nilai tebakan + severity | `seeds/system.ts:86-118,202-259`; `seeds/monitoring.ts:308-417` | §3.4 1507, 1556; §I 1073–1075 |
 | X27 | `mapAuditLog` field karangan (`operator_id/operator_name/action/resource_type/client_ip/access_mode`) | `mappers/monitoring.ts:95-115`; `types/system.ts:36-54` | FR-034-01 (§I 1020–1047) |
 | X28 | Koersi null → 0 `*Pct` + skema tak-nullable + `oeePct: 0` saat kapasitas unknown | `mappers/monitoring.ts:196-282`; `schemas/dto.ts:357-393`; `demo/telemetry/helpers.ts:191`; `demo/telemetry/rollup.ts:85` | §K 1163, 1194; §7J 2086 |
-| X29 | Body refresh rekonsiliasi `{startWindow, endWindow}`; default bucket timeline `15m`; `assertAuthenticatedHttp` pada OEE/telemetri read | `http/telemetry.ts:21,44,52,92-107`; `http/monitoring.ts:193,218,303`; `demo/telemetry/oee.ts:224` | §K.6 1215–1224; §Q.3 1758; §Q 1708; §7H 2075 |
+| X29 | Body refresh rekonsiliasi `{startWindow, endWindow}`; default bucket timeline `15m`; `assertAuthenticatedHttp` pada OEE/telemetri read | `http/telemetry.ts:21,44,52,92-107`; `http/monitoring.ts:193,218,303`; `demo/telemetry/oee.ts:224` | §K.6 1215–1224; §Q.3 1758; §Q 1708; §7H 2075 [^n8] |
 | X30 | Fallback kode error 502/503 salah; `details` 422 dibuang; `Retry-After` tidak dibaca; `authzVersion` refresh dibuang | `schemas/transport.ts:113-169`; `http/auth.ts:33-49` | §2 44–62; §3.3b; §L 1227, 1232 |
 | X31 | Demo hourly `hour: 'HH:MM'` tanpa `bucket`; demo shift-summary hardcode + fallback target 64 | `demo/telemetry/oee.ts:96-120,209-226` | §7B 2038–2050; §Q.1 1717–1731 |
 | X32 | Normalisasi `OFFLINE → UNCONFIGURED` + seed item `state: 'OFFLINE'` | `mappers/assets.ts:146-161`; `oeeCalculations.ts:10-32`; `seeds/assets.ts:150-159` | FSM kanonis 6 nilai (§6A/§7D) — lihat kontradiksi C12 |

@@ -333,7 +333,22 @@ export async function reqExport(opts: ReqOpts, format: 'csv' | 'ndjson' | 'json'
   const disposition = headers['content-disposition'] ?? '';
   const nameMatch = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(disposition);
   const filename = nameMatch ? decodeURIComponent(nameMatch[1].trim()) : fallbackName;
-  const content = raw.text;
+  // E23 Batch 3 (FAT-193, N-24): spec live — 200 ekspor = application/json
+  // STRING (bukan text/csv). Bila server meng-JSON-encode string CSV itu
+  // (body diawali `"` dan diakhiri `"`), uraikan dulu ke teks CSV asli —
+  // kalau tidak, CSV rusak (dikutip, escape `\n` literal, rowCount 0).
+  // Teks CSV polos (bukan JSON valid / hasil parse bukan string) dipakai
+  // apa adanya seperti sebelumnya.
+  let content = raw.text;
+  const trimmed = content.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      const decoded: unknown = JSON.parse(trimmed);
+      if (typeof decoded === 'string') content = decoded;
+    } catch {
+      // Bukan JSON — pakai teks mentah.
+    }
+  }
   const lines = content.split('\n').filter((l) => l.trim().length > 0);
   const rowCount = format === 'csv' ? Math.max(0, lines.length - 1) : lines.length;
   return {

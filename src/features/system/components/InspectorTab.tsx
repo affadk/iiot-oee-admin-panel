@@ -77,13 +77,32 @@ export const InspectorTab: React.FC<InspectorTabProps> = ({
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {effectivePerms.roles.map((er, i) => (
+              {/* E23 Batch 1 (FAT-176, N-7): spec live — `roles` adalah
+                  string[]; badge terisi dari roles, detail scope dari
+                  assignments[] di bawah. */}
+              {effectivePerms.roles.map((role, i) => (
                 <Badge key={i} variant="info">
-                  {er.roleName} ({er.scopeType}{er.scopeId ? `: ${er.scopeId}` : ''})
+                  {role}
                 </Badge>
               ))}
             </div>
           </div>
+          {effectivePerms.assignments.length > 0 && (
+            <div className="space-y-1">
+              <div className="font-semibold text-slate-700 dark:text-slate-300">
+                Penugasan Peran (assignments)
+              </div>
+              {effectivePerms.assignments.map((a) => (
+                <div key={a.id} className="flex flex-wrap items-center gap-2">
+                  <Badge variant="info">{a.role_name}</Badge>
+                  <span className="text-slate-500">
+                    {a.scope_type}
+                    {a.scope_id ? `: ${a.scope_id}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="space-y-1.5">
             {effectivePerms.permissions.length === 0 ? (
               <div className="text-slate-500 py-2">

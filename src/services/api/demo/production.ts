@@ -333,11 +333,14 @@ export const demoProduction = {
 
   async updateShiftSchedule(
     scheduleId: string,
-    patch: { lineId?: string; shiftId?: string; dayOfWeek?: number; isActive?: boolean }
+    patch: { shiftId?: string; dayOfWeek?: number; isActive?: boolean }
   ): Promise<ShiftSchedule> {
     assertCapability('shift_schedule.manage', ['ADMIN'], { resourceId: scheduleId });
+    // E23 Batch 2 (FAT-187, N-18): body spec live PATCH hanya
+    // `{shiftId?, dayOfWeek?, isActive?}` — TANPA `lineId`; lini tidak
+    // bisa diubah via PATCH. Demo meniru: `lineId` tidak lagi diterima
+    // maupun diterapkan (dulu patch.lineId memindahkan jadwal ke lini lain).
     const errors = validateShiftScheduleInput({
-      lineId: patch.lineId,
       shiftId: patch.shiftId,
       dayOfWeek: patch.dayOfWeek,
     });
@@ -349,18 +352,14 @@ export const demoProduction = {
     if (!sch) {
       throw new ApiError({ code: 'SHIFT_SCHEDULE_NOT_FOUND', message: `Jadwal shift "${scheduleId}" tidak ditemukan.`, httpStatus: 404 });
     }
-    const nextLineId = patch.lineId ?? sch.lineId;
+    const nextLineId = sch.lineId;
     const nextShiftId = patch.shiftId ?? sch.shiftId;
     const nextDay = patch.dayOfWeek ?? sch.dayOfWeek;
-    if (!store.productionLines.some((l) => l.lineId === nextLineId)) {
-      throw new ApiError({ code: 'PRODUCTION_LINE_NOT_FOUND', message: `Lini produksi "${nextLineId}" tidak ditemukan.`, httpStatus: 404 });
-    }
     const nextShift = store.shifts.find((s) => s.shiftId === nextShiftId);
     if (!nextShift) {
       throw new ApiError({ code: 'SHIFT_NOT_FOUND', message: `Shift "${nextShiftId}" tidak ditemukan.`, httpStatus: 404 });
     }
     assertNoScheduleOverlap(nextLineId, nextShiftId, nextDay, scheduleId);
-    sch.lineId = nextLineId;
     sch.shiftId = nextShiftId;
     sch.dayOfWeek = nextDay;
     if (patch.isActive !== undefined) sch.isActive = patch.isActive;

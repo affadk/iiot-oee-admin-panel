@@ -199,14 +199,9 @@ export const demoIamPolicies = {
       authzVersion: store.iamInfo.authzVersion,
       effectiveInMode: store.iamInfo.effectiveInMode,
       assignments: assignments.map((a) => ({ ...a })),
-      roles:
-        assignments.length > 0
-          ? assignments.map((a) => ({
-              roleName: a.role_name,
-              scopeType: a.scope_type,
-              scopeId: a.scope_id,
-            }))
-          : [{ roleName: op.role, scopeType: 'ORGANIZATION', scopeId: null }],
+      // E23 Batch 1 (FAT-176, N-7): spec live — `roles` adalah string[];
+      // detail peran (scope) hidup di `assignments[]`.
+      roles: roleNames,
       permissions: matchingPolicies.map((p) => ({
         action: p.action,
         resourceType: p.resourceType,

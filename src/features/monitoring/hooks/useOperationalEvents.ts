@@ -65,8 +65,10 @@ export function useOperationalEvents({
         apiClient.exportOperationalEventsData(
           {
             device_id: deviceFilter,
-            // E20 P20.4 (FAT-156, D-12): ekspor global hanya mendaftarkan
-            // from/to/format/limit — tanpa machine_id/event_type.
+            // E23 Batch 3 (FAT-201, N-34): spec live MENERIMA `event_type`
+            // pada ekspor op-events — kirim bila filter diisi. `machine_id`
+            // tetap tidak dikirim (B23: hanya /system/audit).
+            event_type: filters.eventType,
             from: filters.from,
             to: filters.to,
             format,

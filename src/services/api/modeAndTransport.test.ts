@@ -105,8 +105,11 @@ test('E20 P20.5 (FAT-157): registry 137 ops admin (136 + SYSTEM_ACCESS_MODE 09:2
   assert.equal(client.completeWorkOrder, undefined);
 });
 
-test('E14 Fase 0: K-03 config GET trailing slash; E20 P20.2 provision kanonis di /devices/provision', () => {
-  assert.equal(ADMIN_ENDPOINTS.MQTT_CONFIG_GET.buildPath(), '/api/v1/mqtt/configuration/');
+test('E14 Fase 0: K-03 config GET tanpa trailing slash (E23 Batch 4 N-39); E20 P20.2 provision kanonis di /devices/provision', () => {
+  // E23 Batch 4 (FAT-208, N-39): registry memakai path spec
+  // /api/v1/mqtt/configuration (tanpa slash akhir); K-03 lama mencatat
+  // server menerima keduanya, panel kini memakai bentuk spec.
+  assert.equal(ADMIN_ENDPOINTS.MQTT_CONFIG_GET.buildPath(), '/api/v1/mqtt/configuration');
   // E20 P20.2 (X1/R23, K-11): rute lama /mqtt/dynamic-security/clients/provision
   // DIHAPUS dari registry; pengganti kanonis POST /api/v1/devices/provision.
   assert.equal((ADMIN_ENDPOINTS as Record<string, unknown>).MQTT_DYNSEC_CLIENTS_PROVISION, undefined);
@@ -354,15 +357,20 @@ test('E14 Fase 0: K-10 PUT IAM, K-10 PATCH dynsec, K-11 provision, K-03 slash co
         return;
       }
       if (req.method === 'PATCH' && url.pathname === '/api/v1/mqtt/dynamic-security/clients/user1/enable') {
-        // B35: mapper membaca `disabled`, bukan `enabled` — stub mengirim disabled.
-        json(200, { username: 'user1', disabled: true });
+        // E23 Batch 1 (FAT-178, N-9): spec live — PATCH .../enable hanya
+        // `{success}`; entitas penuh dibaca ulang via GET di bawah.
+        json(200, { success: true });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/dynamic-security/clients/user1') {
+        json(200, { username: 'user1', enabled: false });
         return;
       }
       if (req.method === 'POST' && url.pathname === '/api/v1/mqtt/dynamic-security/clients') {
         json(200, { client: { username: 'user2', enabled: true }, generatedPassword: 'dynsec_once' });
         return;
       }
-      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/configuration/') {
+      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/configuration') {
         json(200, {});
         return;
       }
@@ -396,7 +404,7 @@ test('E14 Fase 0: K-10 PUT IAM, K-10 PATCH dynsec, K-11 provision, K-03 slash co
     assert.ok(tog, 'toggle memakai PATCH');
     assert.deepEqual(tog.body, { enabled: false });
     assert.ok(find('POST', '/api/v1/mqtt/dynamic-security/clients'), 'create roles tetap memakai /clients');
-    assert.ok(find('GET', '/api/v1/mqtt/configuration/'), 'GET config memakai trailing slash');
+    assert.ok(find('GET', '/api/v1/mqtt/configuration'), 'GET config tanpa trailing slash (spec, E23 Batch 4 N-39)');
     // Tidak ada lagi method lama: POST rotate/toggle, PATCH IAM.
     assert.equal(seen.filter((s) => s.method === 'POST' && s.path.endsWith('/password')).length, 0);
     assert.equal(seen.filter((s) => s.method === 'POST' && s.path.endsWith('/enable')).length, 0);
@@ -438,20 +446,34 @@ test('E15 K-05: 4 sub-operasi dynsec mengirim objek tunggal (stub HTTP)', async 
         });
         return;
       }
+      // E23 Batch 1 (FAT-178, N-9): spec live — keempat sub-op hanya
+      // `{success}`; entitas penuh dibaca ulang via GET di bawah.
       if (req.method === 'POST' && url.pathname === '/api/v1/mqtt/dynamic-security/clients/user1/roles') {
-        json(201, { username: 'user1', enabled: true });
+        json(201, { success: true });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/dynamic-security/clients/user1') {
+        json(200, { username: 'user1', enabled: true, roles: ['edge_publisher'] });
         return;
       }
       if (req.method === 'POST' && url.pathname === '/api/v1/mqtt/dynamic-security/roles/role1/acls') {
-        json(201, { rolename: 'role1', acls: [] });
+        json(201, { success: true });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/dynamic-security/roles/role1') {
+        json(200, { rolename: 'role1', acls: [{ acltype: 'publishClientSend', topic: 'test/#', allow: true }] });
         return;
       }
       if (req.method === 'POST' && url.pathname === '/api/v1/mqtt/dynamic-security/groups/g1/clients') {
-        json(201, { groupname: 'g1', clients: [], roles: [] });
+        json(201, { success: true });
         return;
       }
       if (req.method === 'POST' && url.pathname === '/api/v1/mqtt/dynamic-security/groups/g1/roles') {
-        json(201, { groupname: 'g1', clients: [], roles: [] });
+        json(201, { success: true });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/v1/mqtt/dynamic-security/groups/g1') {
+        json(200, { groupname: 'g1', clients: ['edge1'], roles: ['edge_publisher'] });
         return;
       }
       json(404, { error: 'NOT_FOUND', message: `Rute stub tidak dikenal: ${req.method} ${url.pathname}` });

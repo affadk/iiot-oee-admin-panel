@@ -67,6 +67,20 @@ export function mapDowntime(raw: unknown): DowntimeEvent {
   const r = (raw ?? {}) as Record<string, unknown>;
   const deviceId = pick(r.deviceId, r.device_id);
   const machineId = pick(r.machineId, r.machine_id);
+  // E23 Batch 3 (FAT-194, N-25): spec live TIDAK punya `category` pada
+  // item downtime — nilai yang dikirim server dipakai bila ada (bentuk
+  // demo/legacy), bila tidak → 'UNKNOWN' (penanda lokal "tidak ada dari
+  // server"), BUKAN 'OTHER' (nilai kategori POST /reason yang sah).
+  // `isLabeled` spec dibaca langsung (dulu diturunkan dari ada/tidaknya
+  // reason); `reason` ← `operatorReason` kanonis spec.
+  const rawCategory = pick(r.category) as DowntimeCategory | undefined;
+  const validCategories: DowntimeCategory[] = [
+    'EQUIPMENT_FAILURE', 'SETUP_AND_ADJUSTMENT', 'IDLING_AND_MINOR_STOPPAGE',
+    'REDUCED_SPEED', 'PROCESS_DEFECT', 'MATERIAL_SHORTAGE',
+    'PLANNED_MAINTENANCE', 'REST_BREAK', 'CLEANING_5S', 'OTHER', 'UNKNOWN',
+  ];
+  const reason = str(pick(r.operatorReason, r.operator_reason, r.reason), '');
+  const isLabeledRaw = pick(r.isLabeled, r.is_labeled);
   return {
     id: String(pick(r.id, r.eventId, r.event_id) ?? ''),
     device_id: deviceId === '[deleted]' ? null : (deviceId as string | null) ?? null,
@@ -78,10 +92,10 @@ export function mapDowntime(raw: unknown): DowntimeEvent {
     // (§7B/D1) — dibaca PERTAMA; alias lain hanya fallback.
     duration_seconds: num(pick(r.duration_sec, r.durationSec, r.duration_seconds), 0),
     durationFormatted: str(pick(r.durationFormatted, r.duration_formatted), undefined) || undefined,
-    category: (pick(r.category) as DowntimeCategory) ?? 'OTHER',
-    reason: str(pick(r.operatorReason, r.operator_reason, r.reason), ''),
+    category: rawCategory !== undefined && validCategories.includes(rawCategory) ? rawCategory : 'UNKNOWN',
+    reason,
     notes: str(pick(r.notes), undefined) || undefined,
-    is_labeled: Boolean(pick(r.operatorReason, r.operator_reason, r.reason)),
+    is_labeled: typeof isLabeledRaw === 'boolean' ? isLabeledRaw : Boolean(reason),
     is_overwrite: bool(pick(r.isOverwrite, r.is_overwrite), false),
     acknowledged_by: str(pick(r.acknowledgedBy, r.acknowledged_by), undefined) || undefined,
     created_at: iso(pick(r.createdAt, r.created_at, r.startTime, r.start_time)),
@@ -148,21 +162,27 @@ export function mapTelemetryHistory(raw: unknown): TelemetryHistoryRecord {
   const total = num(pick(r.totalCount, r.total_count), 0);
   const good = num(pick(r.goodCount, r.good_count), 0);
   const reject = num(pick(r.rejectCount, r.reject_count), 0);
+  // E23 Batch 2 (FAT-190, N-21): spec live membawa `currentState`,
+  // `operatingTimeSec`, `runTimeSec`, `actualCycleTimeSec` (string detik,
+  // nullable) — keempatnya dulu dilewatkan mapper (fsm_state selalu
+  // 'UNCONFIGURED', cycle_time_ms 0). Alias lama tetap fallback.
+  const cycleSec = pick(r.actualCycleTimeSec, r.actual_cycle_time_sec, r.lastCycleTimeSec, r.last_cycle_time_sec);
+  const lastCycleSec = cycleSec !== undefined ? num(cycleSec, 0) : undefined;
   return {
     id: String(pick(r.id, r.recordedAt, r.recorded_at) ?? `${pick(r.deviceId, r.device_id)}-${pick(r.recordedAt, r.recorded_at)}`),
     device_id: str(pick(r.deviceId, r.device_id)),
     timestamp: iso(pick(r.recordedAt, r.recorded_at, r.timestamp, r.bucket)),
-    fsm_state: normalizeFsmState(str(pick(r.state, r.fsm_state), 'UNCONFIGURED')) as MachineFsmState,
+    fsm_state: normalizeFsmState(str(pick(r.currentState, r.state, r.fsm_state), 'UNCONFIGURED')) as MachineFsmState,
     total_count: total,
     good_count: good,
     reject_count: reject,
     totalCount: total,
     goodCount: good,
     rejectCount: reject,
-    operatingTimeSec: num(pick(r.operatingSec, r.operating_sec), 0) || undefined,
-    runTimeSec: num(pick(r.runSec, r.run_sec), 0) || undefined,
+    operatingTimeSec: num(pick(r.operatingTimeSec, r.operating_time_sec, r.operatingSec, r.operating_sec), 0) || undefined,
+    runTimeSec: num(pick(r.runTimeSec, r.run_time_sec, r.runSec, r.run_sec), 0) || undefined,
     downtimeSec: num(pick(r.downtimeSec, r.downtime_sec), 0) || undefined,
-    lastCycleTimeSec: num(pick(r.lastCycleTimeSec, r.last_cycle_time_sec), 0) || undefined,
+    lastCycleTimeSec: lastCycleSec || undefined,
     oee: num(pick(r.oeePct, r.oee), 0),
     availability: num(pick(r.availabilityPct, r.availability), 0),
     performance: num(pick(r.performancePct, r.performance), 0),
@@ -177,10 +197,13 @@ export function mapTelemetryHistory(raw: unknown): TelemetryHistoryRecord {
     // nama field target), lalu field detik. Layar Raw + CSV menampilkan
     // detik (`cycle_time_sec` = lastCycleTimeSec, fallback cycle_time_ms /
     // 1000) — konsisten dengan nilai ms yang benar di sini.
+    // E23 Batch 2 (FAT-190, N-21): sumber detik kanonis spec live adalah
+    // `actualCycleTimeSec` (string, nullable) — didahulukan atas alias
+    // lama `lastCycleTimeSec`.
     cycle_time_ms: (() => {
       const ms = pick(r.cycleTimeMs, r.cycle_time_ms);
       if (ms !== undefined) return num(ms, 0);
-      return num(pick(r.lastCycleTimeSec, r.last_cycle_time_sec), 0) * 1000;
+      return num(pick(r.actualCycleTimeSec, r.actual_cycle_time_sec, r.lastCycleTimeSec, r.last_cycle_time_sec), 0) * 1000;
     })(),
     temperature_c: num(pick(r.machineTempC, r.tempC, r.temperature_c), 0) || undefined,
     is_buffered: bool(pick(r.isBuffered, r.is_buffered), false),
@@ -239,16 +262,34 @@ export function mapHourly(raw: unknown): HourlyOeePoint {
  * Menerima field kanonis API doc §K.4/§Q (`oeePct`, `totalCount`, …) plus
  * alias legacy/snake_case dan bentuk ringkasan lama (`avg_oee`,
  * `total_parts`, `sample_count`) agar respons lama tetap termuat.
+ *
+ * E23 Batch 1 (FAT-180, N-11): spec live TIDAK membawa
+ * `totalCount/goodCount/rejectCount` — item hanya membawa
+ * `outputDelta/rejectDelta/goodDelta` (+ `sampleCount`). Bila count
+ * eksplisit absen, turunkan dari delta (total = outputDelta, atau
+ * good+reject bila outputDelta null); count eksplisit (demo/bentuk lama)
+ * tetap menang. Tanpa ini `total_parts` selalu 0.
  */
 export function mapAggregate(raw: unknown): TelemetryAggregatePoint {
   const r = (raw ?? {}) as Record<string, unknown>;
+  const numOrNull = (v: unknown): number | null =>
+    v === undefined || v === null ? null : Number.isFinite(num(v, NaN)) ? num(v, 0) : null;
+  const outputDelta = numOrNull(pick(r.outputDelta, r.output_delta));
+  const rejectDelta = numOrNull(pick(r.rejectDelta, r.reject_delta));
+  const goodDelta = numOrNull(pick(r.goodDelta, r.good_delta));
+  const totalRaw = pick(r.totalCount, r.total_count, r.total_parts, r.totalParts);
+  const rejectRaw = pick(r.rejectCount, r.reject_count);
+  const goodRaw = pick(r.goodCount, r.good_count);
+  const rejectCount = rejectRaw !== undefined ? num(rejectRaw, 0) : (rejectDelta ?? 0);
   // API doc §Q: good = max(0, output − reject) bila tidak dikirim eksplisit.
-  const totalCount = num(pick(r.totalCount, r.total_count, r.total_parts, r.totalParts), 0);
-  const rejectCount = num(pick(r.rejectCount, r.reject_count), 0);
+  const totalCount =
+    totalRaw !== undefined
+      ? num(totalRaw, 0)
+      : (outputDelta ?? (goodDelta ?? 0) + rejectCount);
   const item = {
     bucket: str(pick(r.bucket, r.bucket_start, r.bucketStart, r.hour), ''),
     totalCount,
-    goodCount: num(pick(r.goodCount, r.good_count), Math.max(0, totalCount - rejectCount)),
+    goodCount: goodRaw !== undefined ? num(goodRaw, 0) : (goodDelta ?? Math.max(0, totalCount - rejectCount)),
     rejectCount,
     operatingSec: num(pick(r.operatingSec, r.operating_sec), 0),
     runSec: num(pick(r.runSec, r.run_sec), 0),
@@ -260,19 +301,27 @@ export function mapAggregate(raw: unknown): TelemetryAggregatePoint {
     oeePct: pctOrNull(r.oeePct, r.oee_pct, r.avg_oee, r.oee),
     sampleCount: num(pick(r.sampleCount, r.sample_count), 0),
     provisional: bool(pick(r.provisional), false),
+    outputDelta,
+    goodDelta,
+    rejectDelta,
   };
   return mustParse(TelemetryAggregatePointSchema, item, 'agregat telemetri');
 }
 
 export function mapRollup(raw: unknown): TelemetryRollupItem {  const r = (raw ?? {}) as Record<string, unknown>;
+  // E23 Batch 3 (FAT-195, N-26): spec live groupBy mencakup 'line'
+  // (skema Zod diperluas); `lineId` item ikut dipetakan dan dipakai
+  // sebagai groupKey baris lini.
+  const lineId = (pick(r.lineId, r.line_id) as string | null) ?? null;
   const item = {
     groupBy: (pick(r.groupBy, r.group_by) as TelemetryRollupItem['groupBy']) ?? 'day',
-    groupKey: str(pick(r.groupKey, r.machineId, r.machine_id, r.deviceId, r.device_id, r.bucket), 'row'),
+    groupKey: str(pick(r.groupKey, r.lineId, r.line_id, r.machineId, r.machine_id, r.deviceId, r.device_id, r.bucket), 'row'),
     bucket: (pick(r.bucket) as string | null) ?? null,
     machineId: (pick(r.machineId, r.machine_id) as string | null) ?? null,
     machine_id: (pick(r.machineId, r.machine_id) as string | null) ?? null,
     machine_name: (pick(r.machineName, r.machine_name) as string | null) ?? null,
     device_id: (pick(r.deviceId, r.device_id) as string | null) ?? null,
+    lineId,
     totalCount: num(pick(r.totalCount, r.total_count), 0),
     goodCount: num(pick(r.goodCount, r.good_count), 0),
     rejectCount: num(pick(r.rejectCount, r.reject_count), 0),
@@ -345,10 +394,35 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
     : plannedProductionMinRaw !== undefined
       ? Math.round(num(plannedProductionMinRaw))
       : Math.round(operatingSec / 60);
+  // E23 Batch 3 (FAT-196, N-27): spec live TANPA totalCount/goodCount/
+  // rejectCount dan TANPA nama shift/mesin. Parts diturunkan dari
+  // hourly[] bila include_hourly diminta/dikembalikan — jumlahkan delta
+  // per bucket seperti pola N-11 (total = Σ parts_produced, defect =
+  // Σ defect_count, good = Σ good_count, fallback max(0, total−defect)
+  // per bucket bila good_count tak ada); count eksplisit (demo/bentuk
+  // lama) tetap menang. Tanpa hourly → null (tidak diketahui), JANGAN
+  // fabrikasi 0. Nama shift/mesin → null bila tak dikirim (bukan
+  // 'Shift'/'').
+  const hourly = Array.isArray(r.hourly) ? (r.hourly as unknown[]).map((h) => mapHourly(h)) : undefined;
+  const explicitTotal = pick(r.totalCount, r.total_count);
+  const explicitGood = pick(r.goodCount, r.good_count);
+  const explicitDefect = pick(r.rejectCount, r.reject_count);
+  const derivedParts =
+    hourly && hourly.length > 0
+      ? hourly.reduce(
+          (acc, p) => {
+            const total = p.parts_produced;
+            const defect = p.defect_count;
+            const good = p.good_count ?? Math.max(0, total - defect);
+            return { total: acc.total + total, good: acc.good + good, defect: acc.defect + defect };
+          },
+          { total: 0, good: 0, defect: 0 },
+        )
+      : null;
   return {
-    shift_name: str(pick(r.shift_name, r.shiftName, r.shift), 'Shift'),
+    shift_name: (pick(r.shift_name, r.shiftName, r.shift) as string | null) ?? null,
     machine_id: str(pick(r.machine_id, r.machineId, machineId), ''),
-    machine_name: str(pick(r.machine_name, r.machineName), ''),
+    machine_name: (pick(r.machine_name, r.machineName) as string | null) ?? null,
     shift_start: iso(pick(win.from, r.shift_start, r.from)),
     shift_end: iso(pick(win.to, r.shift_end, r.to)),
     tz: str(pick(win.tz, r.tz), undefined) || undefined,
@@ -362,13 +436,13 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
     run_time_min: Math.round(runSec / 60),
     unplanned_downtime_min: Math.round(downtimeSec / 60),
     planned_downtime_min: plannedDowntimeMin,
-    total_parts: num(pick(r.totalCount, r.total_count), 0),
-    good_parts: num(pick(r.goodCount, r.good_count), 0),
-    defect_parts: num(pick(r.rejectCount, r.reject_count), 0),
+    total_parts: explicitTotal !== undefined ? num(explicitTotal, 0) : (derivedParts?.total ?? null),
+    good_parts: explicitGood !== undefined ? num(explicitGood, 0) : (derivedParts?.good ?? null),
+    defect_parts: explicitDefect !== undefined ? num(explicitDefect, 0) : (derivedParts?.defect ?? null),
     target_per_hour: (pick(r.target_per_hour, r.targetPerHour) as number | null) ?? null,
     // E20 P20.5 (FAT-157): baca `hourly[]` bila server menyertakannya
     // (`include_hourly=true`, §Q.1) — sebelumnya dibuang.
-    hourly: Array.isArray(r.hourly) ? (r.hourly as unknown[]).map((h) => mapHourly(h)) : undefined,
+    hourly,
   };
 }
 
@@ -391,13 +465,37 @@ export function mapTimelineSegment(raw: unknown): ShiftTimelineSegment {
 
 export function mapReconciliationJob(raw: unknown): ReconciliationJob {
   const r = (raw ?? {}) as Record<string, unknown>;
+  // E23 Batch 2 (FAT-191, N-22): spec live
+  // `{jobId, applicationName, scheduleInterval, maxRuntime,
+  // lastRunStartedAt, lastSuccessfulFinish, lastRunStatus}` — mapper lama
+  // membaca `name/view_name/last_run/lastStatus` yang TAK ADA di spec
+  // (nama '', last_run epoch 1970, status selalu 'SUCCESS').
+  // - `jobId` spec berupa number → string lokal.
+  // - `view_name` tidak ada di spec; diisi applicationName agar deteksi
+  //   hourly/daily di DataReconciliationPage tetap jalan.
+  // - `last_run` = lastRunStartedAt (fallback lastSuccessfulFinish bila
+  //   start tak ada); null → '' (bukan epoch — jangan pakai `iso()`).
+  // - `lastRunStatus` nullable; nilai di luar union lokal → 'SUCCESS'.
+  // - Spec tidak membawa `refresh_window_hours`/`records_processed` →
+  //   tetap 0; `maxRuntime` tidak punya field lokal → tidak dipetakan.
+  const jobIdRaw = pick(r.jobId, r.job_id);
+  const appName = str(pick(r.applicationName, r.application_name, r.name), '');
+  const lastRunStatus = pick(r.lastRunStatus, r.last_run_status, r.lastStatus, r.last_status);
+  const startedAt = pick(r.lastRunStartedAt, r.last_run_started_at);
+  const finishedAt = pick(r.lastSuccessfulFinish, r.last_successful_finish);
+  const tsOrEmpty = (v: unknown): string => (typeof v === 'string' && v ? v : '');
   return {
-    job_id: str(pick(r.job_id, r.jobId)),
-    name: str(pick(r.name)),
-    view_name: str(pick(r.view_name, r.viewName)),
-    schedule_interval: str(pick(r.schedule_interval, r.scheduleInterval)),
-    last_run: iso(pick(r.last_run, r.lastRun)),
-    last_status: (pick(r.last_status, r.lastStatus, 'SUCCESS') as ReconciliationJob['last_status']),
+    job_id: typeof jobIdRaw === 'number' ? String(jobIdRaw) : str(jobIdRaw, ''),
+    name: appName,
+    view_name: str(pick(r.view_name, r.viewName), appName),
+    schedule_interval: str(pick(r.scheduleInterval, r.schedule_interval), ''),
+    last_run: tsOrEmpty(startedAt) || tsOrEmpty(finishedAt),
+    last_successful_finish: tsOrEmpty(finishedAt) || undefined,
+    last_status: (
+      lastRunStatus === 'SUCCESS' || lastRunStatus === 'RUNNING' || lastRunStatus === 'FAILED'
+        ? lastRunStatus
+        : 'SUCCESS'
+    ) as ReconciliationJob['last_status'],
     refresh_window_hours: num(pick(r.refresh_window_hours, r.refreshWindowHours), 0),
     records_processed: num(pick(r.records_processed, r.recordsProcessed), 0),
   };

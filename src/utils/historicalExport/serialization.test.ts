@@ -258,9 +258,12 @@ test('Payload ekspor klien: limit terkirim eksplisit pada endpoint raw + hourly'
   });
   assert.match(hourly, /limit=50/);
 
-  // Tanpa limit, parameter tidak dikirim (perilaku lama dipertahankan).
+  // E23 Batch 3 (FAT-192, N-23): tanpa limit, default spec dikirim
+  // (telemetry export 5000, hourly export 10000) — spec MEWAJIBKAN limit.
   const noLimit = buildTelemetryExportEndpoint({ device_id: 'STM32-OEE-01', from, to, format: 'csv' });
-  assert.doesNotMatch(noLimit, /limit=/);
+  assert.match(noLimit, /limit=5000/);
+  const noLimitHourly = buildTelemetryHourlyExportEndpoint({ device_id: 'STM32-OEE-01', from, to, format: 'csv' });
+  assert.match(noLimitHourly, /limit=10000/);
 });
 
 test('Ekspor demo menghormati limit: raw 5 baris, hourly 3 baris', async () => {

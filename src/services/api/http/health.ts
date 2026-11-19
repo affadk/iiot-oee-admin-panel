@@ -17,7 +17,10 @@ import { resolveWsUrl } from '../mode';
 import { HealthDetail, SystemHealth } from '../../../types/system';
 
 function detailStatus(v: unknown): HealthDetail['application']['status'] {
-  return v === 'UP' || v === 'DOWN' ? v : 'UNKNOWN';
+  // E23 Batch 2 (FAT-189, N-20): spec live enum database/mqtt
+  // `UP|DEGRADED|DOWN|UNKNOWN` — DEGRADED diteruskan apa adanya (dulu
+  // jatuh ke 'UNKNOWN' sehingga degradasi tak terlihat).
+  return v === 'UP' || v === 'DEGRADED' || v === 'DOWN' ? v : 'UNKNOWN';
 }
 
 function nullableNum(v: unknown): number | null {
@@ -41,7 +44,10 @@ export function mapHealthDetail(raw: unknown): HealthDetail {
   const app = (r.application ?? {}) as Record<string, unknown>;
   const db = (r.database ?? {}) as Record<string, unknown>;
   const mqtt = (r.mqtt ?? {}) as Record<string, unknown>;
-  const adminConn = (mqtt.adminConnection ?? mqtt.admin_connection ?? {}) as Record<string, unknown>;
+  // E23 Batch 2 (FAT-189, N-20): spec live `adminConnection` boleh null —
+  // null/absen → null (dulu selalu difabrikasi objek berisi null).
+  const adminRaw = pick(mqtt.adminConnection, mqtt.admin_connection);
+  const adminConn = (adminRaw && typeof adminRaw === 'object' ? adminRaw : null) as Record<string, unknown> | null;
   const ws = (r.websocket ?? {}) as Record<string, unknown>;
   return {
     measuredAt: nullableIso(pick(r.measuredAt, r.measured_at)),
@@ -61,12 +67,14 @@ export function mapHealthDetail(raw: unknown): HealthDetail {
     },
     mqtt: {
       status: detailStatus(mqtt.status),
-      adminConnection: {
-        connected: nullableBool(pick(adminConn.connected)),
-        pluginReady: nullableBool(pick(adminConn.pluginReady, adminConn.plugin_ready)),
-        lastError: nullableStr(pick(adminConn.lastError, adminConn.last_error)),
-        lastConnectedAt: nullableIso(pick(adminConn.lastConnectedAt, adminConn.last_connected_at)),
-      },
+      adminConnection: adminConn
+        ? {
+            connected: nullableBool(pick(adminConn.connected)),
+            pluginReady: nullableBool(pick(adminConn.pluginReady, adminConn.plugin_ready)),
+            lastError: nullableStr(pick(adminConn.lastError, adminConn.last_error)),
+            lastConnectedAt: nullableIso(pick(adminConn.lastConnectedAt, adminConn.last_connected_at)),
+          }
+        : null,
       clientsCount: nullableNum(pick(mqtt.clientsCount, mqtt.clients_count)),
       measuredAt: nullableIso(pick(mqtt.measuredAt, mqtt.measured_at)),
     },

@@ -89,32 +89,42 @@ export const httpTelemetry = {
 
   async triggerReconciliationRefresh(
     request: ReconciliationRefreshRequest = {}
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; refreshedStart?: string; refreshedEnd?: string }> {
     assertAuthenticatedHttp();
     assertLanForMutation();
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
       path: ADMIN_ENDPOINTS.RECONCILIATION_REFRESH.buildPath(),
-      // E20 P20.5 (FAT-157): body kanonis `{from, to}` (§K.6) — bukan
-      // `{startWindow, endWindow}`.
+      // E23 Batch 1 (FAT-177, N-8): spec live — body kanonis
+      // `{startWindow, endWindow}` (datetime; field opsional, body wajib).
+      // MEMBALIKKAN keputusan E20 (R-11/T9/X29, `{from, to}` mengikuti
+      // api_docs §K.6) — lihat anotasi docs/API_SYNC_DIFF.md.
       body: {
-        ...(request.from ? { from: request.from } : {}),
-        ...(request.to ? { to: request.to } : {}),
+        ...(request.startWindow ? { startWindow: request.startWindow } : {}),
+        ...(request.endWindow ? { endWindow: request.endWindow } : {}),
       },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'RECONCILIATION_REFRESH',
       capability: 'telemetry.refresh',
     });
-    return { success: bool(raw.success, true), message: (raw.message as string) ?? 'Refresh reconciliation diterima.' };
+    return {
+      success: bool(raw.success, true),
+      message: (raw.message as string) ?? 'Refresh reconciliation diterima.',
+      refreshedStart: (raw.refreshedStart as string | undefined) ?? undefined,
+      refreshedEnd: (raw.refreshedEnd as string | undefined) ?? undefined,
+    };
   },
 
   // -- Quality rejects ----------------------------------------------------------
   async getRejectPareto(deviceId: string, signal?: AbortSignal): Promise<RejectParetoItem[]> {
     checkAbortHttp(signal);
     // E20 P20.5 (FAT-157): read quality tanpa auth (§7H `/quality/*` open).
+    // E23 Batch 3 (FAT-192, N-23): spec live MEWAJIBKAN `limit`
+    // (default 50) — dulu tidak ada query sama sekali.
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.QUALITY_REJECTS_BY_DEVICE.buildPath(deviceId),
+      query: { limit: 50 },
       signal,
       endpointKey: 'QUALITY_REJECTS_BY_DEVICE',
       capability: 'quality.read',
@@ -126,8 +136,11 @@ export const httpTelemetry = {
   async getRejectParetoGlobal(signal?: AbortSignal): Promise<RejectParetoItem[]> {
     checkAbortHttp(signal);
     // E20 P20.5 (FAT-157): read quality tanpa auth (§7H `/quality/*` open).
+    // E23 Batch 3 (FAT-192, N-23): spec live MEWAJIBKAN `limit`
+    // (default 50) — dulu tidak ada query sama sekali.
     const raw = await reqJson<unknown>({
       path: ADMIN_ENDPOINTS.QUALITY_REJECTS_GLOBAL.buildPath(),
+      query: { limit: 50 },
       signal,
       endpointKey: 'QUALITY_REJECTS_GLOBAL',
       capability: 'quality.read',

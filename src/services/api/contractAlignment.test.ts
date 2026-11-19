@@ -103,8 +103,8 @@ test('SystemHealth & BrokerOverview match nested backend DTO shapes', async () =
   assert.equal(detail.application.name, 'iiot-oee-backend');
   assert.equal(detail.database.status, 'UP');
   assert.equal(typeof detail.database.latencyMs, 'number');
-  assert.equal(detail.mqtt.adminConnection.connected, true);
-  assert.equal(detail.mqtt.adminConnection.pluginReady, true);
+  assert.equal(detail.mqtt.adminConnection?.connected, true);
+  assert.equal(detail.mqtt.adminConnection?.pluginReady, true);
   assert.equal(typeof detail.mqtt.clientsCount, 'number');
   assert.equal(typeof detail.websocket.clients, 'number');
   assert.ok(detail.measuredAt !== null);
@@ -240,9 +240,10 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   await apiClient.getDevices();
   await apiClient.getDeviceById('STM32-OEE-01');
   await apiClient.getDeviceHealth('STM32-OEE-01');
+  // E23 Batch 4 (FAT-206, N-37): spec live POST /devices tanpa
+  // serial_number — tidak lagi dikirim.
   const dev = await apiClient.registerDevice({
     device_id: 'STM32-OEE-99',
-    serial_number: 'STM32-H7-TEST99',
     mac_address: '00:08:DC:55:99:99',
     ip_address: '192.168.10.199',
     firmware_version: 'v2.4.1-test',
@@ -413,7 +414,7 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
     format: 'csv',
   });
   await apiClient.getReconciliationJobs();
-  await apiClient.triggerReconciliationRefresh({ from: weekAgoIso, to: nowIso });
+  await apiClient.triggerReconciliationRefresh({ startWindow: weekAgoIso, endWindow: nowIso });
   await apiClient.getShiftSummary('CNC-MILLING-01');
   await apiClient.getOeeHourly({ machine_id: 'CNC-MILLING-01' });
   await apiClient.getShiftTimeline('CNC-MILLING-01');

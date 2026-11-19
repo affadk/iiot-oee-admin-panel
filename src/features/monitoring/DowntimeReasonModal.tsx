@@ -48,7 +48,10 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
 
   useEffect(() => {
     if (event) {
-      setCategory(event.category);
+      // E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' bukan nilai valid body
+      // POST /reason (spec: 10 kategori) — default pelabelan ke 'OTHER'
+      // (pilihan netral, masih bisa diubah pengguna).
+      setCategory(event.category === 'UNKNOWN' ? 'OTHER' : event.category);
       setReason(event.is_labeled ? event.reason : '');
       setNotes(event.notes ?? '');
       setErrorMsg(null);

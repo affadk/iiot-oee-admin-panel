@@ -42,8 +42,10 @@ export const DataReconciliationPage: React.FC = () => {
     if (!canRefresh.canInteract || cooldownSec > 0 || isTriggering) return;
 
     const payload = {
-      from: startWindow ? formatIsoWithOffset(new Date(startWindow)) : undefined,
-      to: endWindow ? formatIsoWithOffset(new Date(endWindow)) : undefined,
+      // E23 Batch 1 (FAT-177, N-8): body kanonis spec live
+      // `{startWindow, endWindow}` (membalikkan keputusan E20 `{from, to}`).
+      startWindow: startWindow ? formatIsoWithOffset(new Date(startWindow)) : undefined,
+      endWindow: endWindow ? formatIsoWithOffset(new Date(endWindow)) : undefined,
     };
 
     const parsed = ReconciliationRefreshSchema.safeParse(payload);
@@ -238,7 +240,10 @@ export const DataReconciliationPage: React.FC = () => {
 
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-tabular">
               <Clock className="w-3.5 h-3.5" />
-              <span>Last Run: {formatJakartaDateTime(job.last_run)}</span>
+              {/* E23 Batch 2 (FAT-191, N-22): `lastRunStartedAt` spec boleh
+                  null (job belum pernah jalan) → mapper memberi ''; tampil
+                  '—', bukan tanggal kosong. */}
+              <span>Last Run: {job.last_run ? formatJakartaDateTime(job.last_run) : '—'}</span>
             </div>
           </div>
         ))}

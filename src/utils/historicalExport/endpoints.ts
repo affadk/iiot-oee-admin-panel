@@ -30,8 +30,13 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 }
 
 export function buildWorkOrdersEndpoint(query: WorkOrdersQuery = {}): string {
+  // E23 Batch 2 (FAT-188, N-19): spec live GET /work-orders TIDAK punya
+  // param `wo_id` (hanya status, machine_id, product_id, operator_id,
+  // from, to, limit, cursor, envelope) — mengirimnya membuat server
+  // mengabaikannya diam-diam sehingga filter WO ID tak berfungsi (D-12:
+  // hanya kirim param terdaftar). `query.wo_id` TIDAK dikirim; filter
+  // diterapkan sisi klien di http/workOrders.ts + demo/workOrders.ts.
   const qs = buildQueryString({
-    wo_id: query.wo_id,
     status: query.status,
     machine_id: query.machine_id,
     product_id: query.product_id,
@@ -47,10 +52,13 @@ export function buildWorkOrdersEndpoint(query: WorkOrdersQuery = {}): string {
 
 export function buildDowntimeHistoryEndpoint(query: DowntimeHistoryQuery): string {
   const deviceId = encodeURIComponent(query.device_id);
+  // E23 Batch 3 (FAT-194, N-25): spec live TIDAK mendaftarkan param
+  // `category` (hanya from/to/unlabeled_only/active_only/limit/cursor/
+  // envelope) — `query.category` TIDAK dikirim; filter kategori
+  // diterapkan sisi klien (http/demo getDowntimeHistoryPage).
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
-    category: query.category,
     unlabeled_only: query.unlabeled_only ? 'true' : undefined,
     active_only: query.active_only ? 'true' : undefined,
     cursor: query.cursor,
@@ -62,14 +70,16 @@ export function buildDowntimeHistoryEndpoint(query: DowntimeHistoryQuery): strin
 
 export function buildDowntimeExportEndpoint(query: DowntimeExportQuery): string {
   const deviceId = encodeURIComponent(query.device_id);
+  // E23 Batch 3 (FAT-194, N-25): `category` tidak terdaftar di spec —
+  // tidak dikirim (lihat buildDowntimeHistoryEndpoint).
+  // E23 Batch 3 (FAT-192, N-23): spec MEWAJIBKAN `limit` (default 10000).
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
-    category: query.category,
     unlabeled_only: query.unlabeled_only ? 'true' : undefined,
     active_only: query.active_only ? 'true' : undefined,
     format: query.format,
-    limit: query.limit,
+    limit: query.limit ?? 10000,
   });
   return `/api/v1/downtime-events/${deviceId}/export${qs}`;
 }
@@ -101,6 +111,12 @@ export function buildOperationalEventsEndpoint(query: OperationalEventsQuery): s
 /**
  * E20 P20.4 (FAT-156, O8/O13, D-12): `GET /operational-events/export` hanya
  * mendaftarkan `from, to, format, limit` — tanpa `machine_id`/`event_type`.
+ * E23 Batch 3 (FAT-201, N-34): KOREKSI — spec live JUSTRU mendaftarkan
+ * `event_type` (dan `machine_id`/`machineId`) pada ekspor op-events;
+ * klaim lama 'tanpa machine_id/event_type' keliru untuk event_type.
+ * `event_type` kini dikirim bila filter diisi; `machine_id` tetap TIDAK
+ * dikirim (B23: hanya /system/audit yang memuatnya).
+ * E23 Batch 3 (FAT-192, N-23): spec MEWAJIBKAN `limit` (default 10000).
  */
 export function buildOperationalEventsExportEndpoint(query: OperationalEventsExportQuery): string {
   const isGlobal = !query.device_id || query.device_id === 'ALL';
@@ -110,8 +126,9 @@ export function buildOperationalEventsExportEndpoint(query: OperationalEventsExp
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
+    event_type: query.event_type,
     format: query.format,
-    limit: query.limit,
+    limit: query.limit ?? 10000,
   });
   return `${base}${qs}`;
 }
@@ -121,13 +138,14 @@ export function buildOperationalEventsExportEndpoint(query: OperationalEventsExp
  * daftar (`from`, `to`, `event_type`, `machine_id`).
  */
 export function buildSystemAuditExportEndpoint(query: SystemAuditExportQuery): string {
+  // E23 Batch 3 (FAT-192, N-23): spec MEWAJIBKAN `limit` (default 10000).
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
     event_type: query.event_type,
     machine_id: query.machine_id,
     format: query.format,
-    limit: query.limit,
+    limit: query.limit ?? 10000,
   });
   return `/api/v1/system/audit/export${qs}`;
 }
@@ -145,6 +163,8 @@ export function buildTelemetryHistoryEndpoint(query: TelemetryHistoryQuery): str
 }
 
 export function buildTelemetryRollupEndpoint(query: TelemetryRollupQuery): string {
+  // E23 Batch 3 (FAT-195, N-26): spec live TIDAK mendaftarkan param
+  // `envelope` (respons selalu {data,meta}) — dulu selalu dikirim true.
   const qs = buildQueryString({
     group_by: query.group_by,
     machine_id: query.machine_id,
@@ -153,27 +173,28 @@ export function buildTelemetryRollupEndpoint(query: TelemetryRollupQuery): strin
     to: query.to,
     limit: query.limit,
     cursor: query.cursor,
-    envelope: query.envelope ?? true,
   });
   return `${ADMIN_ENDPOINTS.TELEMETRY_ROLLUP.buildPath()}${qs}`;
 }
 
 export function buildTelemetryExportEndpoint(query: TelemetryExportQuery): string {
+  // E23 Batch 3 (FAT-192, N-23): spec MEWAJIBKAN `limit` (default 5000).
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
     format: query.format,
-    limit: query.limit,
+    limit: query.limit ?? 5000,
   });
   return `${ADMIN_ENDPOINTS.TELEMETRY_EXPORT.buildPath(query.device_id)}${qs}`;
 }
 
 export function buildTelemetryHourlyExportEndpoint(query: TelemetryExportQuery): string {
+  // E23 Batch 3 (FAT-192, N-23): spec MEWAJIBKAN `limit` (default 10000).
   const qs = buildQueryString({
     from: query.from,
     to: query.to,
     format: query.format,
-    limit: query.limit,
+    limit: query.limit ?? 10000,
   });
   return `${ADMIN_ENDPOINTS.TELEMETRY_HOURLY_EXPORT.buildPath(query.device_id)}${qs}`;
 }

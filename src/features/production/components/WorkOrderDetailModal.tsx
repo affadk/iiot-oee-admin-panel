@@ -150,7 +150,11 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 <div>
                   <span className="text-slate-400 block">Target per Jam</span>
                   <span className="font-bold text-sky-400">
-                    {resolveResult.work_order.targetPerHour} pcs/jam
+                    {/* E23 Batch 4 (FAT-204, N-35): targetPerHour null =
+                        'tidak diketahui' (bukan 0 pcs/jam). */}
+                    {resolveResult.work_order.targetPerHour === null
+                      ? '—'
+                      : `${resolveResult.work_order.targetPerHour} pcs/jam`}
                   </span>
                 </div>
                 <div>
@@ -173,8 +177,12 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 <div>
                   <span className="text-slate-400 block">Jadwal Istirahat</span>
                   <span>
-                    {resolveResult.work_order.break.start}–{resolveResult.work_order.break.end} (
-                    {resolveResult.work_order.break.minutes}m)
+                    {/* E23 Batch 4 (FAT-204, N-35): `break` null bila
+                        spec tidak mengirimnya — tampil '—', bukan
+                        jadwal fabrikasi kosong. */}
+                    {resolveResult.work_order.break
+                      ? `${resolveResult.work_order.break.start}–${resolveResult.work_order.break.end} (${resolveResult.work_order.break.minutes}m)`
+                      : '—'}
                   </span>
                 </div>
                 <div>

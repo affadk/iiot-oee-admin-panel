@@ -93,11 +93,12 @@ export const demoDevices = {
     });
   },
 
+  // E23 Batch 4 (FAT-206, N-37): demo meniru spec live POST /devices —
+  // tanpa `model`/`serial_number` di input, `mac_address` opsional
+  // (kosong → '' di store lokal; EdgeDeviceSchema mengizinkan '').
   async registerDevice(data: {
     device_id: string;
-    model?: string;
-    serial_number?: string;
-    mac_address: string;
+    mac_address?: string;
     ip_address?: string | null;
     firmware_version?: string | null;
   }): Promise<EdgeDevice> {
@@ -116,7 +117,7 @@ export const demoDevices = {
 
     return store.runAssetTransaction(() => {
       const normalizedDeviceId = data.device_id.trim();
-      const canonicalMac = normalizeMacAddress(data.mac_address);
+      const canonicalMac = normalizeMacAddress(data.mac_address ?? '');
 
       if (store.devices.some((d) => d.device_id === normalizedDeviceId)) {
         throw new ApiError({
@@ -135,8 +136,9 @@ export const demoDevices = {
 
       const newDevice: EdgeDevice = {
         device_id: normalizedDeviceId,
-        model: data.model?.trim() || 'STM32H743-Edge-Pro',
-        serial_number: data.serial_number?.trim() || normalizedDeviceId,
+        // E23 Batch 4 (FAT-206, N-37): legacy POST /devices tidak
+        // menerima model/serial_number — demo tidak lagi mengisinya
+        // dari input (server mengabaikannya); mac kosong → ''.
         mac_address: canonicalMac,
         ip_address: data.ip_address?.trim() || null,
         firmware_version: data.firmware_version?.trim() || null,

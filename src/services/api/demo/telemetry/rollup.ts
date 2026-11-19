@@ -139,6 +139,60 @@ export const demoTelemetryRollup = {
           })
         );
       }
+    } else if (query.group_by === 'line') {
+      // E23 Batch 3 (FAT-195, N-26): group_by 'line' (spec live) — satu
+      // baris per lini produksi; angka diagregasi dari live-state mesin
+      // anggota lini itu (bukan jatuh ke cabang 'month' seperti dulu).
+      const lineIds = [...new Set(store.machines.map((m) => m.line_id ?? 'LINE-01'))];
+      lineIds.forEach((lineId, idx) => {
+        if (query.machine_id && query.machine_id !== 'ALL') {
+          const selected = store.machines.find((x) => x.machine_id === query.machine_id);
+          if ((selected?.line_id ?? 'LINE-01') !== lineId) return;
+        }
+        const members = store.machines.filter((m) => (m.line_id ?? 'LINE-01') === lineId);
+        const lives = members
+          .map((m) => store.liveStates.find((l) => l.machine_id === m.machine_id))
+          .filter((l): l is NonNullable<typeof l> => Boolean(l));
+        if (query.device_id && query.device_id !== 'ALL') {
+          const bound = members.some((m) => m.bound_device_id === query.device_id);
+          if (!bound) return;
+        }
+        const totalCount = lives.reduce((a, l) => a + (l.total_count ?? 0), 0);
+        const rejectCount = lives.reduce((a, l) => a + (l.reject_count ?? 0), 0);
+        const goodCount = Math.max(0, totalCount - rejectCount);
+        const qual = totalCount > 0 ? Number(((goodCount / totalCount) * 100).toFixed(2)) : 100;
+        const avail = lives.length
+          ? Number((lives.reduce((a, l) => a + (l.availability ?? 0), 0) / lives.length).toFixed(2))
+          : 90;
+        const perf = lives.length
+          ? Number((lives.reduce((a, l) => a + (l.performance ?? 0), 0) / lives.length).toFixed(2))
+          : 90;
+        const oee = Number(((avail * perf * qual) / 10000).toFixed(2));
+        const operatingSec = 28800 * Math.max(1, members.length);
+        rows.push(
+          TelemetryRollupItemSchema.parse({
+            groupKey: lineId,
+            groupBy: 'line',
+            machineId: null,
+            machine_id: null,
+            machine_name: `Lini ${lineId}`,
+            device_id: query.device_id ?? null,
+            lineId,
+            bucket: null,
+            totalCount,
+            goodCount,
+            rejectCount,
+            operatingSec,
+            runSec: Math.round((operatingSec * avail) / 100),
+            availabilityPct: avail.toFixed(2),
+            performancePct: perf.toFixed(2),
+            qualityPct: qual.toFixed(2),
+            oeePct: oee.toFixed(2),
+            sampleCount: 380 - idx * 35,
+            provisional: idx === 0,
+          })
+        );
+      });
     } else {
       // month
       for (let i = 0; i < 4; i++) {

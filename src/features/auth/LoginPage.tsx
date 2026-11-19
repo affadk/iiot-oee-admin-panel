@@ -8,6 +8,8 @@ import {
   DEMO_PRESETS,
   DEMO_PRESET_PASSWORD,
   isDemoPresetLoginEnabled,
+  resolveAccessMode,
+  resolveApiMode,
   resolveDefaultStationId,
 } from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
@@ -93,6 +95,14 @@ export const LoginPage: React.FC = () => {
     setErrorMsg(null);
   };
 
+  // E23 Batch 4 (FAT-207, N-38): /login berada di luar AdminLayout,
+  // jadi badge mode API + label mode akses Topbar tidak terlihat di sini.
+  // Badge ini dibaca langsung dari env via mode.ts (tanpa layout/context)
+  // dengan teks + warna yang SAMA seperti Topbar: Real hijau / Demo amber,
+  // Private biru / Public amber. Read-only, tanpa gate login baru.
+  const apiMode = resolveApiMode();
+  const accessMode = resolveAccessMode();
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl overflow-hidden">
@@ -105,6 +115,32 @@ export const LoginPage: React.FC = () => {
             <h1 className="text-base font-bold tracking-tight">OEE Enterprise IIoT Console</h1>
             <p className="text-xs text-slate-400">Otentikasi &amp; Kontrol Akses Terpadu (LAN)</p>
           </div>
+        </div>
+
+        {/* Badge mode API + mode akses — cerminan badge Topbar (N-38). */}
+        <div className="px-6 pt-4 flex items-center gap-2 text-xs">
+          <span className="text-[11px] text-slate-400">API:</span>
+          <span
+            className={`border rounded px-2 py-1 font-semibold ${
+              apiMode === 'real'
+                ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+                : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+            }`}
+            aria-label={`API Mode: ${apiMode}`}
+          >
+            {apiMode === 'real' ? 'Real' : 'Demo'}
+          </span>
+          <span className="text-[11px] text-slate-400">Akses:</span>
+          <span
+            className={`border rounded px-2 py-1 font-semibold ${
+              accessMode === 'public'
+                ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300'
+            }`}
+            aria-label={`Mode Akses: ${accessMode}`}
+          >
+            {accessMode === 'public' ? 'Public' : 'Private'}
+          </span>
         </div>
 
         {/* Form Body */}

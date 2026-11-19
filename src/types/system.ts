@@ -18,7 +18,7 @@ export interface SystemHealth {
   buffer_pending: number;
   buffer_dropped: number;
   backend: {
-    status: 'UP' | 'DOWN' | 'UNKNOWN';
+    status: 'UP' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
     label: string | null;
     environment: string | null;
     latency_ms: number | null;
@@ -28,12 +28,12 @@ export interface SystemHealth {
     latency_ms: number | null;
   };
   mqtt: {
-    status: 'UP' | 'DOWN' | 'UNKNOWN';
+    status: 'UP' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
     connected_clients: number | null;
     dynamic_security: string | null;
   };
   websocket: {
-    status: 'UP' | 'DOWN' | 'UNKNOWN';
+    status: 'UP' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
   };
   metrics: {
     totalReceived: number;
@@ -48,8 +48,13 @@ export interface SystemHealth {
  * per komponen + identitas runtime, ADMIN + LAN, grant `read` pada
  * `access_control`. Setiap komponen membawa `measuredAt` sendiri; nilai
  * tidak tersedia = null/UNKNOWN, bukan 0/'UP'.
+ *
+ * E23 Batch 2 (FAT-189, N-20): + `DEGRADED` — spec live enum status
+ * database/mqtt `UP|DEGRADED|DOWN|UNKNOWN` (aplikasi/websocket di spec
+ * hanya `UP|DOWN`; DEGRADED di tipe ini superset toleran). Dulu panel
+ * memetakan DEGRADED → 'UNKNOWN' sehingga degradasi tak terlihat.
  */
-export type HealthDetailStatus = 'UP' | 'DOWN' | 'UNKNOWN';
+export type HealthDetailStatus = 'UP' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
 
 export interface HealthDetail {
   measuredAt: string | null;
@@ -70,13 +75,15 @@ export interface HealthDetail {
   };
   mqtt: {
     status: HealthDetailStatus;
+    // E23 Batch 2 (FAT-189, N-20): spec live `adminConnection` boleh
+    // null — biarkan null (jangan fabrikasi objek berisi null).
     adminConnection: {
       /** Koneksi admin DynSec, bukan liveness broker. */
       connected: boolean | null;
       pluginReady: boolean | null;
       lastError: string | null;
       lastConnectedAt: string | null;
-    };
+    } | null;
     /** Dari daftar klien DynSec; null bila tidak tersedia. */
     clientsCount: number | null;
     measuredAt: string | null;

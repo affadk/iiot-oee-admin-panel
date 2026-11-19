@@ -6,7 +6,6 @@ import { validateDeviceInput } from '../../../utils/capabilities';
 import { mapApiIssuesToErrors, RegisterDeviceInput } from '../hooks/useDevices';
 
 const DEFAULT_DEVICE_ID = 'STM32-OEE-06';
-const DEFAULT_MODEL = 'STM32H743-Edge-Pro';
 const DEFAULT_FIRMWARE = 'v2.4.1-rtos';
 
 export interface DeviceRegisterModalProps {
@@ -17,8 +16,6 @@ export interface DeviceRegisterModalProps {
 
 export const DeviceRegisterModal: React.FC<DeviceRegisterModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [deviceId, setDeviceId] = useState(DEFAULT_DEVICE_ID);
-  const [model, setModel] = useState(DEFAULT_MODEL);
-  const [serial, setSerial] = useState('');
   const [mac, setMac] = useState('');
   const [ip, setIp] = useState('');
   const [firmware, setFirmware] = useState(DEFAULT_FIRMWARE);
@@ -51,11 +48,13 @@ export const DeviceRegisterModal: React.FC<DeviceRegisterModalProps> = ({ isOpen
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await onSubmit({ deviceId, model, serial, mac, ip, firmware });
-      // Reset-saat-sukses (verbatim): hanya deviceId/serial/mac/ip + error
-      // yang di-reset; model & firmware dipertahankan.
+      // E23 Batch 4 (FAT-206, N-37): spec live POST /devices tidak
+      // mengenal model/serial_number — field keduanya dihapus dari modal
+      // (server mengabaikannya); mac_address opsional.
+      await onSubmit({ deviceId, mac, ip, firmware });
+      // Reset-saat-sukses (verbatim): hanya deviceId/mac/ip + error
+      // yang di-reset; firmware dipertahankan.
       setDeviceId(DEFAULT_DEVICE_ID);
-      setSerial('');
       setMac('');
       setIp('');
       setErrors({});
@@ -109,27 +108,12 @@ export const DeviceRegisterModal: React.FC<DeviceRegisterModalProps> = ({ isOpen
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
-            label="Model Hardware"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="STM32H743-Edge-Pro"
+            label="MAC Address (EUI-48, Opsional)"
+            value={mac}
+            onChange={(e) => setMac(e.target.value.toUpperCase())}
+            placeholder="00:08:DC:55:01:0A"
+            error={errors.macAddress}
           />
-          <Input
-            label="Serial Number"
-            value={serial}
-            onChange={(e) => setSerial(e.target.value)}
-            placeholder="SN-STM32H7-2026-06"
-          />
-        </div>
-        <Input
-          label="MAC Address (EUI-48)"
-          value={mac}
-          onChange={(e) => setMac(e.target.value.toUpperCase())}
-          placeholder="00:08:DC:55:01:0A"
-          error={errors.macAddress}
-          required
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="IP Address (Opsional)"
             value={ip}
@@ -137,14 +121,14 @@ export const DeviceRegisterModal: React.FC<DeviceRegisterModalProps> = ({ isOpen
             placeholder="192.168.10.26"
             error={errors.ipAddress}
           />
-          <Input
-            label="Firmware Version (Opsional)"
-            value={firmware}
-            onChange={(e) => setFirmware(e.target.value)}
-            placeholder="v2.4.1-rtos"
-            error={errors.firmwareVersion}
-          />
         </div>
+        <Input
+          label="Firmware Version (Opsional)"
+          value={firmware}
+          onChange={(e) => setFirmware(e.target.value)}
+          placeholder="v2.4.1-rtos"
+          error={errors.firmwareVersion}
+        />
       </form>
     </Modal>
   );

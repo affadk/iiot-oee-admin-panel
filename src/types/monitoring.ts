@@ -50,7 +50,16 @@ export type DowntimeCategory =
   | 'PLANNED_MAINTENANCE'
   | 'REST_BREAK'
   | 'CLEANING_5S'
-  | 'OTHER';
+  | 'OTHER'
+  /**
+   * E23 Batch 3 (FAT-194, N-25): nilai LOKAL saja — spec live TIDAK
+   * mengirim `category` pada item downtime, jadi mapper memakai ini
+   * sebagai penanda jujur "tidak ada dari server" (bukan 'OTHER' yang
+   * merupakan nilai kategori POST /reason yang sah). BUKAN nilai valid
+   * untuk body POST /{id}/reason (DowntimeReasonModal memetakan
+   * UNKNOWN → 'OTHER' saat pelabelan).
+   */
+  | 'UNKNOWN';
 
 export interface DowntimeEvent {
   id: string;
@@ -74,6 +83,8 @@ export interface DowntimeEvent {
  * E20 P20.5 (FAT-157): respons `POST /downtime-events/:id/reason`
  * (API doc §J.3) — BUKAN `DowntimeEvent` penuh. `operator` adalah nama/
  * id operator pelabel dari server (atribusi audit).
+ * E23 Batch 3 (FAT-194, N-25): spec live — `operator` berupa objek
+ * `{id, username}` (opsional), BUKAN string|null.
  */
 export interface DowntimeReasonResult {
   success: boolean;
@@ -81,7 +92,7 @@ export interface DowntimeReasonResult {
   deviceId: string | null;
   operatorReason: string;
   isOverwrite: boolean;
-  operator: string | null;
+  operator: { id: string; username: string } | null;
 }
 
 // E20 P20.4 (FAT-156): enum `event_type` kanonis FR-034-26/27 (API doc §I).

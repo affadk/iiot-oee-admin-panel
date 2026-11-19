@@ -4,6 +4,10 @@
  * and API_DOCUMENTATION.md. E20 P20.2: 132 → 134 (tambah DEVICES_PROVISION /
  * DEVICES_REVOKE / DEVICES_CREDENTIALS, hapus MQTT_DYNSEC_CLIENTS_PROVISION).
  * E20 P20.5: 134 → 135 (tambah SYSTEM_ACCESS_MODE, pembaruan 09:23).
+ * E23 Batch 4 (FAT-208, N-39): hitungan aktual registry = 137 (136 HTTP +
+ * 1 WebSocket) — klaim "134 → 135" di atas stale sejak E20; angka 137
+ * terverifikasi vs spec live 141 operasi (141 − 5 excluded-by-design =
+ * 136 HTTP + 1 WS, docs/API_DOCS_AUDIT.md §3).
  *
  * Strictly EXCLUDES HMI-only flows:
  * - POST /api/v1/devices/:device_id/command (ADR-003 machine actuation)

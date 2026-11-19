@@ -140,8 +140,10 @@ export const ShiftSchedulesPage: React.FC = () => {
     setFeedback(null);
     try {
       if (editingSchedule) {
+        // E23 Batch 2 (FAT-187, N-18): PATCH spec live tanpa `lineId` —
+        // lini tidak bisa diubah saat edit; hanya shift/hari/status aktif
+        // yang dikirim. Pilihan lini di form dinonaktifkan saat edit.
         const updated = await apiClient.updateShiftSchedule(editingSchedule.scheduleId, {
-          lineId: formLineId,
           shiftId: formShiftId,
           dayOfWeek: formDayOfWeek,
           isActive: formActive,
@@ -385,7 +387,13 @@ export const ShiftSchedulesPage: React.FC = () => {
             options={lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))}
             error={formErrors.lineId}
             required
+            disabled={Boolean(editingSchedule)}
           />
+          {editingSchedule && (
+            <p className="text-[11px] text-slate-500 -mt-2">
+              Lini tidak dapat diubah setelah jadwal dibuat (body PATCH spec tidak menerima lineId).
+            </p>
+          )}
 
           <Select
             label="Shift"

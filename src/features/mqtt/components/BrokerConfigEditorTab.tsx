@@ -31,6 +31,15 @@ export const BrokerConfigEditorTab: React.FC<BrokerConfigEditorTabProps> = ({
     onDraftChange({ ...draftConfig, limits: { ...draftConfig.limits, ...patch } });
   };
 
+  // E23 Batch 1 (FAT-181, N-12): bridge hasil GET tidak membawa password
+  // (hanya `has_password`) dan `remote_address` boleh null — keduanya harus
+  // diisi di sini sebelum staging (POST wajib `remote_address`; password
+  // hanya dikirim bila diisi, transient, tidak disimpan).
+  const updateBridge = (index: number, patch: Partial<BrokerConfigSchema['bridges'][number]>) => {
+    const bridges = draftConfig.bridges.map((b, i) => (i === index ? { ...b, ...patch } : b));
+    onDraftChange({ ...draftConfig, bridges });
+  };
+
   return (
     <form onSubmit={onStage} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -70,12 +79,55 @@ export const BrokerConfigEditorTab: React.FC<BrokerConfigEditorTabProps> = ({
           <Input
             label="Max Queued Messages"
             type="number"
-            value={draftConfig.limits.max_queued_messages}
+            // E23 Batch 3 (FAT-198, N-29): `null` = tanpa sumber — tampil
+            // kosong, bukan 1000 (default fabrikasi dihapus, seperti
+            // max_connections di atas).
+            value={draftConfig.limits.max_queued_messages ?? ''}
             disabled={!canManage.canInteract}
             onChange={(e) => updateLimits({ max_queued_messages: Number(e.target.value) })}
           />
         </div>
       </div>
+
+      {draftConfig.bridges.length > 0 && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md space-y-3">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Bridges (Sinkronisasi Remote)</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Server tidak mengembalikan kata sandi bridge — isi ulang kata sandi saat staging bila bridge memakainya.
+            Remote address wajib diisi (staging ditolak bila kosong).
+          </p>
+          {draftConfig.bridges.map((bridge, i) => (
+            <div
+              key={bridge.id}
+              className="p-3 rounded border border-slate-200 dark:border-slate-800 space-y-3"
+            >
+              <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                {bridge.name || bridge.id}
+                {bridge.has_password ? ' · memakai kata sandi' : ' · tanpa kata sandi'}
+              </div>
+              <Input
+                label="Remote Address (wajib)"
+                value={bridge.remote_address ?? ''}
+                disabled={!canManage.canInteract}
+                onChange={(e) => updateBridge(i, { remote_address: e.target.value })}
+                required
+              />
+              <Input
+                label="Kata Sandi Bridge (isi ulang saat staging)"
+                type="password"
+                value={bridge.password ?? ''}
+                disabled={!canManage.canInteract}
+                onChange={(e) => updateBridge(i, { password: e.target.value })}
+                placeholder={
+                  bridge.has_password
+                    ? 'Bridge ini memakai kata sandi — isi ulang di sini'
+                    : 'Kosongkan bila bridge tanpa kata sandi'
+                }
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="flex-1">

@@ -167,7 +167,7 @@ test('P20.5: status-history mengirim filter state; from>=to → 400 INVALID_RANG
   });
 });
 
-test('P20.5: refresh rekonsiliasi mengirim body {from, to} — bukan {startWindow, endWindow}', async () => {
+test('P20.5: refresh rekonsiliasi mengirim body {startWindow, endWindow} — bukan {from, to}', async () => {
   await withStub(3010, (_req, url) => {
     if (url.pathname.includes('/reconciliation/refresh')) {
       return { status: 200, payload: { success: true, message: 'Refresh diminta.' } };
@@ -177,12 +177,14 @@ test('P20.5: refresh rekonsiliasi mengirim body {from, to} — bukan {startWindo
     httpApiClient.setNetworkMode('LAN');
     await httpApiClient.login('ADM-001', 'Admin@2026!');
     const res = await httpApiClient.triggerReconciliationRefresh({
-      from: '2026-11-11T00:00:00+07:00',
-      to: '2026-11-11T23:59:00+07:00',
+      startWindow: '2026-11-11T00:00:00+07:00',
+      endWindow: '2026-11-11T23:59:00+07:00',
     });
     assert.equal(res.success, true);
     const call = seen.find((s) => s.path.includes('/reconciliation/refresh'));
-    assert.deepEqual(call?.body, { from: '2026-11-11T00:00:00+07:00', to: '2026-11-11T23:59:00+07:00' });
+    // E23 Batch 1 (FAT-177, N-8): spec live membalikkan keputusan E20
+    // (R-11/T9/X29, `{from, to}`) — body kanonis `{startWindow, endWindow}`.
+    assert.deepEqual(call?.body, { startWindow: '2026-11-11T00:00:00+07:00', endWindow: '2026-11-11T23:59:00+07:00' });
   });
 });
 
@@ -285,7 +287,7 @@ test('P20.5: operators create mengirim isActive; config GET null dipertahankan +
         },
       };
     }
-    if (url.pathname === '/api/v1/mqtt/configuration/') {
+    if (url.pathname === '/api/v1/mqtt/configuration') {
       return {
         status: 200,
         payload: {
@@ -303,14 +305,18 @@ test('P20.5: operators create mengirim isActive; config GET null dipertahankan +
           limits: {
             max_connections: null,
             max_packet_size_bytes: null,
-            max_queued_messages: 1000,
+            // E23 Batch 3 (FAT-198, N-29): null tetap null (default
+            // fabrikasi 1000/20 dihapus).
+            max_queued_messages: null,
             max_queued_bytes: null,
-            max_inflight_messages: 20,
+            max_inflight_messages: null,
           },
           listeners: [],
           tls_profiles: [{ id: 'tls-x', name: 'legacy' }],
           bridges: [{ id: 'b1', remote_client_id: null, status: null }],
-          unmanaged: ['custom_key'],
+          // E23 Batch 3 (FAT-198, N-29): `unmanaged[]` spec berupa objek
+          // {key, section, line, reason} (bukan string).
+          unmanaged: [{ key: 'custom_key', section: 'general', line: 42, reason: 'custom key' }],
         },
       };
     }
@@ -334,7 +340,9 @@ test('P20.5: operators create mengirim isActive; config GET null dipertahankan +
     assert.equal(cfg.limits.max_connections, null);
     assert.equal(cfg.limits.max_packet_size_bytes, null);
     assert.equal(cfg.limits.max_queued_bytes, null);
-    assert.deepEqual(cfg.unmanaged, ['custom_key']);
+    assert.equal(cfg.limits.max_queued_messages, null);
+    assert.equal(cfg.limits.max_inflight_messages, null);
+    assert.deepEqual(cfg.unmanaged, [{ key: 'custom_key', section: 'general', line: 42, reason: 'custom key' }]);
     // tls_profiles selalu [] (§3.3b) — entri legacy dari server diabaikan.
     assert.deepEqual(cfg.tls_profiles, []);
   });

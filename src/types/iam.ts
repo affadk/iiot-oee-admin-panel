@@ -4,7 +4,10 @@ export interface IamInfo {
   mode: 'shadow' | 'enforce' | 'partial';
   authzVersion: number;
   effectiveInMode: string;
-  enforcedDomains?: string[];
+  // E23 Batch 4 (FAT-205, N-36): spec live mewajibkan `catalogueVersion`
+  // (string) dan `enforcedDomains` (string[]) pada GET /access-control/info.
+  catalogueVersion: string;
+  enforcedDomains: string[];
 }
 
 /**
@@ -85,6 +88,10 @@ export interface IamAuditFilters {
  * Effective permissions subjek — bentuk kanonis
  * GET /subjects/:operatorId/effective-permissions (§3.4): `roles` adalah
  * satu-satunya nama field (tanpa alias `effectiveRoles`).
+ *
+ * E23 Batch 1 (FAT-176, N-7): spec live — `roles` adalah string[]
+ * (mis. ["ADMIN","OPERATOR"]); objek {roleName, roleId, scopeType, scopeId}
+ * hidup di `assignments[]`, bukan di `roles[]`.
  */
 export interface IamEffectivePermissions {
   operatorId: string;
@@ -94,11 +101,7 @@ export interface IamEffectivePermissions {
   authzVersion: number;
   effectiveInMode: string;
   assignments: IamAssignment[];
-  roles: Array<{
-    roleName: string;
-    scopeType: ScopeLevel;
-    scopeId: string | null;
-  }>;
+  roles: string[];
   permissions: Array<{
     action: string;
     resourceType: string;

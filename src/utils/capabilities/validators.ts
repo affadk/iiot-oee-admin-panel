@@ -34,7 +34,9 @@ export function validateDeviceInput(input: {
     if (!input.deviceId || !VALIDATION_PATTERNS.DEVICE_ID.test(input.deviceId.trim())) {
       errors.deviceId = 'ID Perangkat harus diawali "STM32-" dan hanya berisi huruf, angka, "_" atau "-" (contoh: STM32-OEE-06).';
     }
-    if (!input.macAddress || !VALIDATION_PATTERNS.MAC_ADDRESS.test(input.macAddress.trim())) {
+    // E23 Batch 4 (FAT-206, N-37): spec live POST /devices — `macAddress`
+    // OPSIONAL. Format tetap divalidasi bila diisi; kosong bukan error.
+    if (input.macAddress && input.macAddress.trim().length > 0 && !VALIDATION_PATTERNS.MAC_ADDRESS.test(input.macAddress.trim())) {
       errors.macAddress = 'MAC Address wajib format EUI-48 dengan ":" atau "-" (contoh: 00:08:DC:55:01:0A).';
     }
   }

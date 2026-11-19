@@ -10,6 +10,7 @@ import { CursorPaginationBar } from '../../components/industrial/CursorPaginatio
 import { useMachines } from './hooks/useMachines';
 import { useMachineCrud } from './hooks/useMachineCrud';
 import { useMachineBinding } from './hooks/useMachineBinding';
+import { useProductionLinesQuery } from '../shared/useHistoricalQueries';
 import { MachinesTable } from './components/MachinesTable';
 import { MachineCreateModal } from './components/MachineCreateModal';
 import { MachineEditModal } from './components/MachineEditModal';
@@ -47,7 +48,7 @@ export const MachinesPage: React.FC = () => {
   // Create Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  // Edit Modal (name & modbus_slave_id only; device relation immutable here)
+  // Edit Modal (name, modbus_slave_id & line_id; device relation immutable here)
   const [editTarget, setEditTarget] = useState<Machine | null>(null);
 
   // Unbind Confirmation Dialog
@@ -65,6 +66,11 @@ export const MachinesPage: React.FC = () => {
       if (detailMachineId === machineId) setDetailMachineId(null);
     },
   });
+
+  // E23 Batch 2 (FAT-183, N-14): daftar lini untuk pilihan lini di modal
+  // create/edit mesin (spec live POST/PUT /machines `lineId?`).
+  const { data: linesPage } = useProductionLinesQuery();
+  const lines = linesPage?.data ?? [];
 
   const binding = useMachineBinding({
     loadData,
@@ -191,12 +197,14 @@ export const MachinesPage: React.FC = () => {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         unboundDevices={unboundDevices}
+        lines={lines}
         onSubmit={createMachine}
       />
 
       {/* Edit Machine Modal */}
       <MachineEditModal
         machine={editTarget}
+        lines={lines}
         onClose={() => setEditTarget(null)}
         onSubmit={updateMachine}
       />

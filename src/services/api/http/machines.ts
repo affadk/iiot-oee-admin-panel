@@ -86,6 +86,7 @@ export const httpMachines = {
     name: string;
     modbus_slave_id?: number;
     bound_device_id?: string | null;
+    line_id?: string | null;
   }): Promise<Machine> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -98,6 +99,10 @@ export const httpMachines = {
           machineName: data.name.trim(),
           ...(data.bound_device_id ? { deviceId: data.bound_device_id } : {}),
           ...(data.modbus_slave_id !== undefined ? { modbusSlaveId: data.modbus_slave_id } : {}),
+          // E23 Batch 2 (FAT-183, N-14): spec live POST /machines menerima
+          // `lineId?` (default server LINE-01 bila absen). Kosong → omit
+          // agar server menerapkan defaultnya; jangan kirim ''/null.
+          ...(data.line_id?.trim() ? { lineId: data.line_id.trim() } : {}),
         },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
@@ -114,7 +119,7 @@ export const httpMachines = {
 
   async updateMachine(
     machineId: string,
-    patch: { name?: string; modbus_slave_id?: number },
+    patch: { name?: string; modbus_slave_id?: number; line_id?: string | null },
   ): Promise<Machine> {
     assertAuthenticatedHttp();
     assertLanForMutation();
@@ -125,6 +130,10 @@ export const httpMachines = {
         body: {
           ...(patch.name !== undefined ? { machineName: patch.name } : {}),
           ...(patch.modbus_slave_id !== undefined ? { modbusSlaveId: patch.modbus_slave_id } : {}),
+          // E23 Batch 2 (FAT-183, N-14): spec live PUT /machines menerima
+          // `lineId?` — update bisa pindah lini. Kosong → omit (lini
+          // tidak berubah), bukan kirim ''/null.
+          ...(patch.line_id?.trim() ? { lineId: patch.line_id.trim() } : {}),
         },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,

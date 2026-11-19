@@ -183,13 +183,16 @@ export const demoMonitoring = {
     // E20 P20.5 (FAT-157): respons kanonis §J.3 —
     // `{success, eventId, deviceId, operatorReason, isOverwrite, operator}`
     // — BUKAN `DowntimeEvent` penuh.
+    // E23 Batch 3 (FAT-194, N-25): `operator` berupa objek {id, username}.
     return {
       success: true,
       eventId: id,
       deviceId: dt.device_id ?? null,
       operatorReason: cleanReason,
       isOverwrite: dt.is_overwrite,
-      operator: store.currentUserName ?? null,
+      operator: store.currentUserName
+        ? { id: store.currentUserId, username: store.currentUserName }
+        : null,
     };
   },
 
@@ -280,6 +283,9 @@ export const demoMonitoring = {
     const filtered = store.operationalEvents
       .filter((e) => {
         if (!isGlobal && e.device_id !== query.device_id) return false;
+        // E23 Batch 3 (FAT-201, N-34): filter event_type sisi klien
+        // (paritas builder HTTP yang kini mengirimkannya ke server).
+        if (query.event_type && e.event_type !== query.event_type) return false;
         const ts = new Date(e.recorded_at).getTime();
         return ts >= fromMs && ts <= toMs;
       })

@@ -46,16 +46,16 @@ export const demoTelemetryReconciliation = {
     request: ReconciliationRefreshRequest = {}
   ): Promise<{ success: boolean; message: string }> {
     assertCapability('telemetry.reconciliation.refresh', ['ADMIN', 'SUPERVISOR']);
-    // E20 P20.5 (FAT-157): body kanonis `{from, to}` (§K.6) — bukan
-    // `{startWindow, endWindow}`.
-    const fromVal = request.from;
-    const toVal = request.to;
+    // E23 Batch 1 (FAT-177, N-8): body kanonis `{startWindow, endWindow}`
+    // (spec live — membalikkan keputusan E20 `{from, to}`).
+    const fromVal = request.startWindow;
+    const toVal = request.endWindow;
     if (fromVal && toVal) {
       const fromMs = Date.parse(fromVal);
       const toMs = Date.parse(toVal);
       if (Number.isNaN(fromMs) || Number.isNaN(toMs) || fromMs > toMs) {
-        throwValidationIssues('Rentang rekonsiliasi from/to tidak valid.', {
-          from: 'Pastikan format ISO 8601 valid dan from <= to.',
+        throwValidationIssues('Rentang rekonsiliasi startWindow/endWindow tidak valid.', {
+          startWindow: 'Pastikan format ISO 8601 valid dan startWindow <= endWindow.',
         });
       }
     }

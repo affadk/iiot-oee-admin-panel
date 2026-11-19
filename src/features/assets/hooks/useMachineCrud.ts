@@ -22,11 +22,16 @@ export interface CreateMachineInput {
   name: string;
   slaveId: number;
   bindDeviceId: string;
+  // E23 Batch 2 (FAT-183, N-14): lini mesin (spec live POST /machines
+  // `lineId?`, default server LINE-01 bila kosong).
+  lineId?: string;
 }
 
 export interface UpdateMachineInput {
   name: string;
   slaveId: number;
+  // E23 Batch 2 (FAT-183, N-14): pindah lini via PUT /machines (`lineId?`).
+  lineId?: string;
 }
 
 export interface UseMachineCrudOptions {
@@ -53,6 +58,7 @@ export function useMachineCrud({
         name: input.name.trim(),
         modbus_slave_id: Number(input.slaveId),
         bound_device_id: input.bindDeviceId || null,
+        line_id: input.lineId?.trim() || null,
       });
       await loadData(null, false);
       setFeedback({ type: 'success', msg: `Mesin ${created.machine_id} (${created.name}) berhasil dibuat.` });
@@ -75,6 +81,7 @@ export function useMachineCrud({
       await apiClient.updateMachine(machineId, {
         name: input.name.trim(),
         modbus_slave_id: Number(input.slaveId),
+        line_id: input.lineId?.trim() || null,
       });
       await loadData(null, false);
       setFeedback({ type: 'success', msg: `Mesin ${machineId} berhasil diperbarui.` });

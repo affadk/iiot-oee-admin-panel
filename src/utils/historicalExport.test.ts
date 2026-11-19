@@ -223,7 +223,7 @@ test('E12 T12.8 (F-9): telemetry endpoint builders delegate path to ADMIN_ENDPOI
   });
   assert.equal(
     rollup,
-    '/api/v1/telemetry/rollup?group_by=machine&machine_id=M1&device_id=STM32-OEE-01&from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&limit=20&cursor=c1&envelope=true'
+    '/api/v1/telemetry/rollup?group_by=machine&machine_id=M1&device_id=STM32-OEE-01&from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&limit=20&cursor=c1'
   );
   assert.equal(rollup.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_ROLLUP.buildPath());
 

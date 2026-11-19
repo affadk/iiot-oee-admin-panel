@@ -5,11 +5,11 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { MUTATION_TIMEOUT_MS, calledKeys, assertLanForMutation, assertAuthenticatedHttp, fetchRaw, reqJson, reqList, checkAbortHttp, sleep } from './transport';
-import { mapBrokerConfigVersion, mapBrokerOperation } from './mappers';
+import { mapBrokerConfigVersion, mapBrokerConfigStatus, mapBrokerConfigDiff, mapBrokerOperation } from './mappers';
 import { num, str, bool, iso, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { ApiError } from '../../../types/auth';
-import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
+import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerConfigDiffResult, BrokerOperation, BrokerBackup, BrokerConfigRawResult } from '../../../types/mqtt';
 
 /** Angka bila berupa number berhingga, `null` bila null/absen (§3.3b). */
 const numOrNull = (v: unknown): number | null =>
@@ -66,25 +66,46 @@ export const httpMqttConfig = {
             // E20 P20.5 (FAT-157): HAPUS default fabrikasi `max_connections`
             // 1000, `max_packet_size_bytes` 268435456, `max_queued_bytes` 0 —
             // field tanpa sumber = `null` (§3.3b).
+            // E23 Batch 3 (FAT-198, N-29): sisa default fabrikasi
+            // `max_queued_messages` 1000 / `max_inflight_messages` 20 juga
+            // dihapus (spec nullable) — null tetap null.
             max_connections: numOrNull(limits.max_connections),
             max_packet_size_bytes: numOrNull(limits.max_packet_size_bytes),
-            max_queued_messages: num(limits.max_queued_messages, 1000),
+            max_queued_messages: numOrNull(limits.max_queued_messages),
             max_queued_bytes: numOrNull(limits.max_queued_bytes),
-            max_inflight_messages: num(limits.max_inflight_messages, 20),
+            max_inflight_messages: numOrNull(limits.max_inflight_messages),
           },
           listeners: (r.listeners as BrokerConfigSchema['listeners']) ?? [],
           // E20 P20.5 (FAT-157): `tls_profiles` selalu `[]` (§3.3b) —
           // TLS melekat pada listener/bridge, bukan profil terpisah.
           tls_profiles: [],
           bridges: (r.bridges as BrokerConfigSchema['bridges']) ?? [],
-          // E20 P20.5 (FAT-157): petakan `unmanaged[]` (§3.3b).
-          unmanaged: Array.isArray(r.unmanaged) ? (r.unmanaged as unknown[]).map((u) => String(u)) : [],
+          // E23 Batch 3 (FAT-198, N-29): `unmanaged[]` spec berupa objek
+          // `{key, section, line, reason}` — petakan sebagai objek (dulu
+          // `String(u)` → "[object Object]"). Item bukan objek dilewati.
+          unmanaged: Array.isArray(r.unmanaged)
+            ? (r.unmanaged as unknown[])
+                .filter((u): u is Record<string, unknown> => typeof u === 'object' && u !== null)
+                .map((u) => ({
+                  key: str(pick(u.key)),
+                  section: str(pick(u.section)),
+                  line: num(pick(u.line), 0),
+                  reason: str(pick(u.reason)),
+                }))
+            : [],
         };
       },
     );
   },
 
-  async getBrokerConfigRaw(signal?: AbortSignal): Promise<string> {
+  /**
+   * E23 Batch 3 (FAT-199, N-30): spec live mengembalikan JSON
+   * `{metadata:{source, checksum, sizeBytes, modifiedAt,
+   * mosquittoVersion}, text}` — `text` adalah isi mosquitto.conf (bukan
+   * dokumen JSON utuh). Bila server mengembalikan teks polos (bentuk
+   * lama), pakai teks itu dengan metadata null.
+   */
+  async getBrokerConfigRaw(signal?: AbortSignal): Promise<BrokerConfigRawResult> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     const raw = await fetchRaw({
@@ -93,47 +114,67 @@ export const httpMqttConfig = {
       endpointKey: 'MQTT_CONFIG_RAW',
     });
     calledKeys.add('MQTT_CONFIG_RAW');
-    return raw.text;
+    const json = (raw.json ?? null) as Record<string, unknown> | null;
+    if (json && typeof json.text === 'string') {
+      const meta = (json.metadata ?? null) as Record<string, unknown> | null;
+      return {
+        text: json.text,
+        metadata:
+          meta && typeof meta.checksum === 'string'
+            ? {
+                source: str(pick(meta.source)),
+                checksum: meta.checksum,
+                sizeBytes: num(pick(meta.sizeBytes, meta.size_bytes), 0),
+                modifiedAt: str(pick(meta.modifiedAt, meta.modified_at)),
+                mosquittoVersion: str(pick(meta.mosquittoVersion, meta.mosquitto_version)),
+              }
+            : null,
+      };
+    }
+    return { text: raw.text, metadata: null };
   },
 
   /**
-   * E20 P20.5 (FAT-157): `GET /mqtt/configuration/status` — bentuk dokumen
-   * (§3.3b: kapabilitas runtime + mutation lock + operasi terakhir),
-   * BUKAN asumsi panel `active_version`/`sync_state`.
+   * E23 Batch 1 (FAT-179, N-10): `GET /mqtt/configuration/status` — bentuk
+   * spec live `{runtime, lock, current, lastOperation, lastAppliedVersionId}`
+   * (mapper `mapBrokerConfigStatus`); bentuk lama yang dibaca inline di sini
+   * (`status`/`activeVersionId`/…) tidak ada di spec → status selalu
+   * `'UNAVAILABLE'`.
    */
   async getBrokerConfigStatus(signal?: AbortSignal): Promise<BrokerConfigStatus> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqJson(
       { path: ADMIN_ENDPOINTS.MQTT_CONFIG_STATUS.buildPath(), signal, endpointKey: 'MQTT_CONFIG_STATUS', capability: 'mqtt.config.read' },
-      (raw) => {
-        const r = (raw ?? {}) as Record<string, unknown>;
-        const runtime = (r.runtime ?? {}) as Record<string, unknown>;
-        const apply = (runtime.apply ?? {}) as Record<string, unknown>;
-        const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-        return {
-          status: (pick(r.status, 'UNAVAILABLE') as BrokerConfigStatus['status']),
-          activeVersionId: strOrNull(pick(r.activeVersionId, r.active_version, r.activeVersion)),
-          lastAppliedAt: strOrNull(pick(r.lastAppliedAt, r.last_applied_at)),
-          mutationLocked: bool(pick(r.mutationLocked, r.mutation_locked), false),
-          lastOperation: strOrNull(pick(r.lastOperation, r.last_operation)),
-          measuredAt: strOrNull(pick(r.measuredAt, r.measured_at)),
-          runtime: {
-            mode: strOrNull(pick(runtime.mode)),
-            apply: { available: typeof apply.available === 'boolean' ? apply.available : undefined },
-          },
-        };
-      },
+      mapBrokerConfigStatus,
     );
   },
 
   async stageBrokerConfig(newConfig: BrokerConfigSchema, summary: string): Promise<BrokerConfigVersion> {
     assertAuthenticatedHttp();
     assertLanForMutation();
+    // E23 Batch 1 (FAT-181, N-12): spec live — `bridges[]` POST wajib
+    // `remote_address` (string, bukan null hasil GET); `password` tidak
+    // pernah dikembalikan GET (hanya `has_password`) sehingga harus diisi
+    // ulang via editor (field `BrokerBridge.password`, transient) — bila
+    // kosong, password TIDAK dikirim (bukan string kosong). Bridge tanpa
+    // remote_address ditolak di klien sebelum request (400/422 server).
+    const bridges = (newConfig.bridges ?? []).map((b) => {
+      const remote_address = typeof b.remote_address === 'string' ? b.remote_address.trim() : '';
+      if (!remote_address) {
+        throw new ApiError({
+          code: 'INVALID_REQUEST',
+          message: `Bridge "${b.name || b.id}" belum punya remote_address — isi alamat remote sebelum staging.`,
+          httpStatus: 400,
+        });
+      }
+      const { password, ...rest } = b;
+      return { ...rest, remote_address, ...(password ? { password } : {}) };
+    });
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
       path: ADMIN_ENDPOINTS.MQTT_CONFIG_STAGE.buildPath(),
-      body: { config: newConfig, summary },
+      body: { config: { ...newConfig, bridges }, summary },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'MQTT_CONFIG_STAGE',
@@ -161,10 +202,16 @@ export const httpMqttConfig = {
     );
   },
 
+  /**
+   * E23 Batch 1 (FAT-182, N-13): `GET /configurations/{versionId}/diff` —
+   * bentuk spec live `{baseVersionId, versionId, baseChecksum, checksum,
+   * truncated, lines[]}`. Field lama `diff_summary`/`changed_keys` tidak
+   * ada di spec — diff selalu kosong sebelumnya.
+   */
   async getBrokerConfigDiff(
     versionId: string,
     signal?: AbortSignal
-  ): Promise<{ version_id: string; diff_summary: string; changed_keys: string[] }> {
+  ): Promise<BrokerConfigDiffResult> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     const raw = await reqJson<Record<string, unknown>>({
@@ -174,11 +221,15 @@ export const httpMqttConfig = {
       capability: 'mqtt.config.read',
       resourceId: versionId,
     });
-    return {
-      version_id: str(pick(raw.version_id, raw.versionId, versionId)),
-      diff_summary: str(pick(raw.diff_summary, raw.diffSummary, raw.summary), ''),
-      changed_keys: ((raw.changed_keys ?? raw.changedKeys ?? []) as unknown[]).map((k) => String(k)),
-    };
+    const diff = mapBrokerConfigDiff(raw);
+    if (!diff) {
+      throw new ApiError({
+        code: 'INVALID_RESPONSE',
+        message: 'Respons diff konfigurasi tidak memuat lines[].',
+        httpStatus: 200,
+      });
+    }
+    return { ...diff, version_id: str(pick(raw.version_id, raw.versionId, diff.versionId, versionId)) };
   },
 
   async deleteBrokerConfigVersion(versionId: string): Promise<{ success: boolean }> {

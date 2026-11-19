@@ -52,6 +52,14 @@ const SIX_BIG_LOSSES_MAP: DowntimeSixBigLossMap = {
     label: '6. Startup / Other Losses',
     oee_pillar: 'AVAILABILITY',
   },
+  // E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' = server tidak mengirim
+  // kategori — bukan kerugian yang terklasifikasi; label jujur, bukan
+  // pengelompokan ke salah satu dari Six Big Losses.
+  UNKNOWN: {
+    group: 'STARTUP_AND_PLANNED_LOSSES',
+    label: 'Belum dikategorikan',
+    oee_pillar: 'AVAILABILITY',
+  },
 };
 
 export function mapDowntimeToSixBigLoss(category: DowntimeCategory): SixBigLossInfo {

@@ -28,6 +28,9 @@ export const BrokerVersionsTab: React.FC<BrokerVersionsTabProps> = ({
             <th className="py-3 px-4">Version ID &amp; Summary</th>
             <th className="py-3 px-4">Applied By / Timestamp</th>
             <th className="py-3 px-4">Status</th>
+            {/* E23 Batch 1 (FAT-181, N-12): validasi + dampak dari respons
+                stage/GET versi — sebelumnya dibuang panel. */}
+            <th className="py-3 px-4">Validasi / Dampak</th>
             <th className="py-3 px-4 text-right">Workflow Aksi</th>
           </tr>
         </thead>
@@ -54,6 +57,29 @@ export const BrokerVersionsTab: React.FC<BrokerVersionsTabProps> = ({
                 >
                   {ver.status}
                 </Badge>
+              </td>
+              <td className="py-3 px-4">
+                {ver.validation ? (
+                  <div className="space-y-1">
+                    <Badge
+                      variant={
+                        ver.validation.status === 'passed'
+                          ? 'success'
+                          : ver.validation.status === 'failed'
+                            ? 'danger'
+                            : 'neutral'
+                      }
+                    >
+                      {ver.validation.status}
+                      {ver.validation.issues.length > 0 ? ` (${ver.validation.issues.length})` : ''}
+                    </Badge>
+                    {ver.impact && (
+                      <div className="text-slate-500">Dampak: {ver.impact.action}</div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
               </td>
               <td className="py-3 px-4 text-right space-x-1.5">
                 <Button size="sm" variant="outline" onClick={() => onViewDiff(ver.version_id)}>

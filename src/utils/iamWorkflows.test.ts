@@ -378,7 +378,7 @@ test('Test D — Full 13-Step End-to-End Integration: custom role -> permissions
       format: 'csv',
     });
     assert.ok(expRes.rowCount > 0);
-    const recRes = await apiClient.triggerReconciliationRefresh({ from: dayAgoIso, to: nowIso });
+    const recRes = await apiClient.triggerReconciliationRefresh({ startWindow: dayAgoIso, endWindow: nowIso });
     assert.equal(recRes.success, true);
 
     const events = await apiClient.getOperationalEvents();

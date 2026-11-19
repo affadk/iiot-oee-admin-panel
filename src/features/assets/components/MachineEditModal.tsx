@@ -1,33 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { Machine } from '../../../types/assets';
+import { ProductionLine } from '../../../types/production';
 import { validateMachineInput } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { mapApiIssuesToErrors, UpdateMachineInput } from '../hooks/useMachineCrud';
 
+// E23 Batch 2 (FAT-183, N-14): default lini server (spec live PUT
+// /machines `lineId?` — update bisa pindah lini; kosong = tidak berubah).
+const DEFAULT_LINE_ID = 'LINE-01';
+
 export interface MachineEditModalProps {
   machine: Machine | null;
+  lines: ProductionLine[];
   onClose: () => void;
   onSubmit: (machineId: string, input: UpdateMachineInput) => Promise<void>;
 }
 
 export const MachineEditModal: React.FC<MachineEditModalProps> = ({
   machine,
+  lines,
   onClose,
   onSubmit,
 }) => {
   const [name, setName] = useState('');
   const [slaveId, setSlaveId] = useState(1);
+  const [lineId, setLineId] = useState(DEFAULT_LINE_ID);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // E23 Batch 2 (FAT-183, N-14): pilihan lini dari server; lini mesin saat
+  // ini selalu tersedia sebagai opsi walau tak ada di daftar.
+  const currentLine = machine?.line_id ?? DEFAULT_LINE_ID;
+  const lineOptions = lines.some((l) => l.lineId === currentLine)
+    ? lines
+    : [{ lineId: currentLine, lineName: 'Lini saat ini' } as ProductionLine, ...lines];
 
   // Prefill dari prop machine (menggantikan prefill 4-setter di opener baris tabel).
   useEffect(() => {
     if (machine) {
       setName(machine.name);
       setSlaveId(machine.modbus_slave_id);
+      setLineId(machine.line_id ?? DEFAULT_LINE_ID);
       setErrors({});
       setSubmitError(null);
     }
@@ -39,6 +54,7 @@ export const MachineEditModal: React.FC<MachineEditModalProps> = ({
     const errs = validateMachineInput({
       machineName: name,
       modbusSlaveId: Number(slaveId),
+      lineId,
       isCreate: false,
     });
     if (Object.keys(errs).length > 0) {
@@ -49,7 +65,7 @@ export const MachineEditModal: React.FC<MachineEditModalProps> = ({
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await onSubmit(machine.machine_id, { name, slaveId });
+      await onSubmit(machine.machine_id, { name, slaveId, lineId });
       onClose();
     } catch (err: any) {
       const fieldErrs = mapApiIssuesToErrors(err);
@@ -65,7 +81,7 @@ export const MachineEditModal: React.FC<MachineEditModalProps> = ({
       isOpen={Boolean(machine)}
       onClose={onClose}
       title={`Edit Mesin ${machine?.machine_id ?? ''}`}
-      subtitle="Perbarui nama mesin atau Modbus Slave ID. Perubahan relasi device hanya melalui Bind / Unbind."
+      subtitle="Perbarui nama mesin, Modbus Slave ID, atau lini produksi. Perubahan relasi device hanya melalui Bind / Unbind."
       footer={
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
@@ -114,6 +130,29 @@ export const MachineEditModal: React.FC<MachineEditModalProps> = ({
           error={errors.modbusSlaveId}
           required
         />
+        <div>
+          <label
+            htmlFor="edit-line-select"
+            className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
+          >
+            Lini Produksi
+          </label>
+          <select
+            id="edit-line-select"
+            value={lineId}
+            onChange={(e) => setLineId(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+          >
+            {lineOptions.map((l) => (
+              <option key={l.lineId} value={l.lineId}>
+                {l.lineId} — {l.lineName}
+              </option>
+            ))}
+          </select>
+          {errors.lineId && (
+            <p className="text-xs text-red-600 mt-1">{errors.lineId}</p>
+          )}
+        </div>
       </form>
     </Modal>
   );

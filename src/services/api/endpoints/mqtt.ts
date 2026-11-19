@@ -186,8 +186,10 @@ MQTT_DYNSEC_GROUP_ROLES_DELETE: {
 MQTT_CONFIG_GET: {
     key: 'MQTT_CONFIG_GET',
     method: 'GET',
-    template: '/api/v1/mqtt/configuration/',
-    buildPath: () => '/api/v1/mqtt/configuration/',
+    // E23 Batch 4 (FAT-208, N-39): hapus trailing slash — spec live
+    // /api/v1/mqtt/configuration (tanpa slash akhir).
+    template: '/api/v1/mqtt/configuration',
+    buildPath: () => '/api/v1/mqtt/configuration',
   },
 
 MQTT_CONFIG_RAW: {

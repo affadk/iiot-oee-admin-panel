@@ -8,6 +8,7 @@
 | **Diff lengkap** | `docs/API_SYNC_DIFF.md` (P20.1, FAT-153) — 294 entri: 162 OK / 102 CHANGE / 21 NEW / 9 REMOVE |
 | **Keputusan** | D-1–D-14 diputuskan 2026-11-19 dengan mengikuti api_docs (Fathur: "ikuti api_docs dulu") |
 | **Pembaruan E21** | 2026-11-19 (`docs/BACKEND_SYNC_CLOSURE.md` §5.1/§5.3): R-1–R-15 = **3 terjawab** (R-7, R-11, R-15) / **2 berubah** (R-3, R-9 — keduanya bersandar amandemen 09:23, belum terverifikasi di dokumen) / **10 masih terbuka**; item baru **R-16–R-23** didefinisikan (lihat §2, baris R-16–R-23) |
+| **Pembaruan E23 Batch 1** | 2026-11-19 (N-8, FAT-177): keputusan E20 soal body refresh rekonsiliasi (`{from, to}` mengikuti api_docs §K.6; `docs/API_SYNC_DIFF.md` R-11/T9/X29) **DIGANTIKAN spec live** (`POST /telemetry/reconciliation/refresh`: body `{startWindow?, endWindow?}`); panel kini mengirim `{startWindow, endWindow}`. Jejak keputusan lama dipertahankan — lihat §5 di bawah. |
 
 ## 1. Keputusan D-1–D-14 — mengikuti api_docs
 
@@ -129,3 +130,16 @@ Sumber: `docs/BACKEND_SYNC_CLOSURE.md` §5.1/§5.3.
 **Prioritas tindak lanjut backend (E21, §5.4 dokumen penutupan):** P0 — R-1,
 R-2, R-4+R-17, R-6, R-20, R-23; P1 — R-9/R-3, R-8, R-10, R-5, R-18, R-19,
 R-16, R-21, R-22; P2 — R-12, R-13, R-14.
+
+### Pembaruan E23 Batch 1 (19 November 2026) — N-8 membalikkan keputusan E20
+
+Keputusan E20 soal body refresh rekonsiliasi — `{from, to}` mengikuti
+api_docs §K.6 (`docs/API_SYNC_DIFF.md` baris R-11, T9, X29) — **DIGANTIKAN
+oleh spec live** (`~/workspace/oee-live-openapi.json`,
+`POST /api/v1/telemetry/reconciliation/refresh`: body wajib
+`{startWindow?, endWindow?}`, diverifikasi langsung dari spec). Panel kini
+mengirim `{startWindow, endWindow}` (`http/telemetry.ts`,
+`ReconciliationRefreshRequest`, `ReconciliationRefreshSchema`, demo +
+`DataReconciliationPage.tsx`). Jejak keputusan lama di
+`docs/API_SYNC_DIFF.md` dipertahankan sebagai riwayat (ditandai `[^n8]`),
+tidak dihapus. Audit: `docs/API_DOCS_AUDIT.md` §6 N-8 (FAT-177).

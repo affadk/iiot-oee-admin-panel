@@ -54,7 +54,16 @@ export const httpMonitoring = {
   ): Promise<CursorPageResponse<DowntimeEvent>> {
     checkAbortHttp(signal);
     const endpoint = buildDowntimeHistoryEndpoint(query);
-    return reqList({ path: endpoint, signal, endpointKey: 'DOWNTIME_BY_DEVICE' }, mapDowntime, query.limit ?? 50);
+    const page = await reqList({ path: endpoint, signal, endpointKey: 'DOWNTIME_BY_DEVICE' }, mapDowntime, query.limit ?? 50);
+    // E23 Batch 3 (FAT-194, N-25): spec live TIDAK mendaftarkan param
+    // `category` dan item TIDAK membawa kategori — filter kategori
+    // diterapkan sisi klien pada halaman yang diambil (paritas demo:
+    // demo getDowntimeHistoryPage memfilter yang sama). Tanpa ini filter
+    // kategori di UI diam-diam tak berpengaruh di Real mode.
+    if (query.category && query.category !== 'ALL') {
+      return { ...page, data: page.data.filter((d) => d.category === query.category) };
+    }
+    return page;
   },
 
   async exportDowntimeData(query: DowntimeExportQuery, signal?: AbortSignal): Promise<ExportResult> {
@@ -90,13 +99,19 @@ export const httpMonitoring = {
     // `{success, eventId, deviceId, operatorReason, isOverwrite, operator}`
     // — BUKAN `DowntimeEvent` penuh. Pemanggil membangun event terbarunya
     // dari hasil ini (lihat DowntimeReasonModal).
+    // E23 Batch 3 (FAT-194, N-25): spec live — `operator` berupa objek
+    // `{id, username}` (opsional), BUKAN string|null.
+    const operatorRaw = pick(raw.operator) as { id?: unknown; username?: unknown } | null | undefined;
     return {
       success: bool(raw.success, true),
       eventId: str(pick(raw.eventId, raw.event_id, id)),
       deviceId: (pick(raw.deviceId, raw.device_id) as string | null) ?? null,
       operatorReason: str(pick(raw.operatorReason, raw.operator_reason, reason)),
       isOverwrite: bool(pick(raw.isOverwrite, raw.is_overwrite), false),
-      operator: (pick(raw.operator) as string | null) ?? null,
+      operator:
+        operatorRaw && typeof operatorRaw === 'object' && typeof operatorRaw.id === 'string'
+          ? { id: operatorRaw.id, username: typeof operatorRaw.username === 'string' ? operatorRaw.username : '' }
+          : null,
     };
   },
 
@@ -224,13 +239,15 @@ export const httpMonitoring = {
   ): Promise<HourlyOeePoint[]> {
     checkAbortHttp(signal);
     // E20 P20.5 (FAT-157): read telemetri tanpa auth (§7H `/telemetry/*` open).
+    // E23 Batch 3 (FAT-192, N-23): spec live MEWAJIBKAN `limit`
+    // (default 72) — dulu hanya dikirim bila options.limit diisi.
     return reqList(
       {
         path: ADMIN_ENDPOINTS.TELEMETRY_HOURLY.buildPath(deviceId),
         query: {
           ...(options?.from ? { from: options.from } : {}),
           ...(options?.to ? { to: options.to } : {}),
-          ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+          limit: options?.limit ?? 72,
         },
         signal,
         endpointKey: 'TELEMETRY_HOURLY',
@@ -354,6 +371,8 @@ export const httpMonitoring = {
     // antarmuka dengan demo, tapi TIDAK dikirim — API doc §I tidak
     // mendefinisikan keduanya untuk /oee/hourly; jendela shift dibawa
     // oleh from/to. Demo memakainya hanya sebagai petunjuk proyeksi seed.
+    // E23 Batch 3 (FAT-192, N-23): spec live MEWAJIBKAN `limit`
+    // (default 72) — dulu hanya dikirim bila params.limit diisi.
     return reqList(
       {
         path: ADMIN_ENDPOINTS.OEE_HOURLY.buildPath(),
@@ -362,7 +381,7 @@ export const httpMonitoring = {
           ...(params.device_id ? { device_id: params.device_id } : {}),
           ...(params.from ? { from: params.from } : {}),
           ...(params.to ? { to: params.to } : {}),
-          ...(params.limit !== undefined ? { limit: params.limit } : {}),
+          limit: params.limit ?? 72,
         },
         signal,
         endpointKey: 'OEE_HOURLY',

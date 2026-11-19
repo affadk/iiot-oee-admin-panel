@@ -86,10 +86,14 @@ export const BrokerConfigManagerPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {syncStatus && (
-            // E20 P20.5 (FAT-157): badge dari bentuk dokumen §3.3b
-            // (`status` + `activeVersionId`), bukan `sync_state`/`active_version`.
-            <Badge variant={syncStatus.status === 'IN_SYNC' ? 'success' : 'warning'}>
-              {syncStatus.status} · {syncStatus.activeVersionId || '—'}
+            // E23 Batch 1 (FAT-179, N-10): badge dari bentuk spec live
+            // (`runtime.mode` + `lastAppliedVersionId` + `lock.held`),
+            // bukan `status`/`activeVersionId` lama.
+            <Badge
+              variant={syncStatus.runtime.available && !syncStatus.lock.held ? 'success' : 'warning'}
+            >
+              {syncStatus.runtime.mode ?? '—'} · {syncStatus.lastAppliedVersionId || '—'}
+              {syncStatus.lock.held ? ' · Terkunci' : ''}
             </Badge>
           )}
           <Button size="sm" variant="secondary" onClick={loadConfigState}>

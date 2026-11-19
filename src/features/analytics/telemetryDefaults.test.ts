@@ -62,7 +62,7 @@ test('Demo rollup: tanpa limit memakai default dokumen 500', async () => {
   assert.equal(limited.data.length, 3);
 });
 
-test('HTTP transport: hourly tanpa limit tidak mengirim limit (server default 72); rollup tanpa limit memakai 500', async () => {
+test('HTTP transport: hourly tanpa limit mengirim limit default spec 72; rollup tanpa limit memakai 500', async () => {
   process.env.VITE_API_URL = 'http://localhost:3005/api/v1';
   const seenUrls: string[] = [];
 
@@ -102,22 +102,22 @@ test('HTTP transport: hourly tanpa limit tidak mengirim limit (server default 72
   try {
     await httpApiClient.login('ADM-001', 'Admin@2026!');
 
-    // getHourlyTrend tanpa options: tidak ada query limit yang terkirim —
-    // server memakai default dokumennya (72 bucket terakhir, API doc §E).
+    // E23 Batch 3 (FAT-192, N-23): spec live MEWAJIBKAN `limit` —
+    // getHourlyTrend tanpa options mengirim limit default spec (72).
     await httpApiClient.getHourlyTrend('STM32-OEE-01');
     const hourlyUrl = new URL(
       seenUrls.find((u) => u.includes('/telemetry/STM32-OEE-01/hourly')) ?? '',
       'http://localhost:3005'
     );
-    assert.equal(hourlyUrl.searchParams.has('limit'), false);
+    assert.equal(hourlyUrl.searchParams.get('limit'), '72');
 
-    // getOeeHourly tanpa limit: sama — tidak ada query limit terkirim.
+    // getOeeHourly tanpa limit: sama — limit default spec (72) terkirim.
     await httpApiClient.getOeeHourly({ machine_id: 'CNC-MILLING-01' });
     const oeeHourlyUrl = new URL(
       seenUrls.find((u) => u.includes('/oee/hourly')) ?? '',
       'http://localhost:3005'
     );
-    assert.equal(oeeHourlyUrl.searchParams.has('limit'), false);
+    assert.equal(oeeHourlyUrl.searchParams.get('limit'), '72');
 
     // getTelemetryRollup tanpa limit: meta fallback transport = 500
     // (API doc §K.3c) — pagination dikembalikan pemanggil, jadi teramati.

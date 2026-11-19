@@ -53,11 +53,15 @@ export const httpDevices = {
     );
   },
 
+  // E23 Batch 4 (FAT-206, N-37): spec live POST /devices body =
+  // {deviceId*, macAddress?, ipAddress?, firmwareVersion?} — TIDAK ada
+  // `model`/`serial_number`, dan `macAddress` OPSIONAL. Tipe input lama
+  // menerima model/serial (lalu dibuang diam-diam transport) dan
+  // mewajibkan mac_address. Kini: tanpa model/serial; mac dikirim hanya
+  // bila diisi.
   async registerDevice(data: {
     device_id: string;
-    model?: string;
-    serial_number?: string;
-    mac_address: string;
+    mac_address?: string;
     ip_address?: string | null;
     firmware_version?: string | null;
   }): Promise<EdgeDevice> {
@@ -69,7 +73,7 @@ export const httpDevices = {
         path: ADMIN_ENDPOINTS.DEVICES_CREATE.buildPath(),
         body: {
           deviceId: data.device_id.trim(),
-          macAddress: data.mac_address.trim(),
+          ...(data.mac_address?.trim() ? { macAddress: data.mac_address.trim() } : {}),
           ...(data.ip_address ? { ipAddress: data.ip_address.trim() } : {}),
           ...(data.firmware_version ? { firmwareVersion: data.firmware_version.trim() } : {}),
         },
@@ -173,8 +177,13 @@ export const httpDevices = {
         method: 'PUT',
         path: ADMIN_ENDPOINTS.DEVICES_UPDATE.buildPath(deviceId),
         body: {
-          ...(patch.ip_address !== undefined ? { ipAddress: patch.ip_address } : {}),
-          ...(patch.firmware_version !== undefined ? { firmwareVersion: patch.firmware_version } : {}),
+          // E23 Batch 2 (FAT-184, N-15): spec live PUT /devices —
+          // `ipAddress` harus string ipv4|ipv6 bila ada, `firmwareVersion`
+          // string bila ada; `null` TIDAK diizinkan untuk keduanya.
+          // Field yang dikosongkan DI-OMIT (bukan dikirim null) — server
+          // mempertahankan nilai lama; kirim null → 400 VALIDATION_ERROR.
+          ...(patch.ip_address?.trim() ? { ipAddress: patch.ip_address.trim() } : {}),
+          ...(patch.firmware_version?.trim() ? { firmwareVersion: patch.firmware_version.trim() } : {}),
         },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,

@@ -54,7 +54,8 @@ export interface HistoryFilters {
   activeOnly?: boolean;
   unlabeledOnly?: boolean;
   isBuffered?: boolean;
-  groupBy?: 'machine' | 'day' | 'month';
+  // E23 Batch 3 (FAT-195, N-26): groupBy rollup mencakup 'line'.
+  groupBy?: 'machine' | 'line' | 'day' | 'month';
   bucket?: '1m' | '5m' | '15m' | '1h' | '1d';
   // E12 T12.1 (X-1 / FAT-54): filter shift — tanggal kalender shift
   // (YYYY-MM-DD, tanggal mulai shift) + ID shift (Shift.shiftId). Bila
@@ -109,6 +110,13 @@ export interface OperationalEventsExportQuery {
   device_id?: string; // undefined or 'ALL' => global /api/v1/operational-events/export
   from: string;
   to: string;
+  /**
+   * E23 Batch 3 (FAT-201, N-34): spec live menerima `event_type` pada
+   * ekspor op-events (global + per-device); komentar lama yang mengklaim
+   * D-12/O8 'tanpa machine_id/event_type' keliru untuk event_type.
+   * `machine_id` tetap TIDAK dikirim (B23: hanya /system/audit).
+   */
+  event_type?: string;
   format: ExportFormat;
   limit?: number;
 }
@@ -143,6 +151,9 @@ export interface TelemetryExportQuery {
 }
 
 export interface WorkOrdersQuery extends HistoricalTimeFilter {
+  // E23 Batch 2 (FAT-188, N-19): `wo_id` TIDAK terdaftar di spec
+  // GET /work-orders — TIDAK dikirim ke server; filter diterapkan sisi
+  // klien (http/workOrders.ts + demo/workOrders.ts).
   wo_id?: string;
   // E20 P20.5 (FAT-157): status WO kanonis §C.1 — termasuk PENDING_CLOSE.
   status?: 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapHourly, mapShiftSummary, mapTelemetryHistory, mapTimelineSegment } from './monitoring';
+import { mapHourly, mapShiftSummary, mapTelemetryHistory, mapTimelineSegment, mapAggregate } from './monitoring';
 
 // ---------------------------------------------------------------------------
 // E12 T12.3 (F-6 / FAT-53): mapHourly mempertahankan null pada targetPerHour
@@ -286,4 +286,79 @@ test('mapTelemetryHistory menerima nilai cycle time berupa string angka (API doc
   const bySec = mapTelemetryHistory(rawHistory({ lastCycleTimeSec: '42.1' }));
   assert.equal(bySec.cycle_time_ms, 42100);
   assert.equal(bySec.lastCycleTimeSec, 42.1);
+});
+
+// ---------------------------------------------------------------------------
+// E23 Batch 1 (FAT-180, N-11): spec live — item agregat hanya membawa
+// `outputDelta/rejectDelta/goodDelta` (+ `sampleCount`), TANPA
+// `totalCount/goodCount/rejectCount`. Count diturunkan dari delta.
+// ---------------------------------------------------------------------------
+
+test('E23 N-11: mapAggregate menurunkan count dari delta (spec live, tanpa count)', () => {
+  const pt = mapAggregate({
+    bucket: '2026-11-11T09:00:00.000Z',
+    availabilityPct: 91.7,
+    performancePct: 93.0,
+    qualityPct: 90.0,
+    oeePct: 76.7,
+    outputDelta: 10,
+    rejectDelta: 1,
+    goodDelta: 9,
+    runSec: 3300,
+    operatingSec: 3600,
+    sampleCount: 60,
+    provisional: false,
+  });
+  assert.equal(pt.totalCount, 10);
+  assert.equal(pt.goodCount, 9);
+  assert.equal(pt.rejectCount, 1);
+  assert.equal(pt.outputDelta, 10);
+  assert.equal(pt.sampleCount, 60);
+});
+
+test('E23 N-11: mapAggregate tanpa outputDelta memakai good+reject; good dari max(0, output-reject)', () => {
+  const pt = mapAggregate({
+    bucket: '2026-11-11T10:00:00.000Z',
+    outputDelta: null,
+    rejectDelta: 2,
+    goodDelta: null,
+    runSec: 3300,
+    operatingSec: 3600,
+    sampleCount: 60,
+    provisional: false,
+  });
+  assert.equal(pt.totalCount, 2);
+  assert.equal(pt.rejectCount, 2);
+  assert.equal(pt.goodCount, 0);
+  const pt2 = mapAggregate({
+    bucket: '2026-11-11T11:00:00.000Z',
+    outputDelta: 12,
+    rejectDelta: 1,
+    goodDelta: null,
+    runSec: 3300,
+    operatingSec: 3600,
+    sampleCount: 60,
+    provisional: false,
+  });
+  assert.equal(pt2.totalCount, 12);
+  assert.equal(pt2.goodCount, 11);
+});
+
+test('E23 N-11: mapAggregate count eksplisit (demo/bentuk lama) tetap menang atas delta', () => {
+  const pt = mapAggregate({
+    bucket: '2026-11-11T09:00:00.000Z',
+    totalCount: 42,
+    goodCount: 41,
+    rejectCount: 1,
+    outputDelta: 10,
+    rejectDelta: 5,
+    goodDelta: 5,
+    runSec: 3300,
+    operatingSec: 3600,
+    sampleCount: 60,
+    provisional: false,
+  });
+  assert.equal(pt.totalCount, 42);
+  assert.equal(pt.goodCount, 41);
+  assert.equal(pt.rejectCount, 1);
 });

@@ -39,6 +39,9 @@ const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label:
   { value: 'REST_BREAK', label: 'REST_BREAK' },
   { value: 'CLEANING_5S', label: 'CLEANING_5S' },
   { value: 'OTHER', label: 'OTHER' },
+  // E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' = server tidak mengirim
+  // kategori (bukan nilai POST /reason) — filter sisi klien.
+  { value: 'UNKNOWN', label: 'Belum dikategorikan' },
 ];
 
 export const DowntimeEventsPage: React.FC = () => {
@@ -194,7 +197,11 @@ export const DowntimeEventsPage: React.FC = () => {
           const sbl = mapDowntimeToSixBigLoss(ev.category);
           return (
             <div className="text-xs">
-              <div className="font-medium text-slate-800 dark:text-slate-200">{ev.category}</div>
+              {/* E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' = server tidak
+                  mengirim kategori — tampilkan label jujur. */}
+              <div className="font-medium text-slate-800 dark:text-slate-200">
+                {ev.category === 'UNKNOWN' ? 'Belum dikategorikan' : ev.category}
+              </div>
               <div className="text-[11px] text-sky-600 dark:text-sky-400">{sbl.label}</div>
             </div>
           );

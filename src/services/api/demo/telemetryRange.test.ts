@@ -171,13 +171,14 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
     assert.equal(aggUrl.searchParams.get('to'), '2026-11-11T12:00:00+07:00');
     assert.equal(aggUrl.searchParams.get('limit'), '50');
 
-    // Tanpa options: tidak ada query from/to/limit yang terkirim.
+    // E23 Batch 3 (FAT-192, N-23): tanpa options, from/to tidak
+    // terkirim, tetapi limit default spec (72) SELALU terkirim.
     seenUrls.length = 0;
     await httpApiClient.getHourlyTrend('STM32-OEE-01');
     const plainUrl = new URL(seenUrls[0] ?? '', 'http://localhost:3002');
     assert.equal(plainUrl.searchParams.has('from'), false);
     assert.equal(plainUrl.searchParams.has('to'), false);
-    assert.equal(plainUrl.searchParams.has('limit'), false);
+    assert.equal(plainUrl.searchParams.get('limit'), '72');
   } finally {
     httpApiClient.setSessionActive(false, null);
     await new Promise<void>((resolve) => server.close(() => resolve()));

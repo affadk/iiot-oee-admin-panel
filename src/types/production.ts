@@ -43,7 +43,10 @@ export interface WorkOrderResolveResult {
     operator_id: string | null;
     operator_name: string | null;
     target_qty: number;
-    targetPerHour: number;
+    // E23 Batch 4 (FAT-204, N-35): spec live — `targetPerHour` opsional +
+    // nullable (0 vs 'tidak diketahui' dibedakan) dan `break` opsional.
+    // Absen/null → null, BUKAN 0 / break fabrikasi {start:'', end:'', minutes:0}.
+    targetPerHour: number | null;
     shift_plan: {
       shift_start: string;
       shift_end: string;
@@ -54,7 +57,7 @@ export interface WorkOrderResolveResult {
       start: string;
       end: string;
       minutes: number;
-    };
+    } | null;
     status: WorkOrderStatus;
   };
 }
@@ -63,7 +66,9 @@ export interface WorkOrderCancelResult {
   success: boolean;
   work_order: {
     wo_id: string;
-    status: 'ABORTED';
+    // E23 Batch 4 (FAT-204, N-35): status dibaca dari respons cancel
+    // (spec: string); 'ABORTED' hanya fallback bila respons tak membawanya.
+    status: WorkOrderStatus;
     machine_id: string | null;
   };
 }

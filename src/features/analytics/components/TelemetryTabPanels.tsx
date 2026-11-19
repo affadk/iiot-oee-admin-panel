@@ -29,6 +29,7 @@ import { joinScopeLabel } from '../scopeLabels';
 
 const ROLLUP_GROUP_BY_LABEL: Record<TelemetryRollupGroupBy, string> = {
   machine: 'Per Mesin',
+  line: 'Per Lini',
   day: 'Per Hari',
   month: 'Per Bulan',
 };

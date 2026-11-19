@@ -123,6 +123,13 @@ export const BrokerOverviewPage: React.FC = () => {
                 Error terakhir: {overview.dynamicSecurity.lastError}
               </div>
             )}
+            {/* E23 Batch 3 (FAT-197, N-28): varian `available=false`
+                membawa `reason` — tampilkan, jangan dibuang. */}
+            {!overview.dynamicSecurity.available && overview.dynamicSecurity.reason && (
+              <div role="alert" className="p-2.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300">
+                Tidak tersedia: {overview.dynamicSecurity.reason}
+              </div>
+            )}
             {overview.dynamicSecurity.measuredAt && (
               <p className="text-[11px] text-slate-400">
                 Diukur: {new Date(overview.dynamicSecurity.measuredAt).toLocaleString()}
@@ -172,11 +179,15 @@ export const BrokerOverviewPage: React.FC = () => {
                   {overview.configuration.mutationLocked ? 'LOCKED' : 'UNLOCKED'}
                 </span>
               </div>
-              {/* E20 P20.5 (FAT-157): `lastOperation`/`measuredAt` dari §3.3a. */}
+              {/* E20 P20.5 (FAT-157): `lastOperation`/`measuredAt` dari §3.3a.
+                  E23 Batch 3 (FAT-197, N-28): `lastOperation` berupa OBJEK
+                  (bukan string) — tampilkan tipe + status + aktor. */}
               <div className="flex justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-slate-500">Last Operation</span>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {overview.configuration.lastOperation || '—'}
+                  {overview.configuration.lastOperation
+                    ? `${overview.configuration.lastOperation.type ?? '—'} (${overview.configuration.lastOperation.status})${overview.configuration.lastOperation.actorName ? ` · ${overview.configuration.lastOperation.actorName}` : ''}`
+                    : '—'}
                 </span>
               </div>
               {overview.configuration.measuredAt && (

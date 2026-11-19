@@ -7,7 +7,37 @@
 import { store } from './store';
 import { checkAbort, assertCapability, throwValidationIssues } from './helpers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
+import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerConfigDiffResult, BrokerConfigDiffLine, BrokerOperation, BrokerBackup, BrokerConfigRawResult } from '../../../types/mqtt';
+
+/** Hash kecil (djb2) untuk checksum demo — bukan checksum server. */
+function demoChecksum(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+  return `demo-${h.toString(16)}`;
+}
+
+/**
+ * E23 Batch 1 (FAT-182, N-13): diff baris sederhana (prefix/suffix sama +
+ * tengah sebagai remove/add) antara konfigurasi aktif (base) dan versi.
+ */
+function configDiffLines(base: BrokerConfigSchema, version: BrokerConfigSchema): BrokerConfigDiffLine[] {
+  const a = JSON.stringify(base, null, 2).split('\n');
+  const b = JSON.stringify(version, null, 2).split('\n');
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let endA = a.length - 1;
+  let endB = b.length - 1;
+  while (endA >= start && endB >= start && a[endA] === b[endB]) {
+    endA--;
+    endB--;
+  }
+  const lines: BrokerConfigDiffLine[] = [];
+  for (let i = 0; i < start; i++) lines.push({ type: 'context', oldLine: i + 1, newLine: i + 1, text: a[i] });
+  for (let i = start; i <= endA; i++) lines.push({ type: 'remove', oldLine: i + 1, newLine: null, text: a[i] });
+  for (let i = start; i <= endB; i++) lines.push({ type: 'add', oldLine: null, newLine: i + 1, text: b[i] });
+  for (let i = endA + 1; i < a.length; i++) lines.push({ type: 'context', oldLine: i + 1, newLine: i + 1, text: a[i] });
+  return lines;
+}
 import { ApiError } from '../../../types/auth';
 
 export const demoMqttConfig = {
@@ -21,7 +51,10 @@ export const demoMqttConfig = {
     return JSON.parse(JSON.stringify(store.brokerConfig));
   },
 
-  async getBrokerConfigRaw(signal?: AbortSignal): Promise<string> {
+  // E23 Batch 3 (FAT-199, N-30): raw = {text, metadata} (spec live) —
+  // demo tidak punya sumber metadata → metadata null, teks tetap isi
+  // mosquitto.conf hasil seed.
+  async getBrokerConfigRaw(signal?: AbortSignal): Promise<BrokerConfigRawResult> {
     checkAbort(signal);
     assertCapability('mqtt.config.read_raw', ['ADMIN'], { requireLan: false });
     store.recordEndpoint('MQTT_CONFIG_RAW', ADMIN_ENDPOINTS.MQTT_CONFIG_RAW.buildPath());
@@ -32,7 +65,7 @@ export const demoMqttConfig = {
           `listener ${l.port} ${l.bind_address}\nprotocol ${l.protocol}\nmax_connections ${l.max_connections}`
       )
       .join('\n\n');
-    return [
+    const text = [
       `# Mosquitto Broker Configuration (${c.version})`,
       `per_listener_settings ${c.general.per_listener_settings}`,
       `allow_anonymous ${c.general.allow_anonymous}`,
@@ -44,25 +77,31 @@ export const demoMqttConfig = {
       '',
       listenerLines,
     ].join('\n');
+    return { text, metadata: null };
   },
 
-  // E20 P20.5 (FAT-157): bentuk dokumen §3.3b (`BrokerConfigStatus`) —
-  // kapabilitas runtime + mutation lock + operasi terakhir; bukan asumsi
-  // lama `active_version`/`sync_state`.
+  // E23 Batch 1 (FAT-179, N-10): bentuk spec live
+  // `{runtime, lock, current, lastOperation, lastAppliedVersionId}`.
   async getBrokerConfigStatus(signal?: AbortSignal): Promise<BrokerConfigStatus> {
     checkAbort(signal);
     assertCapability('mqtt.config.read', ['ADMIN', 'SUPERVISOR'], { requireLan: false });
     store.recordEndpoint('MQTT_CONFIG_STATUS', ADMIN_ENDPOINTS.MQTT_CONFIG_STATUS.buildPath());
     const activeVer = store.configVersions.find((v) => v.status === 'ACTIVE');
-    const lastOp = store.brokerOperations[0];
     return {
-      status: 'IN_SYNC',
-      activeVersionId: activeVer?.version_id ?? null,
-      lastAppliedAt: activeVer?.applied_at ?? null,
-      mutationLocked: false,
-      lastOperation: lastOp?.operation_id ?? null,
-      measuredAt: new Date().toISOString(),
-      runtime: { mode: 'managed', apply: { available: true } },
+      runtime: {
+        mode: 'helper',
+        available: true,
+        validation: { available: true },
+        reload: { available: true },
+        restart: { available: true },
+        apply: { available: true },
+      },
+      lock: { held: false, stale: false },
+      current: activeVer
+        ? { checksum: `demo-${activeVer.version_id}`, sizeBytes: 2910, modifiedAt: activeVer.applied_at }
+        : null,
+      lastOperation: null,
+      lastAppliedVersionId: activeVer?.version_id ?? null,
     };
   },
 
@@ -82,35 +121,28 @@ export const demoMqttConfig = {
     return JSON.parse(JSON.stringify(v));
   },
 
+  // E23 Batch 1 (FAT-182, N-13): bentuk spec live
+  // `{baseVersionId, versionId, baseChecksum, checksum, truncated, lines[]}`.
   async getBrokerConfigDiff(
     versionId: string,
     signal?: AbortSignal
-  ): Promise<{ version_id: string; diff_summary: string; changed_keys: string[] }> {
+  ): Promise<BrokerConfigDiffResult> {
     checkAbort(signal);
     assertCapability('mqtt.config.read', ['ADMIN', 'SUPERVISOR'], { requireLan: false, resourceId: versionId });
     store.recordEndpoint('MQTT_CONFIG_VERSION_DIFF', ADMIN_ENDPOINTS.MQTT_CONFIG_VERSION_DIFF.buildPath(versionId));
     const v = store.configVersions.find((ver) => ver.version_id === versionId);
     if (!v) throw new ApiError({ code: 'NOT_FOUND', message: 'Versi konfigurasi tidak ditemukan.', httpStatus: 404 });
 
-    const changedKeys: string[] = [];
-    if (v.config.general.autosave_interval_seconds !== store.brokerConfig.general.autosave_interval_seconds) {
-      changedKeys.push('general.autosave_interval_seconds');
-    }
-    if (v.config.limits.max_connections !== store.brokerConfig.limits.max_connections) {
-      changedKeys.push('limits.max_connections');
-    }
-    if (v.config.limits.max_queued_messages !== store.brokerConfig.limits.max_queued_messages) {
-      changedKeys.push('limits.max_queued_messages');
-    }
-    if (JSON.stringify(v.config.listeners) !== JSON.stringify(store.brokerConfig.listeners)) {
-      changedKeys.push('listeners');
-    }
-    if (changedKeys.length === 0) changedKeys.push('metadata.summary');
-
+    const baseText = JSON.stringify(store.brokerConfig, null, 2);
+    const versionText = JSON.stringify(v.config, null, 2);
     return {
       version_id: versionId,
-      diff_summary: v.summary,
-      changed_keys: changedKeys,
+      baseVersionId: v.parent_version_id ?? null,
+      versionId,
+      baseChecksum: demoChecksum(baseText),
+      checksum: demoChecksum(versionText),
+      truncated: false,
+      lines: configDiffLines(store.brokerConfig, v.config),
     };
   },
 
@@ -141,6 +173,14 @@ export const demoMqttConfig = {
 
     const activeVer = store.configVersions.find((v) => v.status === 'ACTIVE');
     const versionId = `cfg-staged-${Date.now().toString().slice(-5)}`;
+    // E23 Batch 1 (FAT-181, N-12): kata sandi bridge (transient, hanya
+    // untuk staging) TIDAK disimpan di store demo; respons stage demo
+    // menyertakan validation + impact seperti 201 spec live.
+    const storedConfig: BrokerConfigSchema = JSON.parse(JSON.stringify(newConfig));
+    storedConfig.bridges = (storedConfig.bridges ?? []).map((b) => {
+      const { password: _password, ...rest } = b;
+      return rest;
+    });
     const staged: BrokerConfigVersion = {
       version_id: versionId,
       parent_version_id: activeVer?.version_id ?? null,
@@ -149,7 +189,14 @@ export const demoMqttConfig = {
       summary: summary.trim() || 'Staged configuration draft via Admin Console',
       operation_type: 'RELOAD',
       status: 'STAGED',
-      config: JSON.parse(JSON.stringify(newConfig)),
+      config: storedConfig,
+      validation: {
+        status: 'passed',
+        checkedAt: new Date().toISOString(),
+        issues: [],
+        isolated: { status: 'passed' },
+      },
+      impact: { action: 'reload', reasons: [], changes: [] },
     };
     store.configVersions.unshift(staged);
     store.brokerOperations.unshift({

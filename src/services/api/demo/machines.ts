@@ -106,6 +106,7 @@ export const demoMachines = {
     name: string;
     modbus_slave_id?: number;
     bound_device_id?: string | null;
+    line_id?: string | null;
   }): Promise<Machine> {
     // E20 P20.5 (FAT-157, pembaruan 09:23): POST /machines =
     // authorize("create","machine") — kunci `machine.create`, bukan
@@ -113,12 +114,16 @@ export const demoMachines = {
     assertCapability('machine.create', ['ADMIN'], { resourceId: data.machine_id });
     const modbusSlaveId = data.modbus_slave_id ?? 1;
     const requestedDeviceId = data.bound_device_id?.trim() || null;
+    // E23 Batch 2 (FAT-183, N-14): `lineId` spec live (default server
+    // LINE-01) — demo meniru default itu bila kosong.
+    const lineId = data.line_id?.trim() || 'LINE-01';
 
     const errors = validateMachineInput({
       machineId: data.machine_id,
       machineName: data.name,
       modbusSlaveId,
       boundDeviceId: requestedDeviceId,
+      lineId,
       isCreate: true,
     });
     if (Object.keys(errors).length > 0) {
@@ -171,6 +176,7 @@ export const demoMachines = {
         code: id,
         bound_device_id: requestedDeviceId,
         modbus_slave_id: modbusSlaveId,
+        line_id: lineId,
         created_at: now,
         updated_at: now,
       };
@@ -210,7 +216,7 @@ export const demoMachines = {
 
   async updateMachine(
     machineId: string,
-    patch: { name?: string; modbus_slave_id?: number }
+    patch: { name?: string; modbus_slave_id?: number; line_id?: string | null }
   ): Promise<Machine> {
     assertCapability('machine.manage', ['ADMIN'], { resourceId: machineId });
 
@@ -228,6 +234,7 @@ export const demoMachines = {
     const errors = validateMachineInput({
       machineName: patch.name,
       modbusSlaveId: patch.modbus_slave_id,
+      lineId: patch.line_id ?? undefined,
       isCreate: false,
     });
     if (Object.keys(errors).length > 0) {
@@ -253,6 +260,9 @@ export const demoMachines = {
 
       if (patch.name !== undefined) machine.name = patch.name.trim();
       if (patch.modbus_slave_id !== undefined) machine.modbus_slave_id = patch.modbus_slave_id;
+      // E23 Batch 2 (FAT-183, N-14): PUT /machines bisa pindah lini
+      // (spec live `lineId?`); kosong → lini tidak berubah.
+      if (patch.line_id?.trim()) machine.line_id = patch.line_id.trim();
       machine.updated_at = new Date().toISOString();
 
       if (machine.bound_device_id) {

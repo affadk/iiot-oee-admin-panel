@@ -33,22 +33,41 @@ export const IamInfoSchema = z.object({
   mode: z.enum(['shadow', 'enforce', 'partial']),
   authzVersion: z.number().int().nonnegative(),
   effectiveInMode: z.string(),
-  enforcedDomains: z.array(z.string()).optional(),
+  // E23 Batch 4 (FAT-205, N-36): spec live mewajibkan keduanya.
+  catalogueVersion: z.string(),
+  enforcedDomains: z.array(z.string()),
 });
 
 export const BrokerOverviewSchema = z.object({
   dynamicSecurity: z.object({
+    available: z.boolean(),
     enabled: z.boolean(),
-    status: z.enum(['CONNECTED', 'DISCONNECTED']),
-    clientsCount: z.number().int().nonnegative(),
-    rolesCount: z.number().int().nonnegative(),
-    groupsCount: z.number().int().nonnegative(),
+    // E23 Batch 3 (FAT-197, N-28): spec live — status enum
+    // READY/CONNECTING/DISCONNECTED; varian available=false membawa
+    // `reason` (tanpa `status`); count nullable (E20, FR-035-51).
+    status: z.enum(['READY', 'CONNECTING', 'DISCONNECTED']).optional(),
+    reason: z.string().nullable().optional(),
+    clientsCount: z.number().int().nonnegative().nullable(),
+    rolesCount: z.number().int().nonnegative().nullable(),
+    groupsCount: z.number().int().nonnegative().nullable(),
+    lastError: z.string().nullable().optional(),
+    measuredAt: z.string().nullable().optional(),
   }),
   configuration: z.object({
-    status: z.enum(['IN_SYNC', 'DRIFT', 'APPLYING', 'FAILED']),
+    status: z.enum(['IN_SYNC', 'DRIFT', 'APPLYING', 'FAILED', 'UNAVAILABLE']),
     activeVersionId: z.string().nullable(),
     lastAppliedAt: z.string().nullable(),
     mutationLocked: z.boolean(),
+    // E23 Batch 3 (FAT-197, N-28): objek lastOperation (bukan string).
+    lastOperation: z
+      .object({
+        operation_id: z.string(),
+        version_id: z.string(),
+        type: z.enum(['APPLY', 'ROLLBACK', 'DISCARD']).nullable(),
+        status: z.enum(['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED']),
+      })
+      .nullable(),
+    measuredAt: z.string().nullable().optional(),
   }),
 });
 
@@ -63,18 +82,23 @@ export const WorkOrderResolveSchema = z.object({
     operator_id: z.string().nullable(),
     operator_name: z.string().nullable(),
     target_qty: z.number(),
-    targetPerHour: z.number(),
+    // E23 Batch 4 (FAT-204, N-35): spec live — `targetPerHour` opsional +
+    // nullable, `break` opsional (absen → null, bukan fabrikasi).
+    targetPerHour: z.number().nullable().optional(),
     shift_plan: z.object({
       shift_start: z.string(),
       shift_end: z.string(),
       planned_break_min: z.number(),
       planned_operating_sec: z.number(),
     }),
-    break: z.object({
-      start: z.string(),
-      end: z.string(),
-      minutes: z.number(),
-    }),
+    break: z
+      .object({
+        start: z.string(),
+        end: z.string(),
+        minutes: z.number(),
+      })
+      .nullable()
+      .optional(),
     status: z.enum(['PENDING', 'ACTIVE', 'COMPLETED', 'ABORTED']),
   }),
 });
@@ -329,8 +353,15 @@ export const ShiftSchema = z.object({
   shiftId: z.string().regex(/^[A-Z0-9_-]{1,64}$/),
   shiftName: z.string().min(2).max(100),
   shiftCode: z.string().min(1).max(32),
-  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  // E23 Batch 2 (FAT-185, N-16): spec live `startTime`/`endTime` hanya
+  // string TANPA format — server boleh mengirim `07:00:00`. Skema TIDAK
+  // lagi menuntut HH:MM ketat (dulu regex di sini membuat SELURUH list
+  // melempar INVALID_RESPONSE bila satu item berformat `HH:MM:SS`);
+  // normalisasi ke HH:MM dilakukan mapper (`normalizeShiftTime`,
+  // mappers/assets.ts). Nilai yang tak bisa diparse diteruskan apa adanya
+  // (tampil mentah, bukan gagal total).
+  startTime: z.string(),
+  endTime: z.string(),
   isActive: z.boolean(),
   createdAt: z.string(),
 });
@@ -339,7 +370,11 @@ export const ShiftScheduleSchema = z.object({
   scheduleId: z.string().min(1),
   lineId: z.string().min(1),
   shiftId: z.string().min(1),
-  dayOfWeek: z.number().int().min(1).max(7),
+  // E23 Batch 2 (FAT-186, N-17): spec live `dayOfWeek` hanya number TANPA
+  // rentang/konvensi — server boleh memakai 0..6 (0=Minggu). Terima 0..7;
+  // mapper menormalisasi 0 → 7 agar konsisten dengan konvensi panel
+  // 1=Senin..7=Minggu (label hari di ShiftSchedulesPage).
+  dayOfWeek: z.number().int().min(0).max(7),
   isActive: z.boolean(),
   shiftName: z.string().optional(),
   shiftCode: z.string().optional(),
@@ -392,7 +427,7 @@ export const HistoryFiltersSchema = z
     activeOnly: z.boolean().optional(),
     unlabeledOnly: z.boolean().optional(),
     isBuffered: z.boolean().optional(),
-    groupBy: z.enum(['machine', 'day', 'month']).optional(),
+    groupBy: z.enum(['machine', 'line', 'day', 'month']).optional(),
     bucket: z.enum(['1m', '5m', '15m', '1h', '1d']).optional(),
     // E12 T12.1 (X-1 / FAT-54): filter shift — keduanya harus terisi
     // bersamaan (lihat refine di bawah).
@@ -417,12 +452,14 @@ export const HistoryFiltersSchema = z
   });
 
 export const TelemetryRollupItemSchema = z.object({
-  groupBy: z.enum(['machine', 'day', 'month']),
+  // E23 Batch 3 (FAT-195, N-26): spec live groupBy mencakup 'line'.
+  groupBy: z.enum(['machine', 'line', 'day', 'month']),
   bucket: z.string().nullable(),
   machineId: z.string().nullable(),
   machine_id: z.string().nullable().optional(),
   machine_name: z.string().nullable().optional(),
   device_id: z.string().nullable().optional(),
+  lineId: z.string().nullable().optional(),
   totalCount: NumericCoercionSchema,
   goodCount: NumericCoercionSchema,
   rejectCount: NumericCoercionSchema,
@@ -450,14 +487,21 @@ export const TelemetryAggregatePointSchema = z.object({
   oeePct: z.union([z.string(), z.number(), z.null()]),
   sampleCount: z.number().int().nonnegative(),
   provisional: z.boolean(),
+  // E23 Batch 1 (FAT-180, N-11): delta spec live (opsional, nullable).
+  outputDelta: z.number().nullable().optional(),
+  goodDelta: z.number().nullable().optional(),
+  rejectDelta: z.number().nullable().optional(),
 });
 
 export const ReconciliationRefreshSchema = z
   .object({
-    from: IsoOffsetDateTimeSchema,
-    to: IsoOffsetDateTimeSchema,
+    // E23 Batch 1 (FAT-177, N-8): spec live — `{startWindow, endWindow}`
+    // (datetime; field opsional, body wajib). Membalikkan keputusan E20
+    // (R-11/T9/X29, `{from, to}` mengikuti api_docs §K.6).
+    startWindow: IsoOffsetDateTimeSchema.optional(),
+    endWindow: IsoOffsetDateTimeSchema.optional(),
   })
-  .refine((val) => Date.parse(val.from) <= Date.parse(val.to), {
-    path: ['from'],
-    message: 'Rentang rekonsiliasi tidak valid: from harus <= to.',
+  .refine((val) => !val.startWindow || !val.endWindow || Date.parse(val.startWindow) <= Date.parse(val.endWindow), {
+    path: ['startWindow'],
+    message: 'Rentang rekonsiliasi tidak valid: startWindow harus <= endWindow.',
   });

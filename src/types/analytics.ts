@@ -1,9 +1,16 @@
 import { MachineFsmState } from './monitoring';
 
 export interface ShiftSummary {
-  shift_name: string;
+  /**
+   * E23 Batch 3 (FAT-196, N-27): spec live TIDAK mengirim nama shift/mesin
+   * maupun totalCount/goodCount/rejectCount — `null` berarti "tidak
+   * dikirim server", BUKAN 0/'Shift'/''. Parts diturunkan mapper dari
+   * hourly[] bila include_hourly dikembalikan (pola N-11); tanpa hourly
+   * → null. Demo tetap mengisi angka (diturunkan dari Σ hourly, E12).
+   */
+  shift_name: string | null;
   machine_id: string;
-  machine_name: string;
+  machine_name: string | null;
   shift_start: string;
   shift_end: string;
   tz?: string;
@@ -17,9 +24,9 @@ export interface ShiftSummary {
   run_time_min: number;
   unplanned_downtime_min: number;
   planned_downtime_min: number;
-  total_parts: number;
-  good_parts: number;
-  defect_parts: number;
+  total_parts: number | null;
+  good_parts: number | null;
+  defect_parts: number | null;
   target_per_hour?: number | null;
   /**
    * E20 P20.5 (FAT-157): rantai `hourly[]` respons §Q.1 — hanya ada bila
@@ -99,6 +106,14 @@ export interface TelemetryAggregatePoint {
   oeePct: string | number | null;
   sampleCount: number;
   provisional: boolean;
+  /**
+   * E23 Batch 1 (FAT-180, N-11): delta per bucket dari spec live — sumber
+   * count bila `totalCount/goodCount/rejectCount` absen (mapper menurunkan
+   * count dari delta ini).
+   */
+  outputDelta?: number | null;
+  goodDelta?: number | null;
+  rejectDelta?: number | null;
 }
 
 /**
@@ -165,7 +180,12 @@ export interface TelemetryHistoryRecord {
   is_buffered?: boolean;
 }
 
-export type TelemetryRollupGroupBy = 'machine' | 'day' | 'month';
+/**
+ * E23 Batch 3 (FAT-195, N-26): spec live `group_by` mencakup 'line'
+ * (machine|line|day|month, default day) — panel lama tak mengenalnya dan
+ * mustParse melempar bila server mengembalikan baris groupBy 'line'.
+ */
+export type TelemetryRollupGroupBy = 'machine' | 'line' | 'day' | 'month';
 
 export interface TelemetryRollupQuery {
   group_by: TelemetryRollupGroupBy;
@@ -187,6 +207,8 @@ export interface TelemetryRollupItem {
   machine_id?: string | null;
   machine_name?: string | null;
   device_id?: string | null;
+  /** E23 Batch 3 (FAT-195, N-26): `lineId` dari item rollup spec live. */
+  lineId?: string | null;
   totalCount: number;
   goodCount: number;
   rejectCount: number;
@@ -207,14 +229,20 @@ export interface ReconciliationJob {
   view_name: string;
   schedule_interval: string;
   last_run: string;
+  // E23 Batch 2 (FAT-191, N-22): `lastSuccessfulFinish` spec live
+  // (null bila job belum pernah sukses) — dipertahankan terpisah dari
+  // `last_run` (start terakhir) agar tidak hilang di mapper.
+  last_successful_finish?: string;
   last_status: 'SUCCESS' | 'RUNNING' | 'FAILED';
   refresh_window_hours: number;
   records_processed: number;
 }
 
 export interface ReconciliationRefreshRequest {
-  from?: string;
-  to?: string;
-  // E20 P20.5 (FAT-157): body kanonis `{from, to}` (API doc §K.6) —
-  // alias lama `startWindow`/`endWindow` DIHAPUS (satu alur kanonis).
+  startWindow?: string;
+  endWindow?: string;
+  // E23 Batch 1 (FAT-177, N-8): spec live membalikkan keputusan E20
+  // (R-11/T9/X29, `{from, to}` mengikuti api_docs §K.6) — body kanonis kini
+  // `{startWindow, endWindow}`; alias lama `from`/`to` DIHAPUS (satu alur
+  // kanonis). Anotasi keputusan di docs/API_SYNC_DIFF.md (R11/T9/X29).
 }

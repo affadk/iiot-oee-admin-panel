@@ -14,8 +14,6 @@ export interface FeedbackState {
 
 export interface RegisterDeviceInput {
   deviceId: string;
-  model: string;
-  serial: string;
   mac: string;
   ip: string;
   firmware: string;
@@ -92,11 +90,13 @@ export function useDevices({ onDeviceDeleted }: UseDevicesOptions) {
     async (input: RegisterDeviceInput): Promise<void> => {
       setFeedback(null);
       try {
+        // E23 Batch 4 (FAT-206, N-37): spec live POST /devices tidak
+        // mengenal model/serial_number dan mac_address opsional —
+        // kirim hanya field yang server terima; mac kosong → undefined
+        // (transport meng-omit-nya).
         const created = await apiClient.registerDevice({
           device_id: input.deviceId.trim(),
-          model: input.model.trim() || 'STM32H743-Edge-Pro',
-          serial_number: input.serial.trim() || input.deviceId.trim(),
-          mac_address: input.mac.trim(),
+          mac_address: input.mac.trim() || undefined,
           ip_address: input.ip.trim() || null,
           firmware_version: input.firmware.trim() || null,
         });
@@ -146,9 +146,12 @@ export function useDevices({ onDeviceDeleted }: UseDevicesOptions) {
     async (deviceId: string, input: UpdateDeviceInput): Promise<void> => {
       setFeedback(null);
       try {
+        // E23 Batch 2 (FAT-184, N-15): form yang dikosongkan dikirim
+        // sebagai undefined (bukan null) — transport meng-omit field
+        // tersebut; spec live PUT /devices tidak mengizinkan null.
         const updated = await apiClient.updateDevice(deviceId, {
-          ip_address: input.ip.trim() || null,
-          firmware_version: input.firmware.trim() || null,
+          ip_address: input.ip.trim() || undefined,
+          firmware_version: input.firmware.trim() || undefined,
         });
         await loadDevices();
         setFeedback({ type: 'success', msg: `Konfigurasi perangkat ${updated.device_id} diperbarui.` });

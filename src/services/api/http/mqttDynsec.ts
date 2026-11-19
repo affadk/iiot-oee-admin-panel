@@ -7,7 +7,7 @@
 import { MUTATION_TIMEOUT_MS, assertLanForMutation, assertAuthenticatedHttp, reqJson, reqList, checkAbortHttp } from './transport';
 import { mapMqttClient, mapMqttRole, mapMqttGroup, mapBrokerOverview, mapMqttDynsecStatus } from './mappers';
 import { ADMIN_ENDPOINTS } from '../endpoints';
-import { MqttClient, MqttRole, MqttAcl, MqttGroup, BrokerOverviewInfo } from '../../../types/mqtt';
+import { MqttClient, MqttRole, MqttAcl, MqttGroup, MqttDynsecStatus, BrokerOverviewInfo } from '../../../types/mqtt';
 
 export const httpMqttDynsec = {
   // -- MQTT (DynSec + broker config) ------------------------------------------
@@ -20,13 +20,10 @@ export const httpMqttDynsec = {
     );
   },
 
-  async getMqttDynamicSecurityStatus(signal?: AbortSignal): Promise<{
-    enabled: boolean;
-    status: 'CONNECTED' | 'DISCONNECTED';
-    clients_count: number;
-    roles_count: number;
-    groups_count: number;
-  }> {
+  // E23 Batch 4 (FAT-203, N-33): bentuk spec live — {connected,
+  // subscribed, connecting, pluginReady, brokerUrl, adminUsername,
+  // lastError, lastConnectedAt} (lihat mapMqttDynsecStatus).
+  async getMqttDynamicSecurityStatus(signal?: AbortSignal): Promise<MqttDynsecStatus> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqJson(
@@ -122,37 +119,37 @@ export const httpMqttDynsec = {
   async toggleMqttClient(username: string, enabled: boolean): Promise<MqttClient> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'PATCH',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_ENABLE.buildPath(username),
-        body: { enabled },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_CLIENTS_ENABLE',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: username,
-      },
-      mapMqttClient,
-    );
+    // E23 Batch 1 (FAT-178, N-9): spec live — PATCH .../enable hanya
+    // mengembalikan `{success}`; entitas penuh dibaca ulang via GET
+    // (pola yang sama untuk ketujuh sub-op DynSec di bawah).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'PATCH',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENTS_ENABLE.buildPath(username),
+      body: { enabled },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_CLIENTS_ENABLE',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: username,
+    });
+    return httpMqttDynsec.getMqttClient(username);
   },
 
   async addMqttClientRole(username: string, rolename: string, priority = 1): Promise<MqttClient> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENT_ROLES_ADD.buildPath(username),
-        body: { rolename, priority },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_CLIENT_ROLES_ADD',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: username,
-      },
-      mapMqttClient,
-    );
+    // E23 Batch 1 (FAT-178, N-9): POST .../roles hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_CLIENT_ROLES_ADD.buildPath(username),
+      body: { rolename, priority },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_CLIENT_ROLES_ADD',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: username,
+    });
+    return httpMqttDynsec.getMqttClient(username);
   },
 
   async removeMqttClientRole(username: string, rolename: string): Promise<void> {
@@ -191,24 +188,23 @@ export const httpMqttDynsec = {
   async createMqttRole(role: MqttRole): Promise<MqttRole> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_ROLES_CREATE.buildPath(),
-        body: {
-          rolename: role.rolename.trim(),
-          acls: role.acls,
-          ...(role.textname ? { textname: role.textname } : {}),
-          ...(role.textdescription ? { textdescription: role.textdescription } : {}),
-        },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_ROLES_CREATE',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: role.rolename,
+    // E23 Batch 1 (FAT-178, N-9): POST /roles hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_ROLES_CREATE.buildPath(),
+      body: {
+        rolename: role.rolename.trim(),
+        acls: role.acls,
+        ...(role.textname ? { textname: role.textname } : {}),
+        ...(role.textdescription ? { textdescription: role.textdescription } : {}),
       },
-      mapMqttRole,
-    );
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_ROLES_CREATE',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: role.rolename,
+    });
+    return httpMqttDynsec.getMqttRole(role.rolename.trim());
   },
 
   async deleteMqttRole(rolename: string): Promise<{ success: boolean }> {
@@ -229,19 +225,18 @@ export const httpMqttDynsec = {
   async addMqttRoleAcl(rolename: string, acl: MqttAcl): Promise<MqttRole> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_ROLE_ACLS_ADD.buildPath(rolename),
-        body: acl,
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_ROLE_ACLS_ADD',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: rolename,
-      },
-      mapMqttRole,
-    );
+    // E23 Batch 1 (FAT-178, N-9): POST .../acls hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_ROLE_ACLS_ADD.buildPath(rolename),
+      body: acl,
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_ROLE_ACLS_ADD',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: rolename,
+    });
+    return httpMqttDynsec.getMqttRole(rolename);
   },
 
   async removeMqttRoleAcl(rolename: string, acltype: MqttAcl['acltype'], topic: string): Promise<void> {
@@ -281,23 +276,22 @@ export const httpMqttDynsec = {
   async createMqttGroup(group: MqttGroup): Promise<MqttGroup> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUPS_CREATE.buildPath(),
-        body: {
-          groupname: group.groupname.trim(),
-          ...(group.textname ? { textname: group.textname } : {}),
-          ...(group.textdescription ? { textdescription: group.textdescription } : {}),
-        },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_GROUPS_CREATE',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: group.groupname,
+    // E23 Batch 1 (FAT-178, N-9): POST /groups hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUPS_CREATE.buildPath(),
+      body: {
+        groupname: group.groupname.trim(),
+        ...(group.textname ? { textname: group.textname } : {}),
+        ...(group.textdescription ? { textdescription: group.textdescription } : {}),
       },
-      mapMqttGroup,
-    );
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_GROUPS_CREATE',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: group.groupname,
+    });
+    return httpMqttDynsec.getMqttGroup(group.groupname.trim());
   },
 
   async deleteMqttGroup(groupname: string): Promise<{ success: boolean }> {
@@ -318,19 +312,18 @@ export const httpMqttDynsec = {
   async addMqttGroupClient(groupname: string, username: string): Promise<MqttGroup> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_CLIENTS_ADD.buildPath(groupname),
-        body: { username },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_GROUP_CLIENTS_ADD',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: groupname,
-      },
-      mapMqttGroup,
-    );
+    // E23 Batch 1 (FAT-178, N-9): POST .../clients hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_CLIENTS_ADD.buildPath(groupname),
+      body: { username },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_GROUP_CLIENTS_ADD',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: groupname,
+    });
+    return httpMqttDynsec.getMqttGroup(groupname);
   },
 
   async removeMqttGroupClient(groupname: string, username: string): Promise<void> {
@@ -350,19 +343,18 @@ export const httpMqttDynsec = {
   async addMqttGroupRole(groupname: string, rolename: string): Promise<MqttGroup> {
     assertAuthenticatedHttp();
     assertLanForMutation();
-    return reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_ROLES_ADD.buildPath(groupname),
-        body: { rolename },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'MQTT_DYNSEC_GROUP_ROLES_ADD',
-        capability: 'mqtt.dynsec.manage',
-        resourceId: groupname,
-      },
-      mapMqttGroup,
-    );
+    // E23 Batch 1 (FAT-178, N-9): POST .../roles hanya `{success}` (201).
+    await reqJson<{ success?: boolean } | undefined>({
+      method: 'POST',
+      path: ADMIN_ENDPOINTS.MQTT_DYNSEC_GROUP_ROLES_ADD.buildPath(groupname),
+      body: { rolename },
+      timeoutMs: MUTATION_TIMEOUT_MS,
+      retry: false,
+      endpointKey: 'MQTT_DYNSEC_GROUP_ROLES_ADD',
+      capability: 'mqtt.dynsec.manage',
+      resourceId: groupname,
+    });
+    return httpMqttDynsec.getMqttGroup(groupname);
   },
 
   async removeMqttGroupRole(groupname: string, rolename: string): Promise<void> {

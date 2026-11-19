@@ -6,13 +6,19 @@ import {
   BrokerConfigSchema,
   BrokerConfigStatus,
   BrokerConfigVersion,
+  BrokerConfigDiffResult,
+  BrokerConfigRawResult,
   BrokerOperation,
 } from '../../../types/mqtt';
 import { useAuth, useCapability } from '../../../context/AuthContext';
 
 export type BrokerConfirmAction = { type: 'APPLY' | 'ROLLBACK'; version: BrokerConfigVersion };
 
-export type BrokerDiffResult = { version_id: string; diff_summary: string; changed_keys: string[] };
+/**
+ * E23 Batch 1 (FAT-182, N-13): hasil diff = bentuk spec live
+ * (`BrokerConfigDiffResult`: `lines[]`), bukan `diff_summary`/`changed_keys`.
+ */
+export type BrokerDiffResult = BrokerConfigDiffResult;
 
 export type BrokerFeedback = { type: 'success' | 'error'; msg: string };
 
@@ -37,7 +43,9 @@ export const useBrokerConfig = () => {
 
   const [draftConfig, setDraftConfig] = useState<BrokerConfigSchema | null>(null);
   const [stageSummary, setStageSummary] = useState('Penyesuaian batas koneksi perangkat pabrik');
-  const [rawConf, setRawConf] = useState<string | null>(null);
+  // E23 Batch 3 (FAT-199, N-30): raw = {text, metadata} (spec live),
+  // bukan string mentah.
+  const [rawConf, setRawConf] = useState<BrokerConfigRawResult | null>(null);
   const [versions, setVersions] = useState<BrokerConfigVersion[]>([]);
   const [operations, setOperations] = useState<BrokerOperation[]>([]);
   const [backups, setBackups] = useState<BrokerBackup[]>([]);
@@ -110,10 +118,25 @@ export const useBrokerConfig = () => {
     setValidationIssues([]);
     try {
       const staged = await apiClient.stageBrokerConfig(draftConfig, stageSummary);
-      setFeedback({
-        type: 'success',
-        msg: `Draft konfigurasi staged sebagai ${staged.version_id}. Buka tab Versions untuk Diff & Apply.`,
-      });
+      // E23 Batch 1 (FAT-181, N-12): respons stage menyertakan validation/
+      // impact/diff — tampilkan status validasi, jangan dibuang.
+      const validation = staged.validation;
+      if (validation) {
+        if (validation.issues.length > 0) {
+          setValidationIssues(validation.issues.map((iss) => ({ field: iss.field, message: iss.message })));
+        }
+        setFeedback({
+          type: validation.status === 'failed' ? 'error' : 'success',
+          msg: `Draft konfigurasi staged sebagai ${staged.version_id}. Validasi: ${validation.status}${
+            validation.status === 'failed' ? ` (${validation.issues.length} issue)` : ''
+          }. Buka tab Versions untuk Diff & Apply.`,
+        });
+      } else {
+        setFeedback({
+          type: 'success',
+          msg: `Draft konfigurasi staged sebagai ${staged.version_id}. Buka tab Versions untuk Diff & Apply.`,
+        });
+      }
       await loadConfigState();
       return true;
     } catch (err: any) {

@@ -110,25 +110,53 @@ export function mapShift(raw: unknown): Shift {
     shiftId: str(pick(r.shiftId, r.shift_id)),
     shiftName: str(pick(r.shiftName, r.shift_name)),
     shiftCode: str(pick(r.shiftCode, r.shift_code)),
-    startTime: str(pick(r.startTime, r.start_time)),
-    endTime: str(pick(r.endTime, r.end_time)),
+    startTime: normalizeShiftTime(str(pick(r.startTime, r.start_time))),
+    endTime: normalizeShiftTime(str(pick(r.endTime, r.end_time))),
     isActive: bool(pick(r.isActive, r.is_active), true),
     createdAt: iso(pick(r.createdAt, r.created_at)),
   }, 'shift');
 }
 
+/**
+ * E23 Batch 2 (FAT-185, N-16): normalisasi jam longgar ke `HH:MM` untuk UI.
+ * Spec live tidak memformat `startTime`/`endTime` — `07:00:00` → `07:00`,
+ * `7:00` → `07:00`. Nilai yang tak cocok pola jam diteruskan apa adanya
+ * (tampil mentah) agar satu nilai aneh tidak menggagalkan seluruh list.
+ */
+export function normalizeShiftTime(v: string): string {
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v.trim());
+  if (!m) return v;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh > 23 || mm > 59) return v;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
+ * E23 Batch 2 (FAT-186, N-17): normalisasi `dayOfWeek` server ke konvensi
+ * panel 1=Senin..7=Minggu — server yang memakai 0..6 mengirim 0 untuk
+ * Minggu; 0 dipetakan ke 7 agar label hari tidak bergeser.
+ */
+export function normalizeDayOfWeek(v: number): number {
+  return v === 0 ? 7 : v;
+}
+
 export function mapShiftSchedule(raw: unknown): ShiftSchedule {
   const r = (raw ?? {}) as Record<string, unknown>;
+  // E23 Batch 2 (FAT-185, N-16): jam shift terdenormalisasi ikut
+  // dinormalisasi ke HH:MM seperti mapShift (opsional di sini).
+  const rawStart = str(pick(r.startTime, r.start_time), undefined) || undefined;
+  const rawEnd = str(pick(r.endTime, r.end_time), undefined) || undefined;
   return mustParse(ShiftScheduleSchema, {
     scheduleId: str(pick(r.scheduleId, r.schedule_id)),
     lineId: str(pick(r.lineId, r.line_id)),
     shiftId: str(pick(r.shiftId, r.shift_id)),
-    dayOfWeek: num(pick(r.dayOfWeek, r.day_of_week), 1),
+    dayOfWeek: normalizeDayOfWeek(num(pick(r.dayOfWeek, r.day_of_week), 1)),
     isActive: bool(pick(r.isActive, r.is_active), true),
     shiftName: str(pick(r.shiftName, r.shift_name), undefined) || undefined,
     shiftCode: str(pick(r.shiftCode, r.shift_code), undefined) || undefined,
-    startTime: str(pick(r.startTime, r.start_time), undefined) || undefined,
-    endTime: str(pick(r.endTime, r.end_time), undefined) || undefined,
+    startTime: rawStart ? normalizeShiftTime(rawStart) : undefined,
+    endTime: rawEnd ? normalizeShiftTime(rawEnd) : undefined,
     createdAt: iso(pick(r.createdAt, r.created_at)),
   }, 'jadwal shift');
 }

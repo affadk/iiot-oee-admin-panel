@@ -202,9 +202,9 @@ test('E20 P20.4: health/detail + hapus sintesis; op-events FR-034-01 + export sy
     assert.equal(detail.application.measuredAt, '2026-11-19T03:00:00.000Z');
     assert.equal(detail.database.status, 'UP');
     assert.equal(detail.database.latencyMs, 1.87);
-    assert.equal(detail.mqtt.adminConnection.connected, true);
-    assert.equal(detail.mqtt.adminConnection.pluginReady, true);
-    assert.equal(detail.mqtt.adminConnection.lastError, null);
+    assert.equal(detail.mqtt.adminConnection?.connected, true);
+    assert.equal(detail.mqtt.adminConnection?.pluginReady, true);
+    assert.equal(detail.mqtt.adminConnection?.lastError, null);
     assert.equal(detail.mqtt.clientsCount, 12);
     assert.equal(detail.websocket.clients, 3);
 

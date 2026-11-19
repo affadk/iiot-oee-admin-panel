@@ -16,9 +16,7 @@ import { resolveActiveTimelineSegment } from './oeeTimelineSelection';
 import { useDowntimeOverlay } from './useDowntimeOverlay';
 import { DEFAULT_ROLLUP_GROUP_BY, DEFAULT_TIMELINE_BUCKET } from '../telemetryDefaults';
 
-export type { TimelineBucket, RollupScope };
-
-export type { OeeWidgetState };
+export type { TimelineBucket, RollupScope, OeeWidgetState };
 
 export const useOeeAnalytics = () => {
   const canReadOee = useCapability('oee.read');
@@ -92,6 +90,8 @@ export const useOeeAnalytics = () => {
         to: filters.to,
         date: shiftDate,
         shift: shiftCode,
+        // E23 Batch 3 (FAT-196, N-27): minta hourly[] agar mapper bisa menurunkan parts dari Σ bucket (spec tidak mengirim counts); tanpa hourly parts = null.
+        include_hourly: true,
       }),
   });
 

@@ -26,6 +26,25 @@ export const BrokerOperationsTab: React.FC<BrokerOperationsTabProps> = ({ operat
             </Badge>
           </div>
           {op.reason && <div className="text-slate-600 dark:text-slate-300">Reason: {op.reason}</div>}
+          {/* E23 Batch 3 (FAT-200, N-31): field operasi spec yang dulu
+              dibuang — tampilkan bila ada (aktor/fase/waktu/error). */}
+          {(op.actorName || op.phase || op.startedAt || op.finishedAt) && (
+            <div className="text-slate-500 dark:text-slate-400">
+              {[
+                op.actorName ? `Aktor: ${op.actorName}` : null,
+                op.phase ? `Fase: ${op.phase}` : null,
+                op.startedAt ? `Mulai: ${new Date(op.startedAt).toLocaleString()}` : null,
+                op.finishedAt ? `Selesai: ${new Date(op.finishedAt).toLocaleString()}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          )}
+          {op.error && (
+            <div role="alert" className="text-red-700 dark:text-red-300">
+              Error: {op.error.code} — {op.error.message}
+            </div>
+          )}
           {op.steps && op.steps.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
               {op.steps.map((s, idx) => (
