@@ -275,6 +275,26 @@ dianggap selesai penuh.
 | N-39 | MQTT_CONFIG_GET: trailing slash di template registry | E23 | Done | Low | `verification`, `real-backend` |
 | N-40 | Spec OpenAPI tidak mendeklarasikan respons error 401/400 (17 op Access Control) | E23 | Todo | Low | `verification`, `real-backend` |
 | N-41 | Perilaku 404 vs [] untuk device tak dikenal tidak konsisten | E23 | Todo | Low | `verification`, `real-backend` |
+| E24 | Fase 2 browser pasca-push: temuan data live-state/presence | API_DOCS_AUDIT.md | Todo | High | `verification`, `real-backend` |
+| N-42 | Live-state & presence perangkat nol/stale setelah restart backend | E24 | Todo | High | `verification`, `real-backend` |
+| N-43 | Agregat all-null ditampilkan 0% bukan '—' | E24 | Todo | Low | `verification`, `real-backend` |
+| E25 | End-to-end testing pasca-push: pencocokan panel vs API live | E2E_TEST.md | Todo | High | `verification`, `real-backend` |
+| E2E-01 | Overview + Live-State menelan error diam-diam (catch {} tanpa banner) | E25 | Todo | High | `verification`, `real-backend` |
+| E2E-02 | Halaman Quality menyamarkan error sebagai empty state | E25 | Todo | Medium | `verification`, `real-backend` |
+| E2E-03 | System Health macet di 'Memuat…' selamanya bila GET /health gagal | E25 | Todo | Medium | `verification`, `real-backend` |
+| E2E-04 | OEE hourly: totalCount null → parts_produced 0 (angka 0 menyesatkan) | E25 | Todo | Medium | `verification`, `real-backend` |
+| E2E-05 | 4 halaman CRUD + Reconciliation tanpa empty state (satu tiket pola) | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-06 | Peringatan shift 'tidak tersedia' sempat muncul saat loading di /telemetry (kemungkinan race) | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-07 | Investigasi: selisih rekonsiliasi 7 hari vs jendela shift (235 vs 99 mnt) | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-08 | MQTT live config tidak bisa dibaca: ENOENT /mosquitto/config/mosquitto.conf | E25 | Todo | High | `verification`, `real-backend` |
+| E2E-09 | Event audit: atribusi perangkat salah + description berisi JSON mentah | E25 | Todo | Medium | `verification`, `real-backend` |
+| E2E-10 | Kerapian tampilan list: WO ID duplikat, 'SN:' kosong, suhu '-', sel LINE/SCOPE kosong | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-11 | Tampilan timeline Analytics: label sumbu berantakan + 'Downtime ID tidak ditemukan' | E25 | Todo | Low | `verification`, `real-backend` |
+| E26 | Uji mutasi E2E panel vs API live (Bagian A+B) | E2E_MUTATION_TEST.md | Todo | High | `verification`, `real-backend` |
+| MUT-01 | DynSec menampilkan banner network-error palsu padahal mutasi sukses di server, dan list tampil stale sampai halaman di-remount | E26 | Todo | Medium | `verification`, `real-backend` |
+| MUT-02 | DynSec client-create selalu gagal 'Role not found' untuk semua role termasuk admin | E26 | Todo | High | `verification`, `real-backend` |
+| MUT-03 | Policy create dengan ABAC kosong mengirim abacCondition: null, server menolak (expected record) | E26 | Todo | Medium | `verification`, `real-backend` |
+| MUT-04 | Overwrite label downtime tidak bisa mengembalikan status 'Belum dikategorikan' / teks alasan asli | E26 | Todo | Low | `verification`, `real-backend` |
 
 \* E7 `Done` hanya untuk simulasi demo. Verifikasi WS sungguhan ikut V8.2/V8.3.
 
@@ -468,17 +488,19 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **210 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
-  paginasi penuh, 19 Nov 2026 pasca-E23): **172 Done, 2 In Progress, 36 Todo**,
-  28 tanpa parent, 182 child dengan `parentId`. Koreksi hitungan: total ini
-  mencakup 4 issue onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja
-  proyek) yang tidak masuk hitungan 169/206 sebelumnya; tanpa keempatnya,
-  total proyek = 206. Todo tersisa (36): 4 onboarding + 14 SYS-B terbuka +
-  E13 (FAT-71) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27) + A10.2 (FAT-40) +
-  E8 (FAT-7) + E22 (FAT-169) + N-2–N-5 (FAT-170/171/173/172) + E23 (FAT-174) +
-  N-6 (FAT-175) + N-32 (FAT-202) + N-38 parsial (FAT-207) + N-40/N-41
-  (FAT-209/210). E23 Batch 1–4 (19 Nov 2026) menutup 31 issue panel
-  (FAT-176–182, 183–191, 192–201, 203–206, 208).
+- Issue: **230 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
+  paginasi penuh, 19 Nov 2026 pasca-E26): **172 Done, 2 In Progress, 56 Todo**,
+  31 tanpa parent, 199 child dengan `parentId`. Total mencakup 4 issue
+  onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja proyek); tanpa
+  keempatnya, total proyek = 226. Todo tersisa (56): 4 onboarding + 14 SYS-B
+  terbuka + E13 (FAT-71) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27) + A10.2
+  (FAT-40) + E8 (FAT-7) + E22 (FAT-169) + N-2–N-5 (FAT-170/171/173/172) +
+  E23 (FAT-174) + N-6 (FAT-175) + N-32 (FAT-202) + N-38 parsial (FAT-207) +
+  N-40/N-41 (FAT-209/210) + E24 (FAT-211) + N-42 (FAT-212) + N-43 (FAT-213)
+  + E25 (FAT-214) + E2E-01–E2E-11 (FAT-215–225) + E26 (FAT-226) +
+  MUT-01–MUT-04 (FAT-227–230).
+  E23 Batch 1–4 (19 Nov 2026) menutup 31 issue panel (FAT-176–182, 183–191,
+  192–201, 203–206, 208).
   In Progress: E10 (FAT-34) + V8.2 (FAT-28, tidak lagi Blocked sejak API
   live 19 Nov 2026 — AUDIT.md §27; tes browser-nya parkir menunggu perbaikan N-6).
   E22 (FAT-169, Todo, Medium) + 4 anak N-2–N-5 dari audit API live Fase 1,
@@ -489,6 +511,12 @@ tapi status implementasi yang berlaku adalah status di Linear.
   live (OpenAPI), 19 Nov 2026 (API_DOCS_AUDIT.md). N-6 (FAT-175, Urgent) =
   CORS origin Vercel tidak diizinkan — blokir semua tes browser sampai backend
   memperbaikinya.
+  E26 (FAT-226, Todo, High) + 4 anak MUT-01–MUT-04 dari uji mutasi E2E panel
+  vs API live, 19 Nov 2026 (E2E_MUTATION_TEST.md + AUDIT.md §35): 35 mutasi
+  lolos, 0x 403 dari Vercel meski Private (bukti empiris, A10.2 belum
+  terbukti). MUT-02 (FAT-228, High) = backend (dengan caveat
+  edge_publisher); MUT-01 (FAT-227, Medium) + MUT-03 (FAT-229, Medium) +
+  MUT-04 (FAT-230, Low) = panel.
   Riwayat: 28 issue awal + E9/R9.1–R9.6 dibuat 2026-11-16 ~14:20 WIB
   (R9.2–R9.6 Done malam itu); E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
   audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —

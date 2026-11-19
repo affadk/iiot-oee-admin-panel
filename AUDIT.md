@@ -1923,3 +1923,522 @@ Belum terverifikasi: Real-mode E2E + visual di browser untuk batch ini,
 dan perilaku live N-8 (400 vs jendela default) — butuh probe ber-auth.
 Push 4 commit E23 + vercel.json menunggu perintah Fathur (snapshot-push;
 remote masih `9653612`).
+
+## 33. Tes fungsional Fase 2 — pasca-push + CORS diperbaiki (2026-11-19 18:05–18:07 WIB)
+
+Login + navigasi panel Vercel melawan API live **BERHASIL untuk pertama
+kalinya** (browser task 18:05–18:06 WIB; probe curl 18:07 WIB).
+
+### 33.1 Hasil — login & navigasi LULUS
+
+- Root → `/login` (200, tanpa 404) → login ADM-001 (Secure Vault,
+  ADMIN-CONSOLE-01) → `/admin` Dashboard. Tanpa error jaringan, tanpa 403
+  tunnel/mode observasi. **Gerbang tunnel server TIDAK memblokir login.**
+- Badge: halaman login "API Mode: Real" + "Mode Akses: Private" (N-38
+  terkonfirmasi live); Topbar "API: Real", "Akses: Private", "Koneksi Mesin
+  Aktif", "Basis Data Aktif". Sesi aktif (tersisa 14:20), tidak logout.
+- Dashboard: Plant Average OEE 0.0% ("Rata-rata 0 mesin online"), Machines
+  Running 1/2, Active Downtimes 0, System Health "ok". Devices: 2 device,
+  PROVISIONED, OFFLINE. Machines: 2 mesin, keduanya Terikat; CNC-MILLING-01
+  RUNNING, CNC-MILLING-SIM UNCONFIGURED. Telemetry STM32-OEE-01: 200 sampel
+  agregat, 50 baris raw halaman 1. Analytics 7-hari CNC-MILLING-01: Shift
+  Total OEE 92.8% (A 95.5%, P 98.2%, Q 99.1%).
+- Tidak ada error banner di halaman mana pun; tidak ada mutasi yang
+  disubmit. Keterbatasan: browser task tanpa network inspector — temuan di
+  bawah didasarkan pada tampilan UI + probe curl langsung (bukan log HTTP
+  per-request).
+
+### 33.2 Temuan — nilai live 0 padahal telemetri DB 92.8% (N-42, backend)
+
+Dashboard 0.0% / parts 0/0 dan semua device OFFLINE **bukan kesalahan
+panel** — panel merender setia apa yang dikembalikan API (probe curl
+18:07 WIB):
+- `GET /live-state`: kedua device `oee/avail/perf/quality "0.00"`,
+  `totalCount/goodCount/rejectCount 0`, `operatingTimeSec/runTimeSec 0`,
+  sementara `currentState` STM32-OEE-01 = RUNNING; `lastTelemetryAt`
+  terakhir 15:54:40 WIB.
+- `GET /devices`: `isOnline false` + `lastSeenAt null` untuk kedua device.
+- `GET /health`: `metrics totalReceived/validIngested 0`,
+  `lastIngestedAt null`; `ws_clients 1`; uptime 2117 dtk (restart ~17:31
+  WIB — ke-6 hari ini).
+- `GET /oee/shift-summary?device_id=STM32-OEE-01`: OEE 92.8% (A 95.5%,
+  P 98.2%, Q 99.1%), `time_sec run 5940` — benar dari DB.
+- Pola konsisten: live-state/presence tampaknya in-memory — nol setelah
+  restart backend dan tidak dibangun ulang dari telemetri DB; tidak ada
+  telemetri baru sejak 15:54 WIB untuk mengisi ulang. **Tiket: N-42
+  (FAT-212, backend, High).**
+
+### 33.3 Temuan — agregat all-null ditampilkan 0% (N-43, panel)
+
+- `GET /telemetry/STM32-OEE-01/aggregate` (bucket 5m): semua `*Pct`/delta/
+  `runSec` = `null` (sampleCount 9–10/bucket, provisional false) — sesuai
+  aturan null ADR-019 — sementara baris raw/history membawa nilai 92.8%.
+- Panel menghitung rata-rata dengan aturan E20 "bila semua null → 0"
+  (`http/monitoring.ts`, `mean1`) + `total_parts = Σ totalCount` (null → 0),
+  sehingga tab aggregate menampilkan "OEE Rata-rata 0%, Parts Total 0".
+  Aturan itu dibuat saat null masih hipotetis; di produksi tampilannya
+  menyesatkan. **Tiket: N-43 (FAT-213, panel, Low)** — tampilkan '—' bila
+  semua nilai null, dengan catatan perubahan keputusan E20.
+
+### 33.4 Observasi (tanpa tiket — butuh analisis lebih lanjut)
+
+- **Reconciliation warning** ("2 differences exceed threshold"): RUNNING
+  timeline vs summary 235 vs 99 mnt (+136); total timeline vs shift window
+  10.080 vs 99 mnt (+9.981). Sebagian residual E11/E12 yang sudah dikenal
+  (timeline↔hourly beda distribusi); selisih 10.080 mnt = 7 hari vs jendela
+  shift 99 mnt — kemungkinan perbandingan jendela yang tidak sebanding di
+  cek rekonsiliasi. Perlu analisis sebelum dijadikan tiket.
+- **Catatan shift sementara** di Telemetry ("Daftar shift tidak tersedia —
+  periksa akses shift.read / koneksi.") muncul saat loading lalu hilang
+  sendiri (filter Pagi/Siang/Malam tersedia) — kemungkinan race loading.
+- **"Last seen" device di laporan browser** (STM32-OEE-01 "18:05:10",
+  SIM "16:54:51") **tidak terverifikasi**: API mengembalikan
+  `lastSeenAt null` dan kode panel (`DeviceTable.tsx:94`) menampilkan
+  'Belum ada data' bila null — kemungkinan agen browser membaca stempel
+  "updated" halaman. Bukan temuan.
+- Entri `SECURITY_REJECTION` di feed event Dashboard (17:08 WIB) adalah
+  peristiwa lama sebelum login ini (403 health/detail tunnel + 401/400
+  auth) — bukan error dari sesi ini.
+- FAT-28 (V8.2 Real E2E) tetap In Progress: login + navigasi baca terbukti;
+  mutasi + konsistensi data + visual lengkap belum terverifikasi.
+
+## 34. Uji end-to-end pasca-push (2026-11-19 18:12–18:15 WIB)
+
+Tiga sumber: (1) browser — 18 halaman dikunjungi (login ADM-001,
+ADMIN-CONSOLE-01, baca saja, tanpa mutasi, tanpa network inspector);
+(2) pemetaan statis konsumsi endpoint per halaman
+(`~/workspace/tmp-e2e-static.md`); (3) probe curl 14 endpoint publik
+tanpa auth (~18:13 WIB). Dokumen gabungan: `docs/E2E_TEST.md`
+(ditulis koordinator; koreksi pasca-merge di §8 dokumen itu).
+
+### 34.1 Yang berfungsi — halaman master-data tampil bersih
+
+Devices (2, PROVISIONED, OFFLINE), Machines (2, Terikat), Products (5,
+semua ACTIVE), Operators (5, semua ACTIVE), Lines (1), Shifts (3),
+Shift Schedules (7), Access Control (Roles 4, Assignments 5, Policies
+62, Permissions 41, Riwayat 44, status SHADOW), MQTT Overview (DynSec
+READY — Clients 1, Roles 1, Groups 0) + DynSec (client backend-admin,
+ENABLED), Downtime (empty state bersih, konsisten dengan 0 downtime
+aktif). Login + navigasi sidebar berfungsi; indikator "Koneksi Langsung:
+Terhubung", "API: Real", "Akses: Private", System Health "ok".
+
+### 34.2 Inkonsistensi data antar-halaman (keluarga N-42)
+
+- OEE: Dashboard 0.0% vs Analytics 92.8% vs Telemetry raw 92.8% vs
+  Telemetry aggregate 0%. Parts: Dashboard/WO 0/0 vs raw counters
+  hingga 199. CNC-MILLING-01 RUNNING sekaligus OFFLINE; "Machines
+  Running 1/2" vs "0 mesin online".
+- Telemetry hourly (Delta Per Jam): 2 bucket (15:00, 14:00), OEE "—",
+  A/P/Q "—", "0 pcs · 0 reject" padahal counter raw naik. Aggregate
+  (Downsampling): 21 bucket, semua OEE "—", "0 pcs · 0 reject",
+  "OEE rata-rata 0%", catatan "(kapasitas unknown)". Rollup: "Tidak ada
+  data rollup" (Telemetry) dan "Tidak ada data pada rentang ini"
+  (Analytics).
+- Analytics: Shift Total OEE 92.8% (A 95.5% Run 99m, P 98.2%, Q 99.1%)
+  tetapi "0 good / 0 defect"; hourly "Kapasitas 0/Unknown", Parts 0/13;
+  Target/Jam "—", Break 0m. Rekonsiliasi: "2 selisih melebihi ambang"
+  (RUNNING timeline vs ringkasan 240 vs 99 mnt, +141; total timeline vs
+  jendela shift 10.080 vs 99 mnt, +9.981).
+- Akar yang sudah bertiket: N-42 (FAT-212, live-state nol/stale) +
+  N-43 (FAT-213, agregat all-null → 0%). **Baru: E2E-04 (FAT-218)** —
+  `OEE_HOURLY` mengembalikan `totalCount` null (sampleCount 91–109)
+  dan `mapHourly` menghitung `parts_produced = num(totalCount, 0)` → 0.
+  **Baru: E2E-07 (FAT-221)** — tiket investigasi selisih rekonsiliasi.
+
+### 34.3 Satu halaman error keras — MQTT Config (E2E-08, backend)
+
+`/admin/mqtt/configuration`: banner merah "Live configuration
+'/mosquitto/config/mosquitto.conf' is not readable: ENOENT: no such
+file or directory, open '/mosquitto/config/mosquitto.conf'"; body di
+bawah tab kosong; Riwayat Versi & Perbedaan (0), Riwayat Penerapan (0),
+Cadangan (0); halaman lambat (~10 dtk "Memuat pengaturan koneksi
+mesin..."). Panel hanya menampilkan error backend — file config live
+tidak ada/tidak dapat dibaca di server. **Tiket: E2E-08 (FAT-222,
+backend, High).**
+
+### 34.4 Halaman yang menelan error diam-diam (panel)
+
+- **E2E-01 (FAT-215, High):** `OverviewPage.tsx:56` `catch {}` +
+  `LiveStatePage.tsx:33` `catch {}` ("Handle silently") — gagal load =
+  kartu kosong/0 tanpa banner, tanpa skeleton, tanpa empty state.
+- **E2E-02 (FAT-216, Medium):** `QualityRejectsPage.tsx:37` `catch` →
+  `setItems([])` — error tampil sebagai empty state "Tidak ada data
+  reject…" yang menyesatkan.
+- **E2E-03 (FAT-217, Medium):** `SystemHealthPage.tsx` — gagal `HEALTH`
+  hanya menampilkan "Memuat status kesehatan sistem..." selamanya
+  (catch → setHealth(null), tanpa banner); hanya gagal `HEALTH_DETAIL`
+  yang diberi banner amber.
+- Pola paling lengkap (pembanding): halaman `DataTable`
+  (WO/downtime/audit/telemetry/system-audit) — skeleton + banner per
+  kode HTTP + "Coba Lagi" + empty state; Analytics — error + retry per
+  widget (4× onRetry).
+
+### 34.5 Temuan lain yang bertiket (E25)
+
+- **E2E-05 (FAT-219, Low):** 4 halaman CRUD (products/lines/shifts/
+  shift-schedules) + Reconciliation tanpa teks empty-state.
+- **E2E-06 (FAT-220, Low):** peringatan shift "tidak tersedia" sempat
+  muncul saat loading /telemetry lalu hilang — kemungkinan race.
+- **E2E-09 (FAT-223, backend, Medium):** audit feed — 20 baris
+  SECURITY_REJECTION semuanya diatribusikan ke CNC-MILLING-01 /
+  STM32-OEE-01 (termasuk penolakan CORS/auth dari panel sendiri), dan
+  kolom Detail menampilkan description JSON mentah terpotong.
+- **E2E-10 (FAT-224, Low):** kerapian list — sel WO "WO-001 WO-001 ·"
+  (`WorkOrderColumns.tsx:36`: baris 2 `{order_number} · {shift_name}`,
+  data live order_number == wo_id dan shift_name kosong); "SN:" kosong
+  (API tak kirim serial_number, N-37); "CYCLE / TEMP 0.0s · -°C"
+  (telemetri tak bawa suhu); sel LINE/SCOPE ADM-001 kosong.
+- **E2E-11 (FAT-225, Low):** timeline Analytics — label sumbu
+  berantakan/tumpang tindih; "Downtime ID: 2 tidak ditemukan di antara
+  2 event downtime" (`ShiftTimelineDetail.tsx:121,137`).
+
+### 34.6 Koreksi pencocokan (TRANSPORT_ONLY + route)
+
+- Dari 16 TRANSPORT_ONLY di `API_DOCS_AUDIT.md` §8: **11 tetap
+  TRANSPORT_ONLY**, **5 kini DIPAKAI UI secara tidak langsung**
+  (`MQTT_CONFIG_VERSION_GET` — internal apply/rollback;
+  `MQTT_DYNSEC_CLIENTS_GET`/`GROUPS_GET`/`ROLES_GET` — internal
+  mutasi DynSec; `OPERATIONAL_EVENTS_BY_DEVICE` — builder path bersama)
+  — semuanya hanya di mode Real kecuali yang terakhir. **WIRED_UI
+  121 → 126**; UNREFERENCED tetap 0. Ke-11 sisanya temuan cakupan,
+  bukan cacat (keputusan produk apakah UI-nya dibutuhkan).
+- **Koreksi route:** rute top-level `/devices`, `/machines`, `/products`,
+  `/operators` TIDAK ADA — hanya `/admin/*` (`Router.tsx:34,54-79`).
+  Top-level yang ada: `/work-orders`, `/telemetry`, `/analytics`,
+  `/downtime`, `/audit`, `/system-audit`. `/admin/audit` ADA di Router
+  (tetap belum terverifikasi live — navigasi langsung menjatuhkan sesi
+  ke /login). 25 halaman unik + 1 alias (`/admin/shift-analytics`).
+- **Probe publik (~18:13 WIB): 12× 200** (health, live-state, devices,
+  machines, products, work-orders, downtime-events/active,
+  telemetry/:id, telemetry/:id/aggregate, oee/shift-summary, oee/hourly,
+  quality/rejects), **1× 401 valid** (`/system/audit`), **1× 403 tunnel
+  valid** (`/health/detail`), **1× 404 path probe salah**
+  (`/telemetry/:device_id/history` — bukan temuan; registry panel benar).
+  Backend saat probe: uptime ~41,5 mnt, ws_clients 5, db_connected true,
+  metrics /health nol sejak restart.
+
+### 34.7 Observasi tanpa tiket
+
+- **"Last seen" Fase 2 terklarifikasi:** E2E ini menampilkan "Belum ada
+  data" di Devices — membenarkan §33.4: bacaan "18:05:10" di Fase 2
+  adalah stempel "updated" halaman, bukan last-seen device.
+- Sesi hilang pada navigasi URL langsung (token in-memory only) —
+  **by design (D5)**, bukan cacat; navigasi sidebar berfungsi.
+- Kolom Shifts (SIANG/Siang/SIANG) adalah tiga field berbeda yang diisi
+  seed backend dengan nilai nyaris sama — bukan cacat panel.
+- System Health: layanan UNKNOWN ("Waktu Respons: —") + warning
+  "Detail infrastruktur hanya tersedia untuk ADMIN di jaringan lokal
+  pabrik", sementara header tetap "Koneksi Mesin Aktif · Basis Data
+  Aktif" — terkait sisa N-38 (FAT-207, indikator koneksi).
+- Access Control live: 41 permission (ADMIN 41, MAINTENANCE 3, OPERATOR
+  8, SUPERVISOR 10) vs seed demo panel 30 — data live dibaca dari API;
+  seed demo tertinggal, bukan cacat Real mode.
+- MQTT Overview IN_SYNC dengan Active Version ID "—" / Last Applied "—"
+  — null dirender "—" dengan benar.
+- Baris SECURITY_REJECTION di audit feed adalah peristiwa historis
+  pra-perbaikan CORS (17:08 WIB), bukan error sesi ini.
+- Rollup kosong di Telemetry + Analytics belum teratribusi (bisa jadi
+  memang kosong di DB) — butuh probe rollup langsung dengan parameter
+  panel sebelum dijadikan tiket.
+
+### 34.8 Yang BELUM terverifikasi (tetap)
+
+Semua mutasi (11 IAM, 14 DynSec, Devices/Machines/Operators/Products/
+Lines/Shifts/Schedules, RECONCILIATION_REFRESH, WO resolve/cancel,
+DOWNTIME_REASON, ack, AUTH_CHANGE_PASSWORD, staging/apply/rollback
+config); seluruh endpoint 401-gated (respons live vs mapper hanya
+dibandingkan statis terhadap spec); WS handshake `/ws/telemetry`
+(hanya `ws_clients: 5` di /health, tanpa kaitan ke sesi panel);
+`/force-change-password` (hanya tampil bila mustChangePassword);
+mapper downtime/rejects terhadap item nyata (data kosong saat ini);
+N-16/N-17/N-18 laten; N-32 butuh jawaban backend. **FAT-28 (V8.2 Real
+E2E) tetap In Progress.**
+
+## 35. Uji mutasi end-to-end panel (2026-11-19 18:58–19:34 WIB)
+
+Dua sesi browser berurutan, login ADM-001, station ADMIN-CONSOLE-01,
+panel Vercel live terhadap API live `oee.fadik.web.id`, mengikuti
+`docs/E2E_MUTATION_PLAN.md` (45 langkah + 13 cleanup). Dokumen lengkap
+per langkah: `docs/E2E_MUTATION_TEST.md`. Bagian A (18:58–19:10 WIB):
+master data + WO + ack + downtime + reconciliation. Bagian B
+(19:11–19:34 WIB): IAM + DynSec + config. Semua mutasi yang dieksekusi
+berhasil kecuali satu kegagalan persisten (L31, MUT-02); satu guard
+probe gagal seperti yang diharapkan (L24).
+
+### 35.1 Kesimpulan utama — mutasi dari Vercel lolos tanpa satu pun 403
+
+Seluruh mutasi Bagian A dan Bagian B dieksekusi dari Vercel (ingress
+tunnel, bukan LAN pabrik) dengan badge panel "API: Real" + "Mode
+Akses: Private" — dan **tidak satu pun mengembalikan 403**, baik 403
+klien (`assertLanForMutation`) maupun 403 gerbang tunnel server.
+Termasuk di dalamnya: provision/register device, create/bind/edit
+machine, create/edit product/operator, suspend/activate, rotasi
+password operator, rotasi/revoke kredensial device, create/update/
+toggle/delete role & policy IAM, assign/revoke role, create role &
+ACL & group DynSec, ack event, overwrite label downtime, refresh
+rekonsiliasi, dan cancel WO.
+
+Pernyataan ini dibatasi secara hati-hati sebagai **bukti empiris**:
+sesi login bertahan dan semua mutasi di atas lolos dari Vercel dalam
+sesi uji ini. Uji ini **tidak membuktikan** penegakan sisi server mode
+akses (A10.2 / FAT-40) selesai, dan juga **tidak membuktikan** ia
+gagal — penegakan server tidak diuji secara khusus (tidak ada probe
+negatif dari tunnel terhadap endpoint yang seharusnya ditolak, dan
+tidak ada pembanding dari LAN pabrik). Jangan jadikan §35 ini vonis
+atas A10.2 ke arah mana pun; yang tercatat adalah fakta bahwa gerbang
+tidak menutup satu pun mutasi uji dari Vercel pada 19 Nov 2026 malam.
+
+### 35.2 Hasil per domain
+
+| Domain | Langkah | Hasil |
+|---|---|---|
+| Master data: device | L3 provision TEST01, L4 register TEST02, L7 edit, L14 rotasi kredensial, L15 revoke | Semua OK; kredensial sekali-tampil disalin sebelum dialog ditutup |
+| Master data: machine | L5 create CNC-TEST-E2E-01, L6 bind TEST01 | OK; validasi server menolak Slave ID 1 duplikat ("already assigned to machine CNC-MILLING-01"), diulang Slave ID 2 |
+| Master data: product | L8 create, L9 edit | OK; SKU yang diisi tidak dikirim — SKU default = Product ID (lihat §35.4) |
+| Master data: operator | L10 create, L11 edit, L12 suspend→activate, L13 rotasi password | OK; tombol Suspend ADM-001 disabled ("Akun dilindungi (ADM-001)") |
+| IAM (Access Control) | L16–L23, L25–L28 | OK; authz_version naik #1→#10 (dengan pengecualian observasi §35.4); L24 guard probe gagal seperti diharapkan |
+| DynSec | L29 role, L30 ACL, L35 group, L37 role→group | OK (dengan deviasi, lihat §35.4); L31 create client GAGAL persisten (MUT-02); L32–L34, L36 dilewati karena tidak ada client |
+| Config | L38–L40 | TIDAK DAPAT DIUJI — tab Editor kosong, banner ENOENT persisten (E2E-08, FAT-222); tidak ada Apply/Rollback yang diklik |
+| WO / event / downtime / rekonsiliasi | L41 resolve-preview (baca), L42 ack, L43(a) overwrite label, L44 refresh, L45 cancel WO | OK kecuali L41 (panel kesiapan tidak muncul — controller offline) dan L43(b) (tidak ada event unlabeled) |
+
+Hitungan: 35 mutasi berhasil + 1 guard probe yang gagal sesuai
+harapan (L24, `ROLE_IN_USE`) + 1 kegagalan persisten (L31). Tanpa
+429/cooldown pada refresh rekonsiliasi (L44). Sesi berakhir satu kali
+setelah full-page reload (~12:22 UTC), sesuai advisory
+authz_version; login ulang 1× sebagai ADM-001, lanjut tanpa 403.
+
+### 35.3 Temuan MUT-01 – MUT-04
+
+- **MUT-01 (panel): banner network-error palsu + list stale di
+  DynSec.** Mutasi DynSec berulang kali menampilkan banner merah
+  "Koneksi jaringan terputus atau backend tidak terjangkau." padahal
+  mutasi sukses di server (L29 create role, L30 add ACL, L35 create
+  group, L37 add role ke group — masing-masing terkonfirmasi tercipta
+  setelah load baru; retry melaporkan "already exists"). List tampil
+  stale sampai halaman di-remount via navigasi sidebar; load baru
+  mengungkap keadaan sebenarnya. Pola yang sama tidak terlihat di
+  domain lain pada sesi ini.
+- **MUT-02 (backend): create MQTT client selalu "Role not
+  found".**
+  Sisi: BACKEND (dengan satu caveat terbuka). Panel mengirim body
+  sesuai persis skema server: `roles` sebagai array objek
+  `{rolename: <nama>, priority: 1}` (mqttDynsec.ts:62-79), dan server
+  menerima bentuk itu — galat "Role not found" adalah galat lookup
+  bisnis, bukan validasi skema. Lookup gagal bahkan untuk role
+  `admin` (8 ACL) dan `E2E-TEST-ROLE` yang baru dibuat lewat panel
+  sendiri. Caveat: modal create-client meng-hardcode default
+  `cRoles=['edge_publisher']` (CreateMqttClientModal.tsx:21); bila
+  payload uji memuat `edge_publisher` yang tidak ada di server, satu
+  entri itu saja sudah cukup menjelaskan galatnya — perlu log body
+  request aktual untuk menutup caveat ini.
+  L31 create client `e2e-test-client` gagal persisten: banner merah
+  "Role not found". Direproduksi 5× — role E2E-TEST-ROLE ×4 (termasuk
+  dari halaman yang baru di-remount) dan role admin yang sudah ada ×1.
+  Client tidak pernah tercipta (DynSec Clients tetap 1). Akibatnya
+  L32 attach role, L33 rotasi password client, L34 disable/enable
+  client, dan L36 add client ke group tidak dapat diuji.
+- **MUT-03 (panel): policy create dengan ABAC kosong mengirim
+  `abacCondition: null`, server menolak (expected record).**
+  Sisi: PANEL. Saat field ABAC dikosongkan, panel mengirim
+  `"abacCondition": null` eksplisit — percobaan pertama L18 gagal
+  ("Invalid policy: abacCondition Invalid input: expected record,
+  received null") dan L21 gagal ("body/abacCondition Invalid input:
+  expected record, received null") — padahal skema server untuk kedua
+  jalur create (POST /policies dan POST /roles/{id}/permissions)
+  mendefinisikan `abacCondition` sebagai optional record, bukan
+  nullable; panel seharusnya meng-omit field saat kosong. Rantai
+  null: `parseAbacCondition` mengembalikan `value: null` untuk teks
+  kosong (iamValidation.ts:10-11), diteruskan apa adanya oleh
+  `createPolicy`/`handleBindPermission`, lalu
+  `createIamPolicy`/`addIamRolePermission` menyertakan kunci karena
+  `null !== undefined` (iam.ts:248-266, 124/135), dan
+  `JSON.stringify` mempertahankan `null`. Perbaikan di panel: omit
+  field saat kosong (dan perbaiki asumsi salah di
+  schemas/dto.ts:235 yang menganggap null sah). Catatan: jalur PUT
+  /policies/{id} justru mengizinkan nullable(record) — hanya kedua
+  jalur POST create yang salah.
+- **MUT-04 (panel): label downtime asli tidak bisa dikembalikan
+  persis.** Cleanup C1: modal overwrite label tidak punya opsi
+  "Belum dikategorikan" dan selalu memberi prefix kategori, sehingga
+  teks asli persis "Equipment failure" tidak bisa dikembalikan.
+  Dikembalikan dengan kategori EQUIPMENT_FAILURE + alasan "Equipment
+  failure" → baris kini "[EQUIPMENT_FAILURE] Equipment failure";
+  kolom kategori tetap "Belum dikategorikan" seperti semula. Ini
+  residu yang diterima (lihat §35.6), bukan data uji sisa.
+
+Guard pasif ADMIN terverifikasi di Bagian B (bukan temuan): kartu role
+ADMIN tanpa tombol Edit/Hapus; semua baris policy ADMIN Edit/Disable/
+Delete disabled; Revoke assignment ADMIN–ADM-001 disabled dengan
+catatan "Anti-Lockout Guard: role ADMIN pada akun dilindungi tidak
+dapat dicabut."; di modal Add Policy dengan Role = ADMIN, opsi "DENY
+(Diblokir untuk ADMIN)" disabled.
+
+### 35.4 Koreksi terhadap rencana (`docs/E2E_MUTATION_PLAN.md`)
+
+- **Topik ACL literal, bukan wildcard:** `publishClientSend` +
+  `e2e/test/#` ditolak server ("Wildcards are not allowed in
+  'publishClientSend' topics"); dipakai topik literal `e2e/test`.
+  Koreksi rencana, bukan bug.
+- **`read:telemetry` tidak ada di katalog live:** L18 memakai
+  `refresh:telemetry`; L21 memakai `read:access_control`.
+- **Badge legacy register PROVISIONED, bukan ACTIVE** (L4) —
+  observasi, bukan tiket.
+- **SKU produk tidak dikirim dari form create** (L8): SKU
+  "SKU-E2E-TEST-01" yang diisi tidak terkirim; baris menampilkan SKU
+  "PROD-TEST-E2E-01" (SKU default = Product ID). Terkonfirmasi live.
+- **authz_version #7 berulang** (L21 assign-perm, L22 assign-user,
+  L25 revoke — ketiganya menampilkan #7; counter tampak tidak naik
+  pada assign/revoke): observasi terbuka, **bukan** tiket.
+- **ABAC kosong ditolak server** (L18, L21): percobaan pertama
+  dengan ABAC kosong gagal ("Invalid policy: abacCondition Invalid
+  input: expected record, received null" / "body/abacCondition
+  Invalid input: expected record, received null"); diulang dengan
+  JSON `{"attr": "subject.line_id", "eq": "LINE-01"}` → berhasil.
+  ABAC pada L20 dibiarkan berisi JSON dari L18 karena mengosongkannya
+  gagal di server.
+- **Rute aktual** (koreksi §34.6): `/work-orders`, `/audit`,
+  `/downtime` (bukan `/admin/...`); `/admin/system-audit` adalah
+  halaman terpisah tanpa filter UNACK/tombol ack.
+- **Opsi RESERVED di IAM:** `manage:access_control`,
+  `manage:mqtt_admin`, `manage:mqtt_configuration`,
+  `read_raw:mqtt_configuration` tampil "(DIBLOKIR - RESERVED)" dan
+  disabled saat bind permission (L21).
+
+### 35.5 Yang BELUM teruji (tetap)
+
+Panel kesiapan resolve WO (L41 — controller STM32-OEE-SIM offline,
+"Planned Start: —"); label downtime baru pada event unlabeled (L43b
+— tidak ada event unlabeled: STM32-OEE-01 punya 2 event historis,
+keduanya sudah berlabel "Belum dikategorikan" / "Equipment failure",
+1h 00m 00s, 13:55:34 dan 13:54:40 WIB; STM32-OEE-SIM 0 event);
+stage/diff/discard config (L38–L40 — akar yang sama dengan E2E-08,
+**jangan buat tiket baru**); create/attach/rotate/disable-enable
+client MQTT (L31–L34 — terblokir MUT-02); add client ke group (L36);
+hapus group yang masih berisi anggota (C6 — group sudah kosong karena
+C5 otomatis membersihkan keanggotaan, lihat §35.6). Dari §34.8 tetap
+belum terverifikasi: WS handshake `/ws/telemetry`,
+`/force-change-password`, respons live endpoint 401-gated, dan
+N-16/N-17/N-18 laten; N-32 butuh jawaban backend.
+
+### 35.6 Perubahan permanen yang diterima + SISA kosong
+
+Perubahan permanen (bukan SISA): event 1148 di-ack oleh ADM-001
+(11/19/2026, 7:05:45 PM, "E2E-TEST ack — verifikasi uji mutasi");
+WO-SIM-20260906-02 ABORTED (irreversibel, L45); alasan downtime
+13:55:34 kini berprefix "[EQUIPMENT_FAILURE] " (MUT-04, C1); entri
+audit trail append-only untuk semua mutasi. WO-001, ADM-001, dan role
+ADMIN tidak pernah disentuh; tidak ada Apply/Rollback config.
+
+Catatan cleanup: hapus role DynSec otomatis membersihkan keanggotaan
+group (C5 — role E2E-TEST-ROLE dihapus saat masih anggota
+E2E-TEST-GROUP; kartu group lalu menampilkan "Roles: (kosong)").
+
+**SISA: KOSONG.** Verifikasi akhir Bagian A: devices hanya
+STM32-OEE-01 + STM32-OEE-SIM; machines hanya CNC-MILLING-SIM +
+CNC-MILLING-01; products 5 asli; operators 5 asli. Verifikasi akhir
+Bagian B: Access Control Roles (4), Policies (62), Assignments (5),
+tanpa TEST-E2E-ROLE/assignment TST-E2E-01; DynSec Clients (1)
+backend-admin saja, Roles & ACLs (1) admin saja, Groups (0); Config
+Versions (0), tanpa STAGED; Operators 5, tanpa TST-E2E-01.
+
+## 36. Pembaruan dokumentasi pasca-uji mutasi E2E (2026-11-19)
+
+Pemicu: hasil uji mutasi end-to-end panel vs API live (§35, E26
+FAT-226) — 35 mutasi lolos, 0× 403, cleanup bersih, SISA kosong, 4
+temuan MUT-01–MUT-04 sudah tercatat di Linear. Tugas ini mencatat
+hasil tersebut ke dalam dokumentasi per halaman dan ke AUDIT ini.
+Dokumen lengkap per langkah: `docs/E2E_MUTATION_TEST.md`; rencana
+yang diikuti: `docs/E2E_MUTATION_PLAN.md`.
+
+### 36.1 File yang diubah
+
+| File | Oleh | Isi perubahan |
+|---|---|---|
+| `PAGE_DOCUMENTATION.md` (repo root) | Worker ini | Catatan status uji mutasi E2E 19 Nov 2026 disisipkan di 12 bagian halaman + 1 baris header (lihat §36.2). **Catatan lokasi:** tugas menunjuk `docs/admin-panel/PAGE_DOCUMENTATION.md`, tetapi file tersebut tidak ada — dokumen yang sebenarnya hidup di repo root (`PAGE_DOCUMENTATION.md`, terlacak git sejak `c59db6c`). Diedit file yang benar di root; tidak dibuat duplikat di `docs/admin-panel/`. |
+| `docs/admin-panel/ADMIN_PANEL_DOCUMENTATION.md` | Worker paralel (terpisah) | Diperbarui oleh worker lain dalam tugas yang sama; file ini **tidak disentuh** oleh worker ini. Isi perubahannya di luar cakupan §36 ini — verifikasi saat penggabungan oleh parent. |
+| `AUDIT.md` (§36 ini) | Worker ini | Bagian ini. |
+
+Tidak ada file lain yang diubah: tidak ada perubahan kode panel,
+tidak ada tiket Linear baru, tidak ada push, tidak ada perubahan di
+`docs/archive/`, dan `ADMIN_PANEL_DESIGN_SPEC.md` (v1.0 frozen) tidak
+disentuh.
+
+### 36.2 Ringkasan perubahan di `PAGE_DOCUMENTATION.md`
+
+Struktur dokumen tidak diubah; catatan status (format blockquote
+`> **Status uji mutasi E2E — 19 Nov 2026**`, mengikuti konvensi
+`> **Catatan E20:**` yang sudah ada) disisipkan di akhir bagian
+halaman yang bersangkutan, masing-masing merujuk `AUDIT.md` §35 dan
+`docs/E2E_MUTATION_TEST.md`:
+
+- **Header** — baris pembaruan 19 Nov 2026 (E26) yang mendaftar 12
+  bagian yang menerima catatan status.
+- **§3 Work Orders** — cancel `WO-SIM-20260906-02` → `ABORTED`
+  terverifikasi live (L45); resolve-preview BELUM teruji (controller
+  `STM32-OEE-SIM` offline, perilaku informatif, bukan bug; L41).
+- **§4 Downtime Events** — **MUT-04 (panel, Low — FAT-230)**:
+  overwrite label tidak bisa mengembalikan "Belum dikategorikan" /
+  teks asli (prefix kategori paksa; residu "[EQUIPMENT_FAILURE]
+  Equipment failure" yang diterima, C1); label baru pada event
+  unlabeled BELUM teruji (tidak ada event unlabeled; L43b).
+- **§5 Operational Events** — ack event 1148 oleh ADM-001
+  terverifikasi live (L42; tanpa banner sukses, sesuai ekspektasi).
+- **§7 Edge Devices** — provision kanonis, register legacy, edit,
+  rotasi kredensial, revoke, dan delete device uji terverifikasi
+  live (L3–L4, L7, L14–L15, C9–C10); observasi badge register legacy
+  `PROVISIONED` bukan `ACTIVE` (bukan tiket).
+- **§8 Machines** — create, bind, unbind, delete terverifikasi live
+  (L5–L6, C7–C8); validasi server menolak Modbus Slave ID 1
+  duplikat.
+- **§9 Products** — create, update, delete terverifikasi live
+  (L8–L9, C11); observasi SKU yang diisi tidak dikirim (SKU default
+  = Product ID; bukan tiket).
+- **§10 Operators** — create, update, suspend→activate, rotasi
+  password, delete terverifikasi live (L10–L13, C12); tombol Suspend
+  ADM-001 disabled sesuai proteksi akun root.
+- **§14 Data Reconciliation** — Force Refresh body `{}` terverifikasi
+  live (L44); tanpa cooldown/429.
+- **§16 Dynamic Security** — **MUT-01 (panel, Medium — FAT-227)**:
+  banner network-error palsu + list stale sampai remount (L29, L30,
+  L35, L37); **MUT-02 (backend, High — FAT-228)**: create MQTT
+  client selalu "Role not found" (5×, termasuk role `admin`) +
+  caveat modal hardcode default `cRoles=['edge_publisher']`
+  (`CreateMqttClientModal.tsx:21`); attach/rotasi/enable client +
+  add-client ke group terblokir (L32–L34, L36). Topik ACL literal
+  `e2e/test` (wildcard ditolak server). Catatan cleanup C5/C6.
+- **§17 Broker Configuration Manager** — editor tidak render saat
+  live `mosquitto.conf` tidak terbaca (ENOENT) — **E2E-08 (backend,
+  High — FAT-222)**; stage/diff/discard TIDAK teruji (L38–L40).
+- **§19 Access Control / IAM** — **MUT-03 (panel, Medium —
+  FAT-229)**: policy create ABAC kosong mengirim `abacCondition:
+  null`, server menolak; akar rantai null + `schemas/dto.ts:235`;
+  field harus di-omit saat kosong. Guard 409 `ROLE_IN_USE`
+  terverifikasi live (L24); guard pasif ADMIN terverifikasi.
+  Seluruh alur IAM L16–L28 terverifikasi live (authz_version #1→#10).
+- **§20 Audit Trail** — seluruh mutasi sesi uji tercatat sebagai
+  entri audit trail append-only; halaman ini tidak diuji interaktif
+  (ack dilakukan lewat §5 Operational Events).
+
+### 36.3 Nomor tiket yang dirujuk
+
+- **E26 (FAT-226)** — epic temuan uji mutasi E2E.
+- **MUT-01 (FAT-227, panel Medium)**, **MUT-02 (FAT-228, backend
+  High)**, **MUT-03 (FAT-229, panel Medium)**, **MUT-04 (FAT-230,
+  panel Low)** — temuan uji mutasi, dirujuk di §16, §19, dan §4.
+- **E2E-08 (FAT-222, backend High)** — `mosquitto.conf` live tidak
+  terbaca (ENOENT), dirujuk di §17; jangan buat tiket baru untuk ini.
+- **A10.2 (FAT-40)** — penegakan sisi server mode akses: hasil §35
+  adalah bukti empiris semata (0× 403 dari Vercel) dan **bukan**
+  vonis selesai maupun gagal; dirujuk di §35.1, tidak diubah oleh
+  tugas dokumentasi ini.
+
+### 36.4 Verifikasi
+
+Grep atas kedua dokumen yang diubah memastikan semua nomor FAT di
+atas ada dan benar (FAT-226, FAT-227, FAT-228, FAT-229, FAT-230,
+FAT-222, FAT-40 — dicocokkan dengan `docs/LINEAR.md` dan `AUDIT.md`
+§35), dan tidak ada referensi path dokumen yang rusak (tidak ada
+path `docs/` yang sudah diarsip yang dirujuk; `PAGE_DOCUMENTATION.md`
+dirujuk pada lokasi sebenarnya di repo root). `git status` hanya
+menunjukkan kedua file ini sebagai berubah; tidak ada file lain yang
+tersentuh. Tidak di-commit — penggabungan dan commit oleh parent.

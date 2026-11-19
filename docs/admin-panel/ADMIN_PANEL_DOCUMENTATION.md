@@ -31,6 +31,16 @@
 > amandemen 09:23 (otorisasi `authorize(...)`, `GET /system/access-mode`)
 > TIDAK ada di file; penutupan definitif butir amandemen menunggu salinan
 > api_docs baru (R-23).
+>
+> **Pembaruan 19 Nov 2026 (E26 — uji mutasi E2E live):** panel diuji
+> langsung terhadap API live (`oee.fadik.web.id`) dari Vercel dalam dua
+> sesi browser (18:58–19:34 WIB, login ADM-001): **35 mutasi lolos,
+> 1 guard probe gagal sesuai harapan, 1 kegagalan persisten, 0× 403,
+> cleanup bersih, SISA kosong.** Temuan MUT-01–MUT-04 (Linear E26
+> FAT-226) dan status per mutasi ada di **§6**; rincian per langkah di
+> `docs/E2E_MUTATION_TEST.md`, ringkasan di `AUDIT.md` §35. Koreksi
+> perilaku live dari uji ini juga dicatat seperlunya di §2, §3.2, §3.4,
+> §3.6, dan §3.7.
 
 ---
 
@@ -77,6 +87,18 @@
 > tidak mengekspos `POST /work-orders/:wo_id/dispatch` dan `.../complete`
 > (keduanya ada di pola terlarang `FORBIDDEN_ENDPOINT_PATTERNS`); panel hanya
 > menampilkan status WO dan menyediakan **Cancel** (ADMIN LAN only).
+>
+> **Temuan live 19 Nov 2026 — mode akses (E26, A10.2 FAT-40):** selama uji
+> mutasi E2E, seluruh 35 mutasi dieksekusi dari Vercel (ingress tunnel,
+> bukan LAN pabrik) dengan badge panel "Mode Akses: Private" — dan
+> **tidak satu pun mengembalikan 403**, baik 403 klien
+> (`assertLanForMutation`) maupun 403 gerbang tunnel server. Ini adalah
+> **bukti empiris, bukan vonis**: uji ini tidak membuktikan penegakan
+> server-side mode akses (A10.2 / FAT-40) selesai, dan juga tidak
+> membuktikan ia gagal — penegakan server tidak diuji secara khusus
+> (tidak ada probe negatif dari tunnel terhadap endpoint yang seharusnya
+> ditolak, dan tidak ada pembanding dari LAN pabrik). Jangan jadikan
+> hasil uji ini vonis atas A10.2 ke arah mana pun; lihat §6.1.
 
 ---
 
@@ -105,7 +127,7 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 |---|---|---|---|
 | `DEVICES_LIST` | `GET` | `/api/v1/devices` | Overview, Devices, Machines, Operational Events, Telemetry, Quality |
 | `DEVICES_GET` | `GET` | `/api/v1/devices/:id` | Detail Device |
-| `DEVICES_CREATE` | `POST` | `/api/v1/devices` | Devices (registrasi manual **legacy** — dipertahankan untuk masa transisi, berlabel legacy di UI; gunakan Provision untuk alur lengkap) |
+| `DEVICES_CREATE` | `POST` | `/api/v1/devices` | Devices (registrasi manual **legacy** — dipertahankan untuk masa transisi, berlabel legacy di UI; gunakan Provision untuk alur lengkap; **terverifikasi live 19 Nov 2026 (L4): badge baris hasil register legacy adalah `PROVISIONED`, bukan `ACTIVE`** — observasi, bukan tiket) |
 | `DEVICES_PROVISION` | `POST` | `/api/v1/devices/provision` | Devices — **jalur kanonis** (spec 015, ADR-009): satu aksi membuat identitas broker + baris registry; body `{deviceId, machineId?, model?}`; password 32 char dibuat backend, kredensial sekali tampil `{credential: {username, password, clientId, topicPrefix}}` |
 | `DEVICES_REVOKE` | `POST` | `/api/v1/devices/:deviceId/revoke` | Devices (body `{reason}` 1..200 wajib; 409 `DEVICE_ALREADY_REVOKED`) |
 | `DEVICES_CREDENTIALS` | `POST` | `/api/v1/devices/:deviceId/credentials` | Devices — rotasi kredensial (body `{force, reason}`; guard produksi 409 `DEVICE_IN_PRODUCTION` bila WO aktif tanpa `force: true`) |
@@ -170,6 +192,16 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 > `OperationalEventItem` (FR-034-01) dan filter `severity` tidak didukung (param tak
 > dikenal diabaikan dengan 200); `acknowledged` adalah turunan dari `acknowledgedAt`;
 > `machineName` bernilai `null` bila mesin sudah dihapus.
+>
+> **Temuan live 19 Nov 2026 — overwrite label downtime (MUT-04, FAT-230,
+> panel Low):** `POST /api/v1/downtime-events/:id/reason` sendiri bekerja
+> (L43(a) OK), tetapi modal overwrite **tidak punya opsi "Belum
+> dikategorikan" dan selalu memberi prefix kategori** pada alasan, sehingga
+> teks asli persis tidak bisa dikembalikan. Cleanup C1: alasan event
+> 13:55:34 yang semula "Equipment failure" kini menjadi
+> "[EQUIPMENT_FAILURE] Equipment failure" (kolom kategori tetap "Belum
+> dikategorikan" seperti semula) — residu yang diterima, bukan data uji
+> sisa; lihat §6.2.
 
 ### 3.5 Telemetri, OEE, Kualitas, & Rekonsiliasi
 | Key | Method | Path | Halaman / Penggunaan |
@@ -200,7 +232,7 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 | `IAM_USER_ROLES_CREATE` | `POST` | `/api/v1/access-control/user-roles` | Access Control, Operators (multi-role & scope assignment) |
 | `IAM_USER_ROLES_DELETE` | `DELETE` | `/api/v1/access-control/user-roles` | Access Control, Operators (proteksi `ADM-001` `ADMIN`; tanpa baris cocok → `200 {success: true, removed: 0}`, idempoten) |
 | `IAM_POLICIES_LIST` | `GET` | `/api/v1/access-control/policies` | Access Control |
-| `IAM_POLICIES_CREATE` | `POST` | `/api/v1/access-control/policies` | Access Control (anti-lockout `ADMIN` & anti-escalation; body tulis **camelCase** `{roleId, permissionId, resourcePattern, effect, abacCondition}`; **tanpa field `reason`** di baris policy — `reason` hanya disimpan di audit IAM) |
+| `IAM_POLICIES_CREATE` | `POST` | `/api/v1/access-control/policies` | Access Control (anti-lockout `ADMIN` & anti-escalation; body tulis **camelCase** `{roleId, permissionId, resourcePattern, effect, abacCondition}`; **tanpa field `reason`** di baris policy — `reason` hanya disimpan di audit IAM; **`abacCondition` adalah optional record — DI-OMIT saat kosong, JANGAN dikirim `null`** — panel mengirim `null` dan server menolak, lihat MUT-03 di bawah dan §6.2) |
 | `IAM_POLICIES_UPDATE` | `PUT` | `/api/v1/access-control/policies/:id` | Access Control (update/toggle policy; camelCase saja) |
 | `IAM_POLICIES_DELETE` | `DELETE` | `/api/v1/access-control/policies/:id` | Access Control (blokir hapus policy `ADMIN`) |
 | `IAM_SUBJECT_EFFECTIVE_PERMISSIONS` | `GET` | `/api/v1/access-control/subjects/:operatorId/effective-permissions` | Access Control (Subject Inspector; field role satu-satunya bernama **`roles`** — tanpa alias `effectiveRoles`) |
@@ -213,6 +245,8 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 - **Body tulis camelCase:** tidak ada alias snake_case (`role_id`, `permission_id`, `resource_pattern`, `abac_condition`, `is_active`, `eft`); field asing diabaikan; field wajib hilang/salah tipe → `400 INVALID_POLICY`. `privilege_level` dan `policy_count` **TIDAK** dikembalikan backend — jangan diisi nilai default.
 - **Capability terpisah:** `access_control.read` dan `access_control.manage` adalah dua kunci terpisah; semua GET IAM = `read`, semua mutasi = `manage`.
 - **Stale Token Invalidation:** Setiap mutasi role/permission/assignment menaikkan `authzVersion` sehingga token sesi lama otomatis ditolak dengan **`401 AUTHZ_STALE`** (subjek nonaktif → `401 SUBJECT_INACTIVE` di `/auth/me`). **Koreksi E20:** kode `AUTHZ_VERSION_STALE` tidak ada di api_docs.
+- **ABAC kosong = omit, bukan `null` (MUT-03, FAT-229, panel Medium — temuan live 19 Nov 2026):** skema server untuk kedua jalur create (`POST /policies` dan `POST /roles/{id}/permissions`) mendefinisikan `abacCondition` sebagai **optional record, bukan nullable** — panel wajib meng-omit field saat kosong. Panel mengirim `"abacCondition": null` eksplisit dan server menolak (`"Invalid policy: abacCondition Invalid input: expected record, received null"` — L18; `"body/abacCondition ... received null"` — L21); diulang dengan JSON ABAC `{"attr": "subject.line_id", "eq": "LINE-01"}` → berhasil. Rantai null: `parseAbacCondition` mengembalikan `value: null` untuk teks kosong (`iamValidation.ts:10-11`), diteruskan `createPolicy`/`handleBindPermission`, lalu `createIamPolicy`/`addIamRolePermission` menyertakan kunci karena `null !== undefined` (`iam.ts:248-266, 124/135`), dan `JSON.stringify` mempertahankan `null`. Perbaikan panel: omit field saat kosong — dan perbaiki asumsi salah di `schemas/dto.ts:235` yang menganggap null sah. Catatan: jalur `PUT /policies/{id}` justru mengizinkan `nullable(record)` — hanya kedua jalur POST create yang salah.
+- **Guard terverifikasi live 19 Nov 2026 (bukan temuan):** hapus role saat masih ter-assign → **`409 ROLE_IN_USE`** sesuai harapan (L24: `"Role 'TEST-E2E-ROLE' is still assigned to 'TST-E2E-01' (ROLE_IN_USE)."`; kartu role utuh). Guard pasif `ADMIN` terverifikasi: kartu role `ADMIN` tanpa tombol Edit/Hapus; semua baris policy `ADMIN` Edit/Disable/Delete disabled; Revoke assignment `ADMIN`–`ADM-001` disabled dengan catatan "Anti-Lockout Guard: role ADMIN pada akun dilindungi tidak dapat dicabut."; di modal Add Policy dengan Role = `ADMIN`, opsi `DENY` ("Diblokir untuk ADMIN") disabled.
 
 ### 3.7 MQTT Dynamic Security & Broker Configuration Manager
 | Key | Method | Path | Halaman / Penggunaan |
@@ -233,6 +267,35 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 > **Koreksi E20:** baris `MQTT_DYNSEC_PROVISION` (`POST /api/v1/mqtt/dynamic-security/provision`)
 > **dihapus** — provisioning kanonis adalah `POST /api/v1/devices/provision`
 > (§3.2, spec 015); tidak ada lagi provisioning via dynsec di panel.
+>
+> **Temuan live 19 Nov 2026 — DynSec (MUT-01 FAT-227 panel Medium;
+> MUT-02 FAT-228 backend High):**
+> - **MUT-01 — banner network-error palsu + list stale:** mutasi DynSec
+>   berulang kali menampilkan banner merah "Koneksi jaringan terputus atau
+>   backend tidak terjangkau." padahal mutasi **sukses di server** (L29
+>   create role, L30 add ACL, L35 create group, L37 add role ke group —
+>   masing-masing terkonfirmasi tercipta setelah load baru; retry
+>   melaporkan "already exists"). List tampil stale sampai halaman
+>   di-remount via navigasi sidebar; load baru mengungkap keadaan
+>   sebenarnya. Pola yang sama tidak terlihat di domain lain pada sesi
+>   ini. Dampak: operator bisa mengira mutasi gagal dan mengulanginya
+>   (duplikat), atau sebaliknya percaya list stale yang menampilkan
+>   keadaan lama.
+> - **MUT-02 — create MQTT client selalu "Role not found" (gagal
+>   persisten, 5×):** `POST /api/v1/mqtt/dynamic-security/clients`
+>   (L31, client `e2e-test-client`) gagal 5× — role `E2E-TEST-ROLE` ×4
+>   (termasuk dari halaman yang baru di-remount) dan role `admin` yang
+>   sudah ada ×1 — dengan banner merah "Role not found". Client tidak
+>   pernah tercipta (DynSec Clients tetap 1). Panel mengirim body sesuai
+>   skema server (`roles` sebagai array objek `{rolename, priority: 1}`,
+>   `mqttDynsec.ts:62-79`); galat ini adalah galat lookup bisnis, bukan
+>   validasi skema. **Caveat:** modal create-client meng-hardcode default
+>   `cRoles=['edge_publisher']` (`CreateMqttClientModal.tsx:21`); bila
+>   payload memuat `edge_publisher` yang tidak ada di server, satu entri
+>   itu saja sudah cukup menjelaskan galatnya — penutupan butuh log body
+>   request aktual. Akibatnya **terblokir dan belum teruji**: attach role
+>   ke client (L32), rotasi password client (L33), disable/enable client
+>   (L34), dan add client ke group (L36).
 | `MQTT_CONFIG_GET` | `GET` | `/api/v1/mqtt/configuration` | Broker Configuration Manager |
 | `MQTT_CONFIG_RAW` | `GET` | `/api/v1/mqtt/configuration/raw` | Broker Configuration Manager (Review tab) |
 | `MQTT_CONFIG_STATUS` | `GET` | `/api/v1/mqtt/configuration/status` | Broker Overview, Broker Configuration Manager |
@@ -252,6 +315,17 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 > `issues[]` + `details`; status versi hanya `STAGED`/`ACTIVE`/`ROLLED_BACK`
 > (tanpa `APPLIED`); `operation_type` `NO_OPERATION`/`RELOAD`/`RESTART`.
 > `acknowledgeUnvalidated` tidak muncul di api_docs sama sekali (R-16).
+>
+> **Temuan live 19 Nov 2026 — config TIDAK teruji (E2E-08, FAT-222,
+> backend High, tiket sudah ada — jangan buat baru):** stage (L38), diff
+> (L39), dan discard (L40) config **tidak dapat diuji** — tab "Editor &
+> Simpan Draf" kosong di setiap load dan banner merah persisten "Live
+> configuration '/mosquitto/config/mosquitto.conf' is not readable:
+> ENOENT: no such file or directory, open
+> '/mosquitto/config/mosquitto.conf'"; Versions (0), Deployments (0),
+> Backups (0). Akar masalah yang sama dengan E2E-08 (FAT-222): file
+> `mosquitto.conf` hilang di host API. Tidak ada Apply/Rollback config
+> yang diklik selama uji.
 
 ---
 
@@ -282,3 +356,147 @@ Selama flag `mustChangePassword` aktif (flag dari respons login 200 / `GET /auth
 - **Empty Quality Rejects:** Bila `pareto.length === 0`, `QualityRejectsPage` menampilkan `"Tidak ada reject pada periode ini"`.
 - **Authz Metadata & Scope:** `AccessControlPage` membaca `GET /api/v1/access-control/info` untuk menampilkan mode evaluasi (`enforce` / `shadow`) serta `authzVersion`. Penugasan non-`ORGANIZATION` (`SITE`, `AREA`, `LINE`, `MACHINE`, `DEVICE`) dicatat sebagai penugasan persiapan (*preparatory*), sedangkan hanya scope `ORGANIZATION` yang aktif memberikan hak akses pada Admin Panel.
 - **Operational Events Global:** `OverviewPage` dan `OperationalEventsPage` memakai `GET /api/v1/operational-events` (list global) bila scope "Semua Perangkat", dan `GET /api/v1/operational-events/:deviceId` bila satu perangkat dipilih — **tanpa** agregasi per-device di sisi klien dan **tanpa** kolom/filter `severity`. **Koreksi E20:** klaim lama "agregasi per-device di sisi klien" sudah tidak berlaku.
+
+---
+
+## 6. Status Uji Mutasi E2E Live (19 Nov 2026)
+
+Dua sesi browser berurutan (Bagian A 18:58–19:10 WIB, Bagian B 19:11–19:34 WIB),
+login ADM-001, station ADMIN-CONSOLE-01, panel live di Vercel terhadap API live
+`oee.fadik.web.id`, mengikuti `docs/E2E_MUTATION_PLAN.md` (45 langkah + 13 cleanup).
+Rincian per langkah: `docs/E2E_MUTATION_TEST.md`; ringkasan audit: `AUDIT.md` §35.
+Uji baca pendahulu (tanpa mutasi): `docs/E2E_TEST.md` + `AUDIT.md` §34.
+Semua temuan sudah tercatat di Linear (E26 FAT-226; MUT-01 FAT-227, MUT-02 FAT-228,
+MUT-03 FAT-229, MUT-04 FAT-230) — bagian ini hanya menyelaraskan dokumen kontrak
+dengan perilaku live yang terverifikasi.
+
+### 6.1 Ringkasan hasil
+
+| Kategori | Jumlah |
+|---|---|
+| Mutasi berhasil | 35 |
+| Guard probe yang gagal sesuai harapan (L24, `ROLE_IN_USE`) | 1 |
+| Kegagalan persisten (L31, MUT-02) | 1 |
+| Langkah tidak dapat diuji (L41 panel kesiapan, L43b, L38–L40, L32–L34, L36) | 8 |
+| Cleanup berhasil (termasuk C1 dengan residu MUT-04) | 13 |
+| 403 (klien maupun server) di seluruh sesi | 0 |
+| 429 / cooldown (L44 refresh rekonsiliasi) | 0 |
+
+**Mode akses — bukti empiris, bukan vonis (A10.2 FAT-40):** seluruh mutasi
+dieksekusi dari Vercel (ingress tunnel, bukan LAN pabrik) dengan badge panel
+"API: Real" + "Mode Akses: Private", dan tidak satu pun mengembalikan 403 —
+baik 403 klien (`assertLanForMutation`) maupun 403 gerbang tunnel server.
+Sesi login bertahan dan semua mutasi uji lolos dari Vercel pada 19 Nov 2026
+malam. Uji ini **tidak membuktikan** penegakan sisi server mode akses (A10.2 /
+FAT-40) selesai, dan juga **tidak membuktikan** ia gagal — penegakan server
+tidak diuji secara khusus (tidak ada probe negatif dari tunnel terhadap
+endpoint yang seharusnya ditolak, dan tidak ada pembanding dari LAN pabrik).
+Jangan jadikan hasil ini vonis atas A10.2 ke arah mana pun.
+
+### 6.2 Mutasi terverifikasi live vs belum teruji / terblokir
+
+| Domain / Mutasi | Langkah | Status live 19 Nov 2026 |
+|---|---|---|
+| Device: provision, register legacy, edit, rotasi kredensial, revoke | L3, L4, L7, L14, L15 | ✅ TERVERIFIKASI (kredensial sekali-tampil disalin sebelum dialog ditutup) |
+| Machine: create, bind device | L5, L6 | ✅ TERVERIFIKASI (validasi server menolak Modbus Slave ID 1 duplikat — "already assigned to machine CNC-MILLING-01" — diulang Slave ID 2) |
+| Product: create, edit | L8, L9 | ✅ TERVERIFIKASI |
+| Operator: create, edit, suspend→activate, rotasi password | L10–L13 | ✅ TERVERIFIKASI (tombol Suspend ADM-001 disabled — "Akun dilindungi (ADM-001)") |
+| Work order: cancel | L45 | ✅ TERVERIFIKASI (WO-SIM-20260906-02 PENDING → ABORTED, irreversibel) |
+| Operational event: ack | L42 | ✅ TERVERIFIKASI (event 1148, tanpa banner sukses sesuai ekspektasi) |
+| Downtime: overwrite label | L43(a) | ✅ TERVERIFIKASI — dengan residu MUT-04 (§6.3) |
+| Rekonsiliasi: refresh | L44 | ✅ TERVERIFIKASI (body `{}`, tanpa cooldown/429) |
+| IAM: create/update/delete role, create/update/toggle/delete policy, bind/unbind permission, assign/revoke role, inspector effective permission | L16–L23, L25–L28 | ✅ TERVERIFIKASI (authz_version naik #1→#10; L18/L21 percobaan pertama gagal ABAC null — MUT-03; L24 guard probe `409 ROLE_IN_USE` sesuai harapan) |
+| DynSec: create role, add ACL, create group, add role ke group | L29, L30, L35, L37 | ✅ TERVERIFIKASI — dengan deviasi MUT-01 (§6.3) dan koreksi topik ACL literal (§6.4) |
+| DynSec: create client | L31 | ❌ GAGAL PERSISTEN — MUT-02 (FAT-228, backend High): "Role not found" 5× |
+| DynSec: attach role / rotasi password / disable-enable client; add client ke group | L32–L34, L36 | ⛔ TERBLOKIR MUT-02 (tidak ada client) — belum teruji |
+| Config: stage / diff / discard | L38–L40 | ⛔ TIDAK DAPAT DIUJI — E2E-08 (FAT-222, backend High): editor tidak render, `mosquitto.conf` ENOENT di host API; tiket sudah ada, jangan buat baru |
+| WO resolve-preview: panel kesiapan | L41 | ⛔ BELUM TERUJI — controller STM32-OEE-SIM offline ("Pemeriksaan Parameter Belum Tersedia — Edge controller STM32-OEE-SIM is currently offline. Check network connection or power.", "Planned Start: —"); perilaku informatif, bukan bug |
+| Downtime: label baru pada event unlabeled | L43(b) | ⛔ BELUM TERUJI — tidak ada event unlabeled (STM32-OEE-01: 2 event historis, keduanya sudah berlabel; STM32-OEE-SIM: 0 event) |
+| DynSec: hapus group berisi anggota | C6 | ⛔ BELUM TERUJI — group sudah kosong saat dihapus (C5 otomatis membersihkan keanggotaan; hapus role saat masih anggota group berhasil, kartu group lalu "Roles: (kosong)") |
+
+Dari `AUDIT.md` §34.8 tetap belum terverifikasi: WS handshake `/ws/telemetry`,
+`/force-change-password`, respons live endpoint 401-gated, N-16/N-17/N-18 laten;
+N-32 butuh jawaban backend.
+
+### 6.3 Temuan MUT-01 – MUT-04
+
+- **MUT-01 (panel Medium, FAT-227) — banner network-error palsu + list stale
+  di DynSec.** L29, L30, L35, L37: banner merah "Koneksi jaringan terputus
+  atau backend tidak terjangkau." padahal mutasi sukses di server; list tampil
+  stale sampai halaman di-remount; load baru mengungkap keadaan sebenarnya.
+  Pola yang sama tidak terlihat di domain lain pada sesi ini. Detail: §3.7.
+- **MUT-02 (backend High, FAT-228) — create MQTT client selalu "Role not
+  found".** L31, 5× (role `E2E-TEST-ROLE` ×4 termasuk dari halaman yang baru
+  di-remount, role `admin` ×1). Caveat terbuka: modal meng-hardcode default
+  `cRoles=['edge_publisher']` (`CreateMqttClientModal.tsx:21`) — bisa jadi
+  penyebab; penutupan butuh log body request aktual. Detail: §3.7.
+- **MUT-03 (panel Medium, FAT-229) — policy create ABAC kosong mengirim
+  `abacCondition: null`.** L18 dan L21 gagal di server; diulang dengan JSON
+  ABAC `{"attr": "subject.line_id", "eq": "LINE-01"}` → berhasil. Akar di
+  `schemas/dto.ts:235` (asumsi null sah) + rantai null
+  `iamValidation.ts` → `iam.ts`. Hanya kedua jalur POST create yang salah;
+  `PUT /policies/{id}` justru mengizinkan nullable. Detail: §3.6.
+- **MUT-04 (panel Low, FAT-230) — label downtime asli tidak bisa dikembalikan
+  persis.** Modal overwrite tidak punya opsi "Belum dikategorikan" dan selalu
+  memberi prefix kategori; alasan event 13:55:34 kini "[EQUIPMENT_FAILURE]
+  Equipment failure" (kolom kategori tetap "Belum dikategorikan"). Residu
+  yang diterima, bukan data uji sisa. Detail: §3.4.
+
+### 6.4 Koreksi rencana (`docs/E2E_MUTATION_PLAN.md`) — bukan bug, kecuali dinyatakan lain
+
+- **Topik ACL literal, bukan wildcard:** `publishClientSend` + `e2e/test/#`
+  ditolak server ("Wildcards are not allowed in 'publishClientSend' topics");
+  dipakai topik literal `e2e/test` (L30).
+- **Permission `read:telemetry` tidak ada di katalog live:** L18 memakai
+  `refresh:telemetry`; L21 memakai `read:access_control`.
+- **Badge register legacy `PROVISIONED`, bukan `ACTIVE`** (L4) — observasi,
+  bukan tiket; lihat §3.2.
+- **SKU produk tidak dikirim dari form create** (L8): SKU "SKU-E2E-TEST-01"
+  yang diisi tidak terkirim; baris menampilkan SKU "PROD-TEST-E2E-01"
+  (SKU default = Product ID). Terkonfirmasi live.
+- **Opsi RESERVED di IAM** (L21): `manage:access_control`,
+  `manage:mqtt_admin`, `manage:mqtt_configuration`,
+  `read_raw:mqtt_configuration` tampil "(DIBLOKIR - RESERVED)" dan disabled
+  saat bind permission.
+- **Rute aktual** (koreksi `AUDIT.md` §34.6): `/work-orders`, `/audit`,
+  `/downtime` (bukan `/admin/...`); `/admin/system-audit` adalah halaman
+  terpisah tanpa filter UNACK/tombol ack.
+- **Observasi terbuka, bukan tiket — authz_version #7 berulang:** banner
+  assign-perm (L21), assign-user (L22), dan revoke (L25) semuanya menampilkan
+  authz_version #7; counter tampak tidak naik pada assign/revoke. Rangkaian
+  lengkap: #1 create role, #2 create policy, #3 disable, #4 enable, #5 update
+  pattern v2, #6 restore pattern, #7 assign-perm, #8 unbind perm, #9 delete
+  policy, #10 delete role.
+- **Validasi server bekerja benar** (bukti positif, bukan koreksi): Modbus
+  Slave ID duplikat ditolak (L5), `ROLE_IN_USE` menolak hapus role ter-assign
+  (L24), wildcard ACL ditolak (L30), ABAC kosong ditolak (L18, L21).
+
+### 6.5 Guard terverifikasi live (bukan temuan)
+
+- Hapus role saat ter-assign → **`409 ROLE_IN_USE`** sesuai harapan (L24);
+  kartu role utuh.
+- Guard pasif `ADMIN`: kartu role `ADMIN` tanpa tombol Edit/Hapus; semua
+  baris policy `ADMIN` Edit/Disable/Delete disabled; Revoke assignment
+  `ADMIN`–`ADM-001` disabled dengan catatan "Anti-Lockout Guard: role ADMIN
+  pada akun dilindungi tidak dapat dicabut."; di modal Add Policy dengan
+  Role = `ADMIN`, opsi `DENY` ("Diblokir untuk ADMIN") disabled.
+  Detail: §3.6.
+
+### 6.6 Perubahan permanen yang diterima + SISA kosong
+
+Perubahan permanen (bukan SISA): event 1148 di-ack oleh ADM-001
+(11/19/2026, 7:05:45 PM, "E2E-TEST ack — verifikasi uji mutasi"; ack tidak
+bisa di-undo dari UI); WO-SIM-20260906-02 ABORTED (irreversibel, L45);
+alasan downtime event 13:55:34 kini berprefix "[EQUIPMENT_FAILURE] "
+(MUT-04, C1); entri audit trail append-only untuk semua mutasi. WO-001,
+ADM-001, dan role `ADMIN` tidak pernah disentuh; tidak ada Apply/Rollback
+config yang diklik.
+
+**SISA: KOSONG.** Verifikasi akhir Bagian A (C13): devices hanya
+STM32-OEE-01 + STM32-OEE-SIM; machines hanya CNC-MILLING-SIM +
+CNC-MILLING-01; products 5 asli; operators 5 asli. Verifikasi akhir
+Bagian B (C13): Access Control Roles (4), Policies (62), Assignments (5),
+tanpa TEST-E2E-ROLE/assignment TST-E2E-01; DynSec Clients (1)
+backend-admin saja, Roles & ACLs (1) admin saja, Groups (0); Config
+Versions (0), tanpa STAGED; Operators 5, tanpa TST-E2E-01. Tidak ada data
+uji bernama `E2E-TEST-*` / `TEST-*` yang tersisa di panel.

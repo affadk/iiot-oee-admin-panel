@@ -20,6 +20,14 @@ asli + 4 tambahan E20) pada aplikasi **OEE IIoT Admin Panel** beserta rute, hak 
 > `GET /system/audit` + ekspor); Broker Config (apply/rollback 202 +
 > polling); Dynamic Security (tanpa modal provision); Broker Overview
 > (status `READY`, count `null`).
+>
+> **Pembaruan 19 Nov 2026 (uji mutasi E2E, E26):** catatan status hasil uji
+> mutasi end-to-end panel vs API live (35 mutasi lolos, 0× 403, SISA kosong;
+> lihat `AUDIT.md` §35 dan `docs/E2E_MUTATION_TEST.md`) disisipkan per
+> halaman: §3 Work Orders, §4 Downtime, §5 Operational Events, §7 Devices,
+> §8 Machines, §9 Products, §10 Operators, §14 Data Reconciliation,
+> §16 Dynamic Security, §17 Broker Configuration, §19 Access Control,
+> §20 Audit Trail.
 
 ---
 
@@ -184,6 +192,15 @@ flowchart TD
     UpdateList --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L45/L41): **Cancel terverifikasi live** —
+> `WO-SIM-20260906-02` (PENDING, WO simulasi, bukan WO-001) dibatalkan
+> menjadi `ABORTED` (irreversibel, perubahan permanen yang diterima).
+> **Resolve-preview BELUM teruji** — panel kesiapan produksi tidak muncul
+> karena controller `STM32-OEE-SIM` offline ("Pemeriksaan Parameter Belum
+> Tersedia — Edge controller STM32-OEE-SIM is currently offline..."),
+> perilaku informatif, bukan bug.
+
 ---
 
 ## 4. Downtime Events (`/admin/downtime`)
@@ -235,6 +252,19 @@ flowchart TD
     DownloadFile --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L43/C1): overwrite label terverifikasi
+> (kategori `OTHER`, alasan "E2E-TEST overwrite label"). **MUT-04
+> (panel, Low — FAT-230):** modal overwrite tidak punya opsi "Belum
+> dikategorikan" dan selalu memberi prefix kategori, sehingga teks asli
+> "Equipment failure" tidak bisa dikembalikan persis; cleanup
+> mengembalikan kategori `EQUIPMENT_FAILURE` + alasan "Equipment
+> failure" → baris kini "[EQUIPMENT_FAILURE] Equipment failure"
+> (residu yang diterima, kolom kategori tetap "Belum dikategorikan").
+> **Label baru pada event unlabeled BELUM teruji** — tidak ada event
+> unlabeled saat uji (STM32-OEE-01: 2 event historis, keduanya sudah
+> berlabel; STM32-OEE-SIM: 0 event).
+
 ---
 
 ## 5. Operational Events (`/admin/audit`)
@@ -277,6 +307,14 @@ flowchart TD
     Action -- "Klik Export" --> ExportFlow["Validasi role (ADMIN/SUPERVISOR) & rentang <= 90 hari -> unduh via /api/v1/operational-events/export (global) atau /:deviceId/export"]
     ExportFlow --> End
 ```
+
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L42): **Acknowledge terverifikasi live** —
+> event 1148 (`SECURITY_REJECTION` / `PERIMETER_GATEWAY`,
+> 11/19/2026 4:20:44 PM) di-ack oleh ADM-001 dengan catatan "E2E-TEST
+> ack — verifikasi uji mutasi" (terverifikasi di filter "Sudah Ack",
+> 7:05:45 PM; tanpa banner sukses, sesuai ekspektasi; ack tidak bisa
+> di-undo dari UI — perubahan permanen yang diterima).
 
 ---
 
@@ -370,6 +408,15 @@ flowchart TD
     DrawerAct -- "Tutup Drawer" --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L3–L4, L7, L14–L15): **terverifikasi
+> live** — provision kanonis `STM32-OEE-TEST01` (kredensial sekali
+> tampil disalin sebelum dialog ditutup), register legacy
+> `STM32-OEE-TEST02`, edit device (IP + firmware), rotasi kredensial,
+> revoke kredensial, dan delete kedua device uji (cleanup C9–C10).
+> Observasi (bukan tiket): baris device hasil register legacy berbadge
+> `PROVISIONED`, bukan `ACTIVE` seperti ekspektasi rencana.
+
 ---
 
 ## 8. Machines (`/admin/machines`)
@@ -413,6 +460,13 @@ flowchart TD
     CallUnbind --> Reload1
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L5–L6, C7–C8): **terverifikasi live** —
+> create `CNC-TEST-E2E-01`, bind `STM32-OEE-TEST01`, unbind, dan delete
+> mesin uji (cleanup C7–C8). Validasi server bekerja benar: Modbus
+> Slave ID 1 duplikat ditolak ("Modbus slave ID 1 already assigned to
+> machine CNC-MILLING-01"), diulang dengan Slave ID 2.
+
 ---
 
 ## 9. Products (`/admin/products`)
@@ -454,6 +508,13 @@ flowchart TD
     DelRes -- "Tidak (409 Conflict WO PENDING/ACTIVE)" --> ShowBlockErr["Tampilkan banner error Deletion Blocked"]
     ShowBlockErr --> End
 ```
+
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L8–L9, C11): **terverifikasi live** —
+> create `PROD-TEST-E2E-01`, edit (nama + cycle time 30 → 45 s/pcs),
+> dan delete produk uji (cleanup C11). Observasi (bukan tiket): SKU
+> yang diisi di form create tidak dikirim — baris menampilkan SKU
+> `PROD-TEST-E2E-01` (SKU default = Product ID).
 
 ---
 
@@ -503,6 +564,13 @@ flowchart TD
     ConfirmToggle -- Konfirmasi --> CallToggle["Panggil PATCH /api/v1/operators/:id/status -> perbarui status di tabel"]
     CallToggle --> End
 ```
+
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L10–L13, C12): **terverifikasi live** —
+> create `TST-E2E-01` (`UNASSIGNED`, `LINE-01`), edit profil, suspend
+> lalu activate, rotasi password, dan delete operator uji (cleanup
+> C12). Tombol Suspend `ADM-001` disabled ("Akun dilindungi (ADM-001)"),
+> sesuai proteksi akun root.
 
 ---
 
@@ -647,6 +715,13 @@ flowchart TD
     ShowErr --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L44): **Force Refresh terverifikasi
+> live** — kedua input datetime dikosongkan (body `{}`), server
+> menjawab "Continuous aggregate oee_hourly_summary refreshed
+> successfully."; jobs ter-refresh (Telemetry Reporter [1] SUCCESS,
+> last run 19 Nov 2026 19.02). Tanpa cooldown/429.
+
 ---
 
 ## 15. Broker Overview (`/admin/mqtt/overview`)
@@ -726,6 +801,29 @@ flowchart TD
     CallRevoke --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L29–L37): create role `E2E-TEST-ROLE`,
+> add ACL (topik literal `e2e/test` — wildcard `e2e/test/#` ditolak
+> server: "Wildcards are not allowed in 'publishClientSend' topics"),
+> create group `E2E-TEST-GROUP`, add role ke group, remove ACL, delete
+> role, dan delete group **terverifikasi live**. **MUT-01 (panel,
+> Medium — FAT-227):** mutasi DynSec berulang kali menampilkan banner
+> merah palsu "Koneksi jaringan terputus atau backend tidak
+> terjangkau." padahal mutasi sukses di server, dan list tampil stale
+> sampai halaman di-remount via navigasi sidebar (L29, L30, L35, L37).
+> **MUT-02 (backend, High — FAT-228):** create MQTT client
+> `e2e-test-client` selalu gagal "Role not found" (5× — role
+> `E2E-TEST-ROLE` ×4 termasuk dari halaman yang baru di-remount, dan
+> role `admin` ×1); client tidak pernah tercipta. Akibatnya attach
+> role ke client (L32), rotasi password client (L33), disable/enable
+> client (L34), dan add client ke group (L36) **BELUM teruji**.
+> Caveat MUT-02: modal create-client meng-hardcode default
+> `cRoles=['edge_publisher']` (`CreateMqttClientModal.tsx:21`) yang
+> tidak ada di server — perlu log body request aktual untuk menutup
+> caveat ini. Catatan cleanup: hapus role otomatis membersihkan
+> keanggotaan group (C5); hapus group yang masih berisi anggota belum
+> teruji (C6 — group sudah kosong saat dihapus).
+
 ---
 
 ## 17. Broker Configuration Manager (`/admin/mqtt/configuration`)
@@ -777,6 +875,17 @@ flowchart TD
     CallRB --> ReloadAll["Perbarui currentConfig & proposedConfig dari snapshot & muat ulang daftar versi"]
     ReloadAll --> End
 ```
+
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L38–L40): **editor tidak render** —
+> tab "Editor & Simpan Draf" kosong di setiap load dan banner merah
+> persisten "Live configuration '/mosquitto/config/mosquitto.conf' is
+> not readable: ENOENT: no such file or directory"; Versions (0),
+> Deployments (0), Backups (0). Akar masalah sama dengan **E2E-08
+> (backend, High — FAT-222)**: `mosquitto.conf` live tidak terbaca di
+> host API — jangan buat tiket baru untuk ini. **Stage (L38), diff
+> versi staged (L39), dan discard (L40) TIDAK teruji**; tidak ada
+> Apply/Rollback yang diklik.
 
 ---
 
@@ -865,6 +974,36 @@ flowchart TD
     DelPol --> End
 ```
 
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` L16–L28): **terverifikasi live** — create
+> role `TEST-E2E-ROLE`, update role, create policy, toggle
+> disable→enable, update policy (2×), bind permission ke role, assign
+> role ke operator, inspector effective permission, revoke assignment,
+> unbind permission, delete policy, dan delete role (authz_version
+> naik #1→#10). **Guard 409 `ROLE_IN_USE` terverifikasi live** (L24):
+> hapus role saat ter-assign ditolak server ("Role 'TEST-E2E-ROLE' is
+> still assigned to 'TST-E2E-01' (ROLE_IN_USE)."). **Guard pasif ADMIN
+> terverifikasi** (bukan temuan): kartu role ADMIN tanpa tombol
+> Edit/Hapus; baris policy ADMIN Edit/Disable/Delete disabled; Revoke
+> assignment ADMIN–ADM-001 disabled ("Anti-Lockout Guard: role ADMIN
+> pada akun dilindungi tidak dapat dicabut."); opsi DENY untuk ADMIN
+> disabled di modal Add Policy. **MUT-03 (panel, Medium — FAT-229):**
+> policy create dengan ABAC kosong mengirim `abacCondition: null`
+> eksplisit dan ditolak server ("Invalid policy: abacCondition Invalid
+> input: expected record, received null" — L18; "body/abacCondition
+> ..." — L21); field harus di-omit saat kosong. Akar: rantai null
+> `parseAbacCondition` → `createPolicy`/`handleBindPermission` →
+> `createIamPolicy`/`addIamRolePermission` (`iam.ts:248-266, 124/135`),
+> plus asumsi salah di `schemas/dto.ts:235` yang menganggap null sah.
+> Catatan: jalur `PUT /policies/{id}` justru mengizinkan
+> nullable(record) — hanya kedua jalur POST create yang salah.
+> Observasi (bukan tiket): `authz_version` #7 berulang di L21/L22/L25
+> (counter tampak tidak naik pada assign/revoke); `read:telemetry`
+> tidak ada di katalog live (dipakai `refresh:telemetry`); opsi
+> RESERVED (`manage:access_control`, `manage:mqtt_admin`,
+> `manage:mqtt_configuration`, `read_raw:mqtt_configuration`) tampil
+> "(DIBLOKIR - RESERVED)" dan disabled.
+
 ---
 
 ## 20. Audit Trail (`/admin/system/audit`)
@@ -898,6 +1037,13 @@ flowchart TD
     ExportLogs --> End(["◉ Selesai"])
     Action -- "Selesai meninjau" --> End(["◉ Selesai"])
 ```
+
+> **Status uji mutasi E2E — 19 Nov 2026** (`AUDIT.md` §35,
+> `docs/E2E_MUTATION_TEST.md` §7): seluruh mutasi sesi uji tercatat
+> sebagai entri audit trail append-only (termasuk ack event 1148 oleh
+> ADM-001 dan cancel `WO-SIM-20260906-02` menjadi `ABORTED`). Halaman
+> ini tidak diuji interaktif selama sesi mutasi — ack dilakukan lewat
+> halaman Operational Events (§5).
 
 ---
 
