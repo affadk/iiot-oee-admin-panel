@@ -1526,7 +1526,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 34,
+ "version": 35,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -1788,17 +1788,34 @@
    "E30-B30.1": "FAT-257",
    "E30-B30.2": "FAT-258",
    "E30-B30.3": "FAT-259",
-   "E30-D30.1": "FAT-260"
+   "E30-D30.1": "FAT-260",
+   "E31": "FAT-263",
+   "E31.1": "FAT-264",
+   "E31.2": "FAT-265",
+   "E31.3": "FAT-266",
+   "E31.4": "FAT-267",
+   "E31.5": "FAT-268",
+   "E31.6": "FAT-269",
+   "E31.7": "FAT-270",
+   "E31.8": "FAT-271",
+   "E31.9": "FAT-272",
+   "E31.10": "FAT-273",
+   "E31.11": "FAT-274",
+   "E31.12": "FAT-275",
+   "E31.13": "FAT-276",
+   "E31.14": "FAT-277",
+   "E31.15": "FAT-278",
+   "E31.16": "FAT-279"
   },
   "verified": {
-   "total": 262,
+   "total": 279,
    "done": 224,
-   "todo": 27,
+   "todo": 43,
    "inProgress": 3,
-   "inReview": 6,
+   "inReview": 8,
    "canceled": 1,
-   "parents": 34,
-   "children": 225
+   "parents": 35,
+   "children": 240
   },
   "milestonesNote": "M1-M8 NOT created in Linear: no milestone tool in the Linear MCP connector; create manually in Linear UI if wanted.",
   "note": "E9/E10 + anak dibuat 2026-11-16 ~14:20 WIB (FAT-33 s.d. FAT-42). Milestone tidak diterapkan (tidak ada tool milestone di konektor Linear)."

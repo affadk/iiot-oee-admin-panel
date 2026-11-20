@@ -3512,3 +3512,62 @@ sidebar minimize: ikon Overview center + garis antar grup).
 
 Dokumen: `AUDIT.md` §44 (file ini). Tiket FAT-262 dibuat sebelum
 implementasi, status In Progress dengan komentar progres.
+
+## 45. E31 — Audit struktur UI + aturan pondasi modular per halaman (admin-panel saja)
+
+Perintah Fathur 2026-11-20 19:18 WIB: audit struktur UI + audit
+pemisahan komponen (termasuk reusable), fokus perbaikan = refactoring
+codebase lebih terstruktur dan jelas terpisah, modular per halaman;
+tentukan dan tulis aturannya sebagai fondasi merapikan codebase.
+Lingkup: admin-panel saja (bukan HMI/backend).
+
+Audit (read-only, 2026-11-20 ~19:20–19:23 WIB; laporan lengkap
+`~/workspace/ui-audit-findings.md`, 312 baris; tidak ada kode diubah):
+338 file / 62.289 baris, checker 0 FAIL / 45 WARN.
+
+Temuan utama (angka diverifikasi ulang oleh parent agent):
+- 6 file tinggal 1–16 baris lagi dari FAIL checker: `useBrokerConfig`
+  249/250, `useOeeAnalytics` 247/250, `TelemetryTabPanels` 296/300,
+  `DowntimeEventsPage` 584/600, `modeAndTransport.test.ts` 792/800,
+  `AuthContext` 282/300. Total 43 file melewati batas lunak.
+- 4 halaman CRUD production (Shifts 413, Products 402,
+  ProductionLines 379, ShiftSchedules 454) adalah klon kerangka yang
+  sama: tabel inline + form modal inline + confirm + conflict,
+  20–25 useState. Pola benar sudah ada di OperatorsPage/WorkOrdersPage.
+- Komponen reusable ada tapi tidak dipakai: `DataTable` 5 pemakai vs
+  16 tabel hand-rolled; `ui/Select` 1 pemakai vs 29 file `<select>`
+  mentah; `LoadErrorBanner` 5 pemakai vs error inline di 10 file;
+  `EmptyStateBlock` 2 pemakai vs "Tidak ada data" di 18 tempat.
+- Hooks multi-alur: `useBrokerConfig` (5 alur, 16 useState),
+  `useOeeAnalytics` (5 query domain).
+- Aturan 5 kontrak (larangan import lintas-fitur) BERSIH — 0
+  pelanggaran; barrel API bersih. Yang kotor di dalam fitur: komponen
+  di root fitur, 7 helper longgar di root `analytics/`,
+  `features/shared/` mencampur UI + logika, `dto.ts` (540) menampung
+  skema semua domain.
+- Sumber kebenaran ganda: `toLocaleString()` mentah di 21 file,
+  literal `STM32-` di ~20 file, 4 komponen `*FilterBar` berbeda,
+  string loading di 72 tempat tanpa komponen bersama.
+
+Aturan pondasi: `docs/UI_STRUCTURE_RULES.md` (baru, 2026-11-20) —
+melengkapi `docs/DIRECTORY_STRUCTURE.md` (kontrak R9 mengatur ukuran;
+dokumen ini mengatur bentuk UI). Isi: 5 prinsip (page hanya
+orkestrasi, reusable dulu, satu concern per file, satu sumber
+kebenaran, pecah sebelum batas keras) + 10 aturan R1–R10 (semua tabel
+pakai DataTable; semua select pakai ui/Select; error/empty/loading
+pakai komponen shared; satu hook = satu alur; komponen tinggal di
+`components/`; satu format tanggal; satu FilterBar generik; page hanya
+orkestrasi; pecah dulu file di ambang batas keras; satu file
+skema/type/mapper = satu domain) + anatomi halaman modular + katalog
+reusable + penegakan + roadmap P0–P3.
+
+Linear: epic E31 FAT-263 (Todo, High) + 16 anak — E31.1 audit
+FAT-264 (In Progress → Done setelah push ini), P0 E31.2–E31.5
+(FAT-265–268), P1 E31.6–E31.10 (FAT-269–273), P2 E31.11–E31.14
+(FAT-274–277), P3 E31.15–E31.16 (FAT-278–279), semua Todo.
+Urutan kerja yang disarankan: P0 dulu (mencegah checker FAIL), lalu
+P1 (fondasi), lalu P2 per domain, P3 terakhir. Eksekusi refactor
+BELUM dimulai — menunggu persetujuan urutan/prioritas Fathur.
+
+Dokumen: `AUDIT.md` §45 (file ini), `docs/UI_STRUCTURE_RULES.md`,
+`docs/LINEAR.md` §8, `docs/linear-seed.json` v35.
