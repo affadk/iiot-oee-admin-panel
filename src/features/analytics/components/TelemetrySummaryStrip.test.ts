@@ -55,6 +55,23 @@ test('TelemetrySummaryStrip menampilkan ringkasan agregat saat data ada', () => 
   assert.ok(!html.includes('Tidak ada data agregat'), html);
 });
 
+// FAT-213 (N-43): semua bucket null → keempat rata-rata null → ringkasan
+// tampil '—', BUKAN 0%. PARTS/total tetap angka seperti biasa.
+test('TelemetrySummaryStrip menampilkan — saat semua rata-rata agregat null', () => {
+  const html = render({
+    ...AGG_DATA,
+    avg_oee: null,
+    avg_availability: null,
+    avg_performance: null,
+    avg_quality: null,
+    total_parts: 23145,
+    rows: [],
+  });
+  assert.ok(html.includes('—'), html);
+  assert.ok(!html.includes('0%'), html);
+  assert.ok(html.includes('23145'), html);
+});
+
 test('TelemetrySummaryStrip menampilkan skeleton saat agregat memuat', () => {
   const html = render(undefined, { aggIsLoading: true });
   assert.ok(html.includes('Memuat ringkasan agregat'), html);

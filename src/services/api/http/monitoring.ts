@@ -292,9 +292,10 @@ export const httpMonitoring = {
     // Ringkasan dihitung dari deret: rata-rata komponen OEE per bucket,
     // total parts + sampel = jumlah seluruh bucket.
     // E20 P20.5 (FAT-157): bucket `*Pct` null (kapasitas unknown) DIKELUARKAN
-    // dari rata-rata — seperti performance sebelumnya; bila semua null → 0.
-    const mean1 = (vals: number[]): number =>
-      vals.length === 0 ? 0 : Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+    // dari rata-rata — seperti performance sebelumnya.
+    // FAT-213 (N-43): bila semua null → null (dirender '—'), BUKAN 0.
+    const mean1 = (vals: number[]): number | null =>
+      vals.length === 0 ? null : Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
     const pctVals = (pickPct: (r: TelemetryAggregatePoint) => string | number | null): number[] =>
       rows
         .map(pickPct)

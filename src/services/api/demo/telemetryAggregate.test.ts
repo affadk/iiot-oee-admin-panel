@@ -27,7 +27,8 @@ test('Demo aggregate: Σ rows cocok dengan ringkasan; bucket naik; hanya terakhi
   assert.equal(sampleSum, agg.sample_count);
   assert.equal(partsSum, agg.total_parts);
   const oeeMean = agg.rows.reduce((a, r) => a + Number(r.oeePct), 0) / agg.rows.length;
-  assert.ok(Math.abs(oeeMean - agg.avg_oee) < 0.5, `rata-rata OEE rows ${oeeMean} vs ringkasan ${agg.avg_oee}`);
+  // FAT-213 (N-43): avg_oee nullable — di demo device ini angkanya ada.
+  assert.ok(agg.avg_oee !== null && Math.abs(oeeMean - agg.avg_oee) < 0.5, `rata-rata OEE rows ${oeeMean} vs ringkasan ${agg.avg_oee}`);
   for (let i = 1; i < agg.rows.length; i++) {
     assert.ok(Date.parse(agg.rows[i].bucket) > Date.parse(agg.rows[i - 1].bucket), 'bucket harus menaik');
   }

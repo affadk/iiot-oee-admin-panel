@@ -199,25 +199,25 @@ export const TelemetryTabPanels: React.FC<TelemetryTabPanelsProps> = ({
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <div className="text-[11px] text-slate-400">OEE Rata-rata</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {aggData.avg_oee}%
+                  {aggData.avg_oee === null ? '—' : `${aggData.avg_oee}%`}
                 </div>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <div className="text-[11px] text-slate-400">Availability</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {aggData.avg_availability}%
+                  {aggData.avg_availability === null ? '—' : `${aggData.avg_availability}%`}
                 </div>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <div className="text-[11px] text-slate-400">Performance</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {aggData.avg_performance}%
+                  {aggData.avg_performance === null ? '—' : `${aggData.avg_performance}%`}
                 </div>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">
                 <div className="text-[11px] text-slate-400">Quality</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {aggData.avg_quality}%
+                  {aggData.avg_quality === null ? '—' : `${aggData.avg_quality}%`}
                 </div>
               </div>
               <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50">

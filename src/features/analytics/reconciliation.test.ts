@@ -296,3 +296,77 @@ test('E28 Batch B (FAT-221): ringkasan tanpa jendela yang bisa diparse → tanpa
   assert.equal(run.leftValue, 388);
   assert.equal(run.note, undefined);
 });
+
+test('FAT-221: respons live 7 hari — total vs durasi jendela (bukan 99), RUNNING tetap peringatan + catatan', () => {
+  // Bentuk respons live (probe 2026-11-20, panel kirim from/to 7 hari):
+  // window = from/to yang diminta (server echo, tanpa WO aktif) — BUKAN
+  // jendela satu shift; time_sec.run 5.940 dtk = 99 mnt selama 7 hari;
+  // planned_production_time_min = fallback mapper (operatingSec/60 = 99).
+  const liveSummary: ShiftSummary = {
+    ...CONSISTENT_SUMMARY,
+    shift_start: '2026-11-12T19:38:07.000Z',
+    shift_end: '2026-11-19T19:38:07.000Z',
+    planned_production_time_min: 99,
+    operating_time_min: 99,
+    run_time_min: 99,
+    unplanned_downtime_min: 0,
+    planned_downtime_min: 0,
+  };
+  // Timeline 5m gapless 7 hari: RUNNING 1.145 mnt (99 mnt nyata + ~1.046
+  // mnt bucket kosong yang membawa state terakhir setelah telemetri
+  // terakhir 19 Nov 15:54 WIB) + UNCONFIGURED 8.935 mnt = 10.080 mnt.
+  const liveTimeline: ShiftTimelineSegment[] = [
+    timelineSegment('2026-11-12T19:38:07.000Z', '2026-11-13T14:43:07.000Z', 'RUNNING', 1145),
+    timelineSegment('2026-11-13T14:43:07.000Z', '2026-11-19T19:38:07.000Z', 'UNCONFIGURED', 8935),
+  ];
+  const rec = computeOeeReconciliation(liveSummary, [], liveTimeline);
+  const byId = new Map(rec.checks.map((c) => [c.id, c]));
+
+  // Total: acuan adalah durasi jendela (10.080), BUKAN planned 99 —
+  // peringatan palsu "10.080 vs 99" hilang.
+  const total = byId.get('timeline-total-vs-window')!;
+  assert.equal(total.leftValue, 10080);
+  assert.equal(total.rightValue, 10080);
+  assert.equal(total.rightLabel, 'durasi jendela (ringkasan)');
+  assert.equal(total.status, 'ok');
+  assert.match(total.note ?? '', /rentang filter 7 hari/);
+
+  // RUNNING: selisih NYATA dalam jendela yang sama (carry-forward vs
+  // detik sampel) — tetap peringatan, tidak disembunyikan, tapi dengan
+  // catatan yang menjelaskan penyebabnya.
+  const run = byId.get('timeline-running-vs-summary')!;
+  assert.equal(run.leftValue, 1145);
+  assert.equal(run.rightValue, 99);
+  assert.equal(run.status, 'warning');
+  assert.match(run.note ?? '', /rentang filter 7 hari/);
+  assert.match(run.note ?? '', /gapless/);
+
+  // Planned/unplanned tetap cocok (0 vs 0) dengan catatan yang sama.
+  assert.equal(byId.get('timeline-planned-vs-summary')!.status, 'ok');
+  assert.match(byId.get('timeline-planned-vs-summary')!.note ?? '', /rentang filter 7 hari/);
+  assert.equal(byId.get('timeline-unplanned-vs-summary')!.status, 'ok');
+  assert.equal(rec.warningCount, 1);
+});
+
+test('FAT-221: jendela satu shift → acuan total = durasi jendela, tanpa catatan rentang filter', () => {
+  const rec = computeOeeReconciliation(DEMO_SUMMARY, [], DEMO_TIMELINE);
+  const total = rec.checks.find((c) => c.id === 'timeline-total-vs-window')!;
+  assert.equal(total.leftValue, 480);
+  assert.equal(total.rightValue, 480); // jendela 07:00–15:00 = 480 mnt
+  assert.equal(total.rightLabel, 'durasi jendela (ringkasan)');
+  assert.equal(total.status, 'ok');
+  assert.equal(total.note, undefined);
+  const run = rec.checks.find((c) => c.id === 'timeline-running-vs-summary')!;
+  assert.equal(run.note, undefined);
+});
+
+test('FAT-221: ringkasan tanpa jendela yang bisa diparse → total pakai planned_production_time_min + catatan fallback', () => {
+  const noWindow: ShiftSummary = { ...CONSISTENT_SUMMARY, shift_start: 'bukan-tanggal', shift_end: '' };
+  const rec = computeOeeReconciliation(noWindow, [], DEMO_TIMELINE);
+  const total = rec.checks.find((c) => c.id === 'timeline-total-vs-window')!;
+  assert.equal(total.leftValue, 480);
+  assert.equal(total.rightValue, 480);
+  assert.equal(total.rightLabel, 'planned_production_time_min (ringkasan)');
+  assert.equal(total.status, 'ok');
+  assert.match(total.note ?? '', /tidak bisa diparse/);
+});

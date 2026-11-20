@@ -52,19 +52,19 @@ export const TelemetrySummaryStrip: React.FC<TelemetrySummaryStripProps> = ({
           <div className="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
             <span className="text-[10px] text-slate-400 block">AVG OEE</span>
             <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              {aggData.avg_oee}%
+              {aggData.avg_oee === null ? '—' : `${aggData.avg_oee}%`}
             </span>
           </div>
           <div className="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
             <span className="text-[10px] text-slate-400 block">AVAIL</span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {aggData.avg_availability}%
+              {aggData.avg_availability === null ? '—' : `${aggData.avg_availability}%`}
             </span>
           </div>
           <div className="p-2 rounded bg-slate-50 dark:bg-slate-800/40">
             <span className="text-[10px] text-slate-400 block">PERF</span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {aggData.avg_performance}%
+              {aggData.avg_performance === null ? '—' : `${aggData.avg_performance}%`}
             </span>
           </div>
           <div className="p-2 rounded bg-slate-50 dark:bg-slate-800/40">

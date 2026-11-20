@@ -3091,3 +3091,160 @@ Dokumen: `AUDIT.md` §39 (file ini) + `docs/LINEAR.md` §1.1 (baris E29) +
 dilengkapi E29/E29-T1–T7). Commit dokumen lokal: SATU commit dokumen saja
 (pesan "E29 Batch B: AUDIT §39 + LINEAR/seed (tutup FAT-240–246)") — tanpa
 perubahan kode, tanpa push; hash lihat `git log -1` (HEAD lokal).
+
+## 40. Perbaikan ulang FAT-213 (N-43) + FAT-221 (E2E-07) pasca verifikasi live E29 (2026-11-20)
+
+**Konteks.** Verifikasi live E29 (browser, Vercel 6c5b123, 2026-11-20 09:14–09:15
+WIB) membuktikan login Spec 044 berhasil (ADM-001 via `/auth/admin/login`,
+tanpa 403; epic FAT-239 ditutup Done oleh parent), TAPI dua penutupan E28
+ternyata belum lengkap — parent membuka kembali FAT-213 (N-43) dan FAT-221
+(E2E-07) ke Todo. Tugas ini memperbaiki keduanya di panel; **tidak push**
+(tanpa persetujuan), **tidak ubah backend**, **tidak tutup tiket di Linear**
+(parent menutup setelah verifikasi live). Koordinator + 2 worker berurutan
+(satu per tiket), verifikasi akhir oleh koordinator.
+
+### 40.1 FAT-213 (N-43): ringkasan agregat all-null tampil "—"
+
+**Bukti live.** Telemetry → tab Agregat (50 bucket 5m): baris per-bucket SUDAH
+benar (kolom OEE "—" di semua baris), tapi ringkasan masih 0%: "AVG OEE 0%,
+AVAIL 0.7%, PERF 0%, PARTS 23145" dan blok kedua "OEE Rata-rata 0%".
+
+**Akar (terverifikasi di kode).** `src/services/api/http/monitoring.ts:296-297`
+— `mean1([]) → 0` (aturan E20 "bila semua null → 0"); keempat rata-rata
+bertipe `number` (`src/types/analytics.ts:136`, `TelemetryAggregateResult`)
+sehingga ringkasan TAK BISA null. Perbaikan E28 hanya menyentuh render
+per-bucket, bukan rata-rata ringkasan. `TelemetrySummaryStrip.tsx:53` dan
+`TelemetryTabPanels.tsx:200` me-render `{aggData.avg_oee}%` langsung.
+
+**Perbaikan (commit lokal `8736a10`, 8 file).**
+- `src/types/analytics.ts`: `avg_oee / avg_availability / avg_performance /
+  avg_quality` di `TelemetryAggregateResult` jadi `number | null`.
+- `src/services/api/http/monitoring.ts`: `mean1` mengembalikan `null` bila
+  daftar terfilter kosong; bila ada nilai non-null, rata-rata dari yang
+  non-null saja (perilaku lama dipertahankan).
+- `src/features/analytics/components/TelemetrySummaryStrip.tsx` +
+  `TelemetryTabPanels.tsx`: keempat rata-rata render "—" bila null; PARTS /
+  Total Parts tetap angka.
+- Klien demo (`src/services/api/demo/telemetry/oee.ts`) TIDAK perlu diubah —
+  nilai demo tetap angka, valid di bawah `number | null`.
+- `OeeSummaryCards` / `ShiftSummary` diperiksa — TIDAK terdampak (sudah
+  `number | null` + render "—" via `pctValue`, pola E28 Batch A). Tidak ada
+  renderer lain dari keempat field ini (grep `avg_oee|avg_availability|
+  avg_performance|avg_quality` di seluruh `src`).
+- Chart agregat (`TelemetryAggregateChart`) TIDAK disentuh — header "maks
+  0.0%" saat semua null adalah perilaku lama yang terpisah, di luar lingkup.
+
+**Tes (4 baru, total 503/503 saat commit).** Baru
+`src/services/api/fat213-aggregate.test.ts` (2 tes transport HTTP, stub port
+fresh 3061/3062): all-null → keempat rata-rata null; campuran → rata-rata
+dari non-null saja. `TelemetrySummaryStrip.test.ts` +1 (semua null → "—",
+PARTS 23145 tetap tampil); `TelemetryTabPanels.test.ts` +1 (all-null di kartu
+ringkasan) + perbaikan fixture performance-null (`avg_performance` 0 →
+null; `avg_oee` 0 dipertahankan karena nol asli dari satu baris `oeePct: 0`).
+`demo/telemetryAggregate.test.ts`: narrowing null `agg.avg_oee` (satu-satunya
+error tsc akibat perubahan tipe).
+
+### 40.2 FAT-221 (E2E-07): warning rekonsiliasi masih tampil
+
+**Bukti live.** Analytics 09:15 WIB: "2 selisih melebihi ambang" — "RUNNING
+timeline vs ringkasan: 1.145 menit vs 99 menit" dan "Total durasi timeline vs
+jendela shift: 10.080 menit vs 99 menit".
+
+**Diagnosis (terkonfirmasi probe live, bukan tebakan).** Premis E28 Batch B
+SALAH: `window` respons shift-summary BUKAN jendela satu shift. Probe live
+(curl, param persis panel: `machine_id=CNC-MILLING-01`, `from`/`to` 7 hari
+format `+07:00`, `include_hourly=true`, bucket `5m`):
+`GET /oee/shift-summary` → `window: {from: "2026-11-12T19:38:07.000Z", to:
+"2026-11-19T19:38:07.000Z"}` — server **meng-echo `from`/`to` yang diminta**
+bila tak ada WO aktif (api_docs §Q.1: "tanpa WO → window dari `from`/`to`
+eksplisit"). Mapper `mapShiftSummary`
+(`src/services/api/http/mappers/monitoring.ts:441-442`) memetakan
+`window.from/to` → `shift_start/shift_end` dengan benar, jadi
+`resolveSummaryWindowMs` (`reconciliation.ts`) mem-parse OK — tapi
+jendelanya **7 hari**, sehingga clip E28 (timeline 7 hari → jendela 7 hari)
+adalah **no-op**. Window `00:00–09:00Z` hanya muncul bila `from`/`to` TIDAK
+dikirim (panel tak pernah begitu). Angka 99 mnt juga BUKAN satu shift:
+`time_sec.run` 5.940 dtk mencakup 7 hari yang sama (perangkat hanya jalan 99
+mnt dalam 7 hari; telemetri terakhir 19 Nov 15:54 WIB). Dua selisih live
+punya penyebab BERBEDA:
+- **Total 10.080 vs 99** — artefak acuan: server tak mengirim planned
+  production time, mapper jatuh ke `operatingSec/60` (= 99). Membandingkan
+  total 7 hari dengan waktu operasi adalah salah acuan.
+- **RUNNING 1.145 vs 99** — selisih NYATA dalam jendela yang sama: timeline
+  diisi gapless oleh server (bucket kosong membawa state terakhir) — terbukti
+  kuantitatif: RUNNING 745 mnt pk 02:38 WIB → 1.145 mnt pk 09:15 WIB tanpa
+  data baru (≈ +1 mnt/mnt carry-forward setelah perangkat offline).
+  `time_sec.run` hanya menghitung detik sampel. Ini TIDAK bisa diperbaiki
+  clip dan TIDAK boleh disembunyikan — perlu keputusan backend soal semantik
+  fill timeline bila selisih RUNNING ini mau hilang (lihat §40.4).
+
+**Perbaikan (commit lokal `9977be1`, 2 file;
+`src/features/analytics/reconciliation.ts` 339 → 405 baris, < 500 keras).**
+- Check total (`timeline-total-vs-window`): acuan kini **durasi jendela**
+  (`shift_end − shift_start`) bila jendela bisa diparse — live jadi 10.080
+  vs 10.080 → ok. Bila jendela tak bisa diparse: fallback
+  `planned_production_time_min` (perilaku lama) + catatan fallback. Ambang
+  TIDAK diubah.
+- Check per-state (RUNNING/planned/unplanned): nilai tetap (jendela sudah
+  sama), tapi bila jendela > 24 jam diberi catatan jelas di UI (dirender
+  `ReconciliationFootnote`, tanpa ubah komponen itu): *"Ringkasan + timeline
+  mencakup rentang filter 7 hari, bukan satu shift. Timeline diisi gapless
+  oleh server (bucket kosong membawa state terakhir) sementara ringkasan
+  menghitung detik sampel — total state timeline bisa membesar saat perangkat
+  lama offline."* Clip lama dipertahankan sebagai pengaman bila timeline
+  melampaui jendela.
+- Komentar header file dikoreksi dengan diagnosis + bukti probe; komentar
+  kode di tempat perbaikan mencatat penyebabnya.
+- Tabrakan label sumbu timeline di tepi kanan ("09:15 07:00 · 20 Nov")
+  TIDAK dikerjakan — residu kosmetik E28 yang sudah dicatat, di luar lingkup.
+
+**Tes (+3, `src/features/analytics/reconciliation.test.ts`,
+rekonsiliasi 16/16).** Live-shape 7 hari: total 10.080 vs 10.080 ok +
+catatan "rentang filter 7 hari"; RUNNING 1.145 vs 99 TETAP warning + catatan
+gapless (terdokumentasi, bukan disembunyikan); `warningCount` 1. Jendela satu
+shift: acuan total = durasi jendela (480), tanpa catatan. Fallback tanpa
+jendela: total pakai `planned_production_time_min` + catatan "tidak bisa
+diparse"; RUNNING tanpa potong/tanpa note (perilaku lama dipertahankan).
+
+### 40.3 Verifikasi akhir (koordinator, di atas kedua commit)
+
+- `git log`: `9977be1` (FAT-221) + `8736a10` (FAT-213) di atas `9be9c3a`;
+  tree bersih; TIDAK push.
+- `npx tsc --noEmit`: **0 error**.
+- `npm test` penuh: **506/506 pass** (499 sebelumnya + 4 FAT-213 + 3 FAT-221),
+  0 fail.
+- `npm run build`: OK (chunk-size warning pre-existing).
+- `npm run check:structure`: **0 FAIL** (335 file, 45 WARN di atas lunak,
+  pre-existing; `reconciliation.ts` WARN lunak 405/300; `monitoring.ts` 396
+  baris di bawah lunak 400; `TelemetryTabPanels.tsx` tetap 296/300).
+- Spot-check koordinator: diff `mean1` (null bila kosong) + tipe nullable
+  (§40.1); diff `reconciliation.ts` (acuan total = durasi jendela + fallback
+  + catatan gapless) (§40.2).
+
+### 40.4 Yang masih perlu verifikasi live (butuh push + redeploy — di luar tugas ini)
+
+- Telemetry → tab Agregat pada rentang all-null (50 bucket 5m seperti bukti
+  awal): ringkasan harus tampil "—" di AVG OEE/AVAIL/PERF/OEE Rata-rata,
+  PARTS tetap angka. Kasus campuran: rata-rata ringkasan = rata-rata bucket
+  non-null saja.
+- Analytics: warning total HILANG (10.080 vs 10.080, "cocok" + catatan
+  rentang filter); tersisa **1 warning RUNNING 1.145 vs 99 dengan catatan
+  gapless** — ini perilaku yang diinginkan per tiket (tandai, bukan
+  sembunyikan); pastikan tampilannya dapat diterima Fathur.
+- Residu kosmetik tabrakan label sumbu tepi kanan tetap ada (bukan bagian
+  tiket ini).
+- Tindak lanjut backend (bukan tiket ini, belum dibuat): semantik
+  gapless-fill timeline — RUNNING carry-forward saat device offline membuat
+  total state timeline membesar vs `time_sec.run` ringkasan. Bila Fathur mau
+  selisih RUNNING hilang, backend perlu memutuskan semantik fill (mis. bucket
+  kosong tanpa state, atau cap carry-forward saat offline). FAT-213 dan
+  FAT-221 tetap Todo di Linear sampai verifikasi live di atas selesai.
+- Belum teruji live (dari E29): sliding refresh melewati ambang 20% TTL;
+  403 role-gate verbatim (butuh login OPERATOR).
+
+Dokumen: `AUDIT.md` §40 (file ini) + `docs/LINEAR.md` (§1.1 baris E29 +
+§8 hitungan: 207 Done / 2 In Progress / 37 Todo; FAT-239 Done, FAT-213 +
+FAT-221 Todo) + `docs/linear-seed.json` v33 (`verified` 246/207/37/2;
+`issueMap` tak berubah — pemetaan N-43→FAT-213, E2E-07→FAT-221, E29→FAT-239
+sudah ada). Commit dokumen lokal: SATU commit dokumen saja — tanpa perubahan
+kode, tanpa push; hash lihat `git log -1` (HEAD lokal).

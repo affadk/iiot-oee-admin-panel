@@ -178,14 +178,44 @@ test('Tab Aggregate: performance null (kapasitas unknown) dirender sebagai —',
       aggData: {
         ...AGG_DATA,
         rows: unknownRows,
+        // FAT-213 (N-43): satu-satunya baris punya performancePct null dan
+        // oeePct 0 (angka nyata) — rata-rata mengikuti: performance null,
+        // OEE 0 dari satu nilai non-null. Bukan lagi 0 untuk yang all-null.
         avg_oee: 0,
-        avg_performance: 0,
+        avg_performance: null,
         total_parts: 0,
       },
     })
   );
   assert.ok(html.includes('0.0%'), html);
   assert.ok(html.includes('—'), html);
+  // Kartu ringkasan Performance tampil '—' (avg_performance null), sementara
+  // OEE 0% adalah angka nyata dari satu baris oeePct 0 — tetap tampil 0%.
+});
+
+// FAT-213 (N-43): semua bucket null → keempat rata-rata null → kartu
+// ringkasan tab Aggregate tampil '—', BUKAN 0%.
+test('Tab Aggregate: semua rata-rata null dirender sebagai — di kartu ringkasan', () => {
+  const unknownRows: TelemetryAggregatePoint[] = [
+    { ...ROWS[0], availabilityPct: null, performancePct: null, qualityPct: null, oeePct: null, totalCount: 0 },
+  ];
+  const html = renderAggregate(
+    baseProps({
+      aggData: {
+        ...AGG_DATA,
+        rows: unknownRows,
+        avg_oee: null,
+        avg_availability: null,
+        avg_performance: null,
+        avg_quality: null,
+        total_parts: 0,
+      },
+    })
+  );
+  assert.ok(html.includes('OEE Rata-rata'), html);
+  assert.ok(html.includes('—'), html);
+  assert.ok(!html.includes('>0%<'), html);
+  assert.ok(html.includes('0 pcs'), html);
 });
 
 // ---------------------------------------------------------------------------

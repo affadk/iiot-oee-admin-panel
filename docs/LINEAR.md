@@ -44,7 +44,7 @@
 | E20 Sinkronisasi ke API docs terupdate | 294 entri diff | Diff 162 OK / 102 CHANGE / 21 NEW / 9 REMOVE; D-1–D-14 diputuskan mengikuti api_docs; gaps lama diarsipkan; implementasi 4 batch SELESAI + terverifikasi independen 2026-11-19 (registry 132 → 137) |
 | E21 Penutupan backend sync/gaps di Linear | SYS-B1–B50 + R-1–R-15 | Dilaksanakan SETELAH E20 selesai + terverifikasi — verifikasi tiap gap vs api_docs terupdate, tutup yang implementasi backend-nya tercermin di dokumen |
 | E28 Triase + implementasi panel + penutupan Linear | AUDIT §38 | Triase 64 issue terbuka (14 SUDAH SELESAI, 8 TERBLOKIR, 32 RELEVAN); Batch A 7 panel (commit 179ecf7, tes 466/466) + Batch B 8 panel (commit d770c2b, tes 483/483); tutup 29 issue di Linear. Bukan epic Linear — paket kerja tanpa issue baru. |
-| E29 Spec 044: Migrasi login admin ke POST /auth/admin/login | Spec 044 | Login admin strict tanpa station_id (registry AUTH_ADMIN_LOGIN, LoginPage tanpa field Station, 403 role-gate passthrough, refresh tanpa gate LAN); Batch A commit 38752fc (tes 492/492) + Batch B commit e4d1d6a (tes 499/499); tutup 7 issue (FAT-240–246), epic FAT-239 Todo menunggu verifikasi live — AUDIT §39. |
+| E29 Spec 044: Migrasi login admin ke POST /auth/admin/login | Spec 044 | Login admin strict tanpa station_id (registry AUTH_ADMIN_LOGIN, LoginPage tanpa field Station, 403 role-gate passthrough, refresh tanpa gate LAN); Batch A commit 38752fc (tes 492/492) + Batch B commit e4d1d6a (tes 499/499); tutup 7 issue (FAT-240–246), epic FAT-239 DITUTUP Done 20 Nov 2026 setelah verifikasi live parent (login ADM-001 via endpoint baru berhasil dari Vercel, tanpa 403 — AUDIT §39 + §40). |
 
 Setiap Epic adalah **parent issue**; modul di bawahnya adalah **child issue**
 (`parentId` ke Epic). Tidak ada issue yatim: semua task harus punya parent Epic,
@@ -500,7 +500,7 @@ tapi status implementasi yang berlaku adalah status di Linear.
   FAT-239–FAT-246 dibuat 20 Nov 2026; `list_issues` 20 Nov mengembalikan 183 issue
   — FAT-1–FAT-4 + FAT-71–FAT-121 hilang dari hasil itu, diverifikasi lewat
   `get_issue` satu per satu seperti anomali triase E28):
-  **208 Done, 2 In Progress, 36 Todo** (pasca-E29, 20 Nov 2026),
+  **207 Done, 2 In Progress, 37 Todo** (pasca verifikasi live E29 + reopen FAT-213/221, 20 Nov 2026),
   32 tanpa parent, 204 child dengan `parentId`. Total mencakup 4 issue
   onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja proyek); tanpa
   keempatnya, total proyek = 232. Todo tersisa (62): 4 onboarding + 14 SYS-B
@@ -554,10 +554,13 @@ tapi status implementasi yang berlaku adalah status di Linear.
   (AUDIT.md §39). Batch A (commit lokal 38752fc, tes 492/492) + Batch B
   (commit lokal e4d1d6a, tes 499/499) selesai + terverifikasi lokal;
   7 anak DITUTUP 20 Nov 2026 (FAT-240–246, bukti di AUDIT §39.8); epic
-  FAT-239 tetap Todo menunggu verifikasi live parent (urutan gate vs auth
-  server belum terbukti — login VALID dari tunnel bisa 403; Q-02 tertutup
-  oleh migrasi ini, AUDIT §39.6). Todo tersisa pasca-E29 (36): 35 pasca-E28
-  + E29 (FAT-239).
+  FAT-239 DITUTUP Done 20 Nov 2026 setelah verifikasi live parent (login
+  ADM-001 via endpoint baru berhasil dari Vercel, tanpa 403 — urutan gate vs
+  auth TERJAWAB; AUDIT §39 + §40; Q-02 tertutup oleh migrasi ini, AUDIT
+  §39.6). Todo tersisa pasca verifikasi live E29 + reopen (37): 35 pasca-E28
+  + FAT-213 (N-43) + FAT-221 (E2E-07) — dibuka kembali 20 Nov 2026 setelah
+  verifikasi live membuktikan penutupan E28 belum lengkap; perbaikan ulang
+  selesai lokal (AUDIT §40), menunggu verifikasi live.
   Riwayat: 28 issue awal + E9/R9.1–R9.6 dibuat 2026-11-16 ~14:20 WIB
   (R9.2–R9.6 Done malam itu); E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
   audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —

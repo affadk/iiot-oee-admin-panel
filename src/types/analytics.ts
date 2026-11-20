@@ -133,10 +133,15 @@ export interface TelemetryAggregatePoint {
 export interface TelemetryAggregateResult {
   device_id: string;
   bucket: string;
-  avg_oee: number;
-  avg_availability: number;
-  avg_performance: number;
-  avg_quality: number;
+  /**
+   * FAT-213 (N-43): rata-rata ringkasan nullable — bila SEMUA bucket null
+   * (kapasitas unknown, E20 P20.5), rata-rata adalah null dan dirender '—',
+   * BUKAN 0%. Bila ada nilai non-null, rata-rata dihitung dari yang non-null.
+   */
+  avg_oee: number | null;
+  avg_availability: number | null;
+  avg_performance: number | null;
+  avg_quality: number | null;
   total_parts: number;
   sample_count: number;
   rows: TelemetryAggregatePoint[];
