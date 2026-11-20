@@ -176,7 +176,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
             end
             onClick={onCloseMobile}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded transition-colors ${
+              // FAT-262: saat minimize, ikon Overview harus center seperti
+              // ikon grup (justify-center p-2); sebelumnya rata kiri (px-3).
+              `flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2'} text-xs font-medium rounded transition-colors ${
                 isActive
                   ? 'bg-sky-600 text-white font-semibold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800'
@@ -188,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
             {!isCollapsed && <span>Overview Dashboard</span>}
           </NavLink>
 
-          {navGroups.map((group) => {
+          {navGroups.map((group, idx) => {
             const isOpen = openGroups[group.title] !== false;
             // Capability-first navigation gating (Build Guide §4.5 via /auth/me)
             const visibleItems = group.items.filter((item) => !item.capability || checkCapability(item.capability).canInteract);
@@ -233,6 +235,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
                   </div>
                 ) : (
                   <div className="space-y-1">
+                    {/* FAT-262: saat minimize, judul grup hilang — tanpa
+                        pemisah, ikon-ikon antar grup menyatu. Pertahankan
+                        break line seperti saat expand: garis pemisah antar
+                        grup (kecuali sebelum grup pertama, sama seperti
+                        mode expand yang juga tanpa garis di sana). */}
+                    {idx > 0 && (
+                      <div className="mx-2 my-2 border-t border-slate-800" aria-hidden="true" />
+                    )}
                     {visibleItems.map((item) => {
                       const Icon = item.icon;
                       return (

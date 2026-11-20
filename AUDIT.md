@@ -3481,3 +3481,34 @@ FAT-261 → Done.
 
 Dokumen: `AUDIT.md` §43 (file ini). Tiket FAT-261 dibuat sebelum
 implementasi, status In Progress dengan komentar progres.
+
+## 44. FAT-262 — Hardening UI/UX sidebar: ikon Overview center + break line antar grup saat minimize
+
+**Temuan Fathur (20 Nov 2026).** Dua cacat visual saat sidebar kiri
+di-minimize (`w-16`):
+1. Ikon Overview Dashboard tidak center — link-nya `flex items-center`
+   tanpa `justify-center` (padding `px-3`, rata kiri), padahal ikon menu
+   grup saat minimize sudah `justify-center p-2`.
+2. Pemisah antar grup menu hilang — mode expand memisahkan grup lewat
+   judul grup + spasi, tapi mode minimize hanya mengandalkan spasi kecil
+   sehingga ikon-ikon antar grup menyatu.
+
+**Perbaikan (`src/layouts/Sidebar.tsx` saja).**
+1. Link Overview: `className` dibuat kondisional — saat minimize pakai
+   `justify-center p-2` (persis pola ikon grup), saat expand tetap
+   `gap-2.5 px-3 py-2`.
+2. Cabang minimize tiap grup: divider `<div className="mx-2 my-2
+   border-t border-slate-800" aria-hidden="true" />` sebelum grup
+   ke-2 dst (indeks `idx > 0`). Warna sama dengan garis header/footer
+   (`border-slate-800`). Sebelum grup pertama tidak ada garis — sama
+   seperti mode expand yang juga tanpa garis di sana.
+
+**Yang TIDAK diubah (sengaja).** Perilaku, routing, capability, tombol
+collapse di header (posisinya tidak dilaporkan Fathur), footer role.
+
+**Hasil.** `tsc` 0, `npm test` **521/521**, `build` OK, checker 0 FAIL
+(338 file). Verifikasi visual menyusul di deployment live (cek
+sidebar minimize: ikon Overview center + garis antar grup).
+
+Dokumen: `AUDIT.md` §44 (file ini). Tiket FAT-262 dibuat sebelum
+implementasi, status In Progress dengan komentar progres.

@@ -1791,10 +1791,10 @@
    "E30-D30.1": "FAT-260"
   },
   "verified": {
-   "total": 261,
+   "total": 262,
    "done": 224,
    "todo": 27,
-   "inProgress": 2,
+   "inProgress": 3,
    "inReview": 6,
    "canceled": 1,
    "parents": 34,
