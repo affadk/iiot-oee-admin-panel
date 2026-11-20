@@ -1,218 +1,94 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiClient } from '../../../services/api/client';
-import { ApiError } from '../../../types/auth';
-import {
-  BrokerBackup,
-  BrokerConfigSchema,
-  BrokerConfigStatus,
-  BrokerConfigVersion,
-  BrokerConfigDiffResult,
-  BrokerConfigRawResult,
-  BrokerOperation,
-} from '../../../types/mqtt';
-import { useAuth, useCapability } from '../../../context/AuthContext';
-
-export type BrokerConfirmAction = { type: 'APPLY' | 'ROLLBACK'; version: BrokerConfigVersion };
-
-// E28 Batch A (B41): versi belum tervalidasi → acknowledgeUnvalidated=true; status tak diketahui → omit.
-const ackUnvalidated = (v: BrokerConfigVersion): boolean | undefined => (v.validation && v.validation.status !== 'passed' ? true : undefined);
 /**
- * E23 Batch 1 (FAT-182, N-13): hasil diff = bentuk spec live
- * (`BrokerConfigDiffResult`: `lines[]`), bukan `diff_summary`/`changed_keys`.
- */
-export type BrokerDiffResult = BrokerConfigDiffResult;
-
-export type BrokerFeedback = { type: 'success' | 'error'; msg: string };
-
-/**
- * E20 P20.5 (FAT-157): status konfigurasi = bentuk dokumen §3.3b
- * (`BrokerConfigStatus`), bukan asumsi lama `active_version`/`sync_state`.
- */
-export type BrokerSyncStatus = BrokerConfigStatus;
-
-export type BrokerValidationIssue = { field?: string; message: string };
-
-/**
+ * Komposisi alur konfigurasi broker (E31.2, FAT-265).
+ *
+ * Dulu satu hook 249 baris (tepat di batas keras) yang melayani 5 alur
+ * sekaligus; kini tiap alur tinggal di hook-nya sendiri (R4) dan file
+ * ini hanya menggabungkan mereka + `isWorking` yang dipakai bersama
+ * stage + confirm. Bentuk kembalian IDENTIK dengan sebelumnya — satu
+ * pemanggil (`BrokerConfigManagerPage`) tidak berubah sama sekali.
+ *
+ * - Load (draft/status/versions/operations/backups/raw): `useBrokerConfigLoad`
+ * - Feedback + issue validasi: `useBrokerConfigFeedback`
+ * - Stage draft: `useBrokerConfigStage`
+ * - Diff + buang draft staged: `useBrokerConfigVersions`
+ * - Konfirmasi apply/rollback: `useBrokerConfigConfirm`
+ *
  * Semua state + logika BrokerConfigManagerPage KECUALI navigasi tab
  * (`activeTab` tetap di page — stage→versions dilakukan page setelah
  * `handleStageConfig` mengembalikan true).
  */
+import { useState } from 'react';
+import { useAuth, useCapability } from '../../../context/AuthContext';
+import { useBrokerConfigFeedback } from './useBrokerConfigFeedback';
+import { useBrokerConfigLoad } from './useBrokerConfigLoad';
+import { useBrokerConfigStage } from './useBrokerConfigStage';
+import { useBrokerConfigVersions } from './useBrokerConfigVersions';
+import { useBrokerConfigConfirm } from './useBrokerConfigConfirm';
+
+export type {
+  BrokerConfirmAction,
+  BrokerDiffResult,
+  BrokerFeedback,
+  BrokerSyncStatus,
+  BrokerValidationIssue,
+} from './brokerConfigTypes';
+
 export const useBrokerConfig = () => {
   const { reportForbidden } = useAuth();
   const canRead = useCapability('mqtt.config.read');
   const canReadRaw = useCapability('mqtt.config.read_raw');
   const canManage = useCapability('mqtt.config.manage');
 
-  const [draftConfig, setDraftConfig] = useState<BrokerConfigSchema | null>(null);
-  const [stageSummary, setStageSummary] = useState('Penyesuaian batas koneksi perangkat pabrik');
-  // E23 Batch 3 (FAT-199, N-30): raw = {text, metadata} (spec live),
-  // bukan string mentah.
-  const [rawConf, setRawConf] = useState<BrokerConfigRawResult | null>(null);
-  const [versions, setVersions] = useState<BrokerConfigVersion[]>([]);
-  const [operations, setOperations] = useState<BrokerOperation[]>([]);
-  const [backups, setBackups] = useState<BrokerBackup[]>([]);
-  const [syncStatus, setSyncStatus] = useState<BrokerSyncStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Dibagi stage + confirm (satu flag seperti sebelumnya).
   const [isWorking, setIsWorking] = useState(false);
 
-  // Validation 422 issues & general feedback
-  const [validationIssues, setValidationIssues] = useState<BrokerValidationIssue[]>([]);
-  const [feedback, setFeedback] = useState<BrokerFeedback | null>(null);
+  const { validationIssues, setValidationIssues, feedback, setFeedback } = useBrokerConfigFeedback();
 
-  // Diff Viewer Modal
-  const [diffResult, setDiffResult] = useState<BrokerDiffResult | null>(null);
+  const {
+    draftConfig,
+    setDraftConfig,
+    rawConf,
+    versions,
+    operations,
+    backups,
+    syncStatus,
+    isLoading,
+    loadConfigState,
+  } = useBrokerConfigLoad({
+    canReadInteract: canRead.canInteract,
+    canReadRawInteract: canReadRaw.canInteract,
+    reportForbidden,
+    setFeedback,
+  });
 
-  // Apply / Rollback Confirmation Modal (confirm=true + reason <= 500 + operation polling)
-  const [confirmAction, setConfirmAction] = useState<BrokerConfirmAction | null>(null);
-  const [confirmCheckbox, setConfirmCheckbox] = useState(false);
-  const [confirmReason, setConfirmReason] = useState('');
+  const { stageSummary, setStageSummary, handleStageConfig } = useBrokerConfigStage({
+    draftConfig,
+    setValidationIssues,
+    setFeedback,
+    loadConfigState,
+    setIsWorking,
+    reportForbidden,
+  });
 
-  const loadConfigState = useCallback(async () => {
-    if (!canRead.canInteract) {
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const [cfg, status, verList, opsList, bakList] = await Promise.all([
-        apiClient.getBrokerConfig(),
-        apiClient.getBrokerConfigStatus(),
-        apiClient.getBrokerConfigVersions(100),
-        apiClient.getBrokerConfigOperations(50),
-        apiClient.getBrokerConfigBackups(),
-      ]);
-      setDraftConfig(cfg);
-      setSyncStatus(status);
-      setVersions(verList);
-      setOperations(opsList);
-      setBackups(bakList);
+  const { diffResult, setDiffResult, handleViewDiff, handleDiscardStaged } = useBrokerConfigVersions({
+    setFeedback,
+    loadConfigState,
+  });
 
-      // Hanya panggil /raw jika subjek punya capability mqtt.config.read_raw (SUPERVISOR tidak memiliki izin ini)
-      if (canReadRaw.canInteract) {
-        try {
-          const raw = await apiClient.getBrokerConfigRaw();
-          setRawConf(raw);
-        } catch {
-          setRawConf(null);
-        }
-      } else {
-        setRawConf(null);
-      }
-    } catch (err: any) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('mqtt.config.read', undefined, err.message);
-      }
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal memuat pengaturan koneksi mesin.' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [canRead.canInteract, canReadRaw.canInteract, reportForbidden]);
-
-  useEffect(() => {
-    loadConfigState();
-  }, [loadConfigState]);
-
-  const handleStageConfig = async (e: FormEvent): Promise<boolean> => {
-    e.preventDefault();
-    if (!draftConfig) return false;
-    setIsWorking(true);
-    setFeedback(null);
-    setValidationIssues([]);
-    try {
-      const staged = await apiClient.stageBrokerConfig(draftConfig, stageSummary);
-      // E23 Batch 1 (FAT-181, N-12): respons stage menyertakan validation/
-      // impact/diff — tampilkan status validasi, jangan dibuang.
-      const validation = staged.validation;
-      if (validation) {
-        if (validation.issues.length > 0) {
-          setValidationIssues(validation.issues.map((iss) => ({ field: iss.field, message: iss.message })));
-        }
-        setFeedback({
-          type: validation.status === 'failed' ? 'error' : 'success',
-          msg: `Draft konfigurasi staged sebagai ${staged.version_id}. Validasi: ${validation.status}${
-            validation.status === 'failed' ? ` (${validation.issues.length} issue)` : ''
-          }. Buka tab Versions untuk Diff & Apply.`,
-        });
-      } else {
-        setFeedback({
-          type: 'success',
-          msg: `Draft konfigurasi staged sebagai ${staged.version_id}. Buka tab Versions untuk Diff & Apply.`,
-        });
-      }
-      await loadConfigState();
-      return true;
-    } catch (err: any) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('mqtt.config.manage', undefined, err.message);
-      }
-      if (err?.issues?.length) {
-        setValidationIssues(err.issues);
-      }
-      setFeedback({ type: 'error', msg: err?.message || 'Staging konfigurasi gagal.' });
-      return false;
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
-  const handleViewDiff = async (versionId: string) => {
-    try {
-      const diff = await apiClient.getBrokerConfigDiff(versionId);
-      setDiffResult(diff);
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal mengambil diff versi.' });
-    }
-  };
-
-  const handleDiscardStaged = async (versionId: string) => {
-    try {
-      await apiClient.deleteBrokerConfigVersion(versionId);
-      setFeedback({ type: 'success', msg: `Draft staged ${versionId} dibuang.` });
-      await loadConfigState();
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal membuang draft staged.' });
-    }
-  };
-
-  const handleConfirmExecute = async () => {
-    if (!confirmAction || !confirmCheckbox) return;
-    setIsWorking(true);
-    setFeedback(null);
-    try {
-      const res =
-        confirmAction.type === 'APPLY'
-          ? await apiClient.applyBrokerConfigVersion(confirmAction.version.version_id, {
-              confirm: true,
-              reason: confirmReason.trim() || undefined,
-              acknowledgeUnvalidated: ackUnvalidated(confirmAction.version),
-            })
-          : await apiClient.rollbackBrokerConfig(confirmAction.version.version_id, {
-              confirm: true,
-              reason: confirmReason.trim() || undefined,
-              acknowledgeUnvalidated: ackUnvalidated(confirmAction.version),
-            });
-
-      // Poll operation status via GET /operations/:id
-      const polledOp = await apiClient.getBrokerConfigOperation(res.operation.operation_id);
-      const finalStatus = polledOp?.status ?? res.operation.status;
-
-      setConfirmAction(null);
-      setConfirmCheckbox(false);
-      setConfirmReason('');
-      setFeedback({
-        type: finalStatus === 'SUCCEEDED' ? 'success' : 'error',
-        msg: `${confirmAction.type} ${res.version.version_id} selesai (Operation ${res.operation.operation_id}: ${finalStatus}).`,
-      });
-      await loadConfigState();
-    } catch (err: any) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('mqtt.config.manage', confirmAction.version.version_id, err.message);
-      }
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal mengeksekusi operasi konfigurasi.' });
-    } finally {
-      setIsWorking(false);
-    }
-  };
+  const {
+    confirmAction,
+    setConfirmAction,
+    confirmCheckbox,
+    setConfirmCheckbox,
+    confirmReason,
+    setConfirmReason,
+    handleConfirmExecute,
+  } = useBrokerConfigConfirm({
+    reportForbidden,
+    setFeedback,
+    loadConfigState,
+    setIsWorking,
+  });
 
   return {
     canRead,

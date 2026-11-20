@@ -3739,3 +3739,43 @@ push + redeploy Vercel.
 
 Dokumen: `AUDIT.md` §47 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v37.
+
+## 48. E31 ronde 3 kelompok A (P0 sisa) — FAT-265 + FAT-268
+
+Perintah Fathur 2026-11-20 20:45 WIB ("oke, push juga commit terbaru")
+— push parsial kelompok A yang sudah selesai, sementara kelompok B/C
+masih berjalan. Push #15.
+
+**E31.2 (FAT-265) — useBrokerConfig 249 → 125.** Dipecah PER CONCERN
+(bukan per tab — kelima tab berbagi satu state load + satu state
+feedback, hook per tab akan menduplikasi load): komposisi tipis +
+6 sub-hook baru di `features/mqtt/hooks/` — brokerConfigTypes (29,
+5 tipe + komentar E20/E23, cegah import siklik), useBrokerConfigFeedback
+(16), useBrokerConfigLoad (99), useBrokerConfigStage (77),
+useBrokerConfigVersions (48), useBrokerConfigConfirm (85, helper
+ackUnvalidated E28 pindah ke sini). Bentuk kembalian komposisi
+identik — 30 field, tidak ada yang hilang/tambah, urutan sama persis
+(diverifikasi programatik); BrokerConfigManagerPage (satu-satunya
+pemanggil) + BrokerConfirmModal tidak disentuh. Total baris naik
+807 → 1.114 di 10 file (header/interface/import berulang — harga
+pemisahan tanggung jawab, prinsip 0).
+**E31.5 (FAT-268) — DowntimeEventsPage 558 → 391** (di bawah lunak
+page 400). Dua ekstraksi ke `features/monitoring/hooks/`:
+useDowntimeExport (95 — export + cooldown 30 dtk + state, filter
+diteruskan per render) dan useDowntimeEventColumns (149 — ke-6 kolom,
+pola useOperationalEventColumns). useOperationalEventColumns TIDAK
+dipakai ulang — tipe berbeda (OperationalEvent + ack vs DowntimeEvent
++ label); hook baru pasangan per domain. Filter UI tetap inline
+(di luar tiket). `catch (err: any)` pada kode pindah diubah ke
+`catch (err: unknown)` + cast — perilaku identik, typing lebih ketat.
+
+**Status verifikasi (jujur):** verifikasi pusat PENUH ditunda sampai
+B/C selesai — tree saat push masih bercampur edit B/C yang belum
+selesai. tsc pada tree campuran: 6 error, SEMUANYA di file B/C yang
+masih dikerjakan (BackendHealthIndicator yang dipindah B — path import
+relatif salah; monitoring-shift.ts yang dipecah C — pctOrNull belum
+didefinisikan/diimpor). File kelompok A BERSIH dari error. Tiket
+FAT-265/268 tetap In Progress sampai verifikasi pusat ronde 3
+(tsc 0, tes hijau, build OK, checker 0 FAIL) selesai.
+
+Dokumen: `AUDIT.md` §48 (file ini), `docs/LINEAR.md` §8.

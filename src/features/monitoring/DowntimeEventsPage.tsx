@@ -1,14 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Tag, RefreshCw, Activity } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { DowntimeCategory, DowntimeEvent } from '../../types/monitoring';
-import { ExportFormat, TimeWindowPreset } from '../../types/historical';
-import { ApiError } from '../../types/auth';
-import { useAuth } from '../../context/AuthContext';
-import { Badge } from '../../components/ui/Badge';
+import { TimeWindowPreset } from '../../types/historical';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
@@ -16,13 +12,8 @@ import { DowntimeReasonModal } from './DowntimeReasonModal';
 import { HistoricalExportToolbar } from '../../components/industrial/HistoricalExportToolbar';
 import {
   DEFAULT_HISTORY_PAGE_LIMIT,
-  mapDowntimeToSixBigLoss,
   resolveTimeWindowPreset,
-  triggerBrowserDownload,
-  withExportAbortTimeout,
 } from '../../utils/historicalExport';
-import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
-import { formatDateTime } from '../../utils/formatDate';
 import { useHistoryFilters } from '../shared/historyFilters';
 import {
   HISTORY_DATA_STALE_TIME_MS,
@@ -30,6 +21,8 @@ import {
   useMasterAssetsQuery,
 } from '../shared/useHistoricalQueries';
 import { resolveDefaultDeviceId } from '../shared/defaultDevice';
+import { useDowntimeExport } from './hooks/useDowntimeExport';
+import { useDowntimeEventColumns } from './hooks/useDowntimeEventColumns';
 
 const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label: string }> = [
   { value: 'ALL', label: 'Semua Kategori' },
@@ -49,7 +42,6 @@ const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label:
 ];
 
 export const DowntimeEventsPage: React.FC = () => {
-  const { reportForbidden, checkCapability } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
 
@@ -78,23 +70,27 @@ export const DowntimeEventsPage: React.FC = () => {
   const selectedDeviceId = filters.deviceId ?? derivedDefaultDevice ?? '';
 
   const [preset, setPreset] = useState<TimeWindowPreset>('7d');
-  const [isExporting, setIsExporting] = useState(false);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [exportError, setExportError] = useState<{
-    code?: string;
-    status?: number;
-    message: string;
-  } | null>(null);
-  const [lastExport, setLastExport] = useState<Awaited<
-    ReturnType<typeof apiClient.exportDowntimeData>
-  > | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<DowntimeEvent | null>(null);
 
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const t = setInterval(() => setCooldownSeconds((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(t);
-  }, [cooldownSeconds]);
+  // E31.5 (FAT-268): ekspor + cooldown tinggal di hook sendiri.
+  const {
+    isExporting,
+    cooldownSeconds,
+    exportError,
+    setExportError,
+    lastExport,
+    setLastExport,
+    handleExport,
+  } = useDowntimeExport({
+    deviceId: selectedDeviceId,
+    filters: {
+      category: filters.category,
+      from: filters.from,
+      to: filters.to,
+      unlabeledOnly: filters.unlabeledOnly,
+      activeOnly: filters.activeOnly,
+    },
+  });
 
   const handleFilterChange = (patch: Parameters<typeof updateFilters>[0]) => {
     setCursorStack([undefined]);
@@ -127,178 +123,15 @@ export const DowntimeEventsPage: React.FC = () => {
     }
   };
 
-  const handleExport = async (format: ExportFormat) => {
-    if (!selectedDeviceId || isExporting || cooldownSeconds > 0) return;
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      const result = await withExportAbortTimeout(undefined, (signal) =>
-        apiClient.exportDowntimeData(
-          {
-            device_id: selectedDeviceId,
-            category: filters.category,
-            from: filters.from,
-            to: filters.to,
-            unlabeled_only: filters.unlabeledOnly || undefined,
-            active_only: filters.activeOnly || undefined,
-            format,
-          },
-          signal
-        )
-      );
-      setLastExport(result);
-      triggerBrowserDownload(result.filename, result.content, result.mimeType);
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('telemetry.refresh', selectedDeviceId, err.message);
-      }
-      const status =
-        err instanceof ApiError
-          ? err.httpStatus
-          : (err as { status?: number })?.status;
-      if (status === 429) {
-        setCooldownSeconds(30);
-      }
-      setExportError({
-        code: (err as { code?: string })?.code,
-        status,
-        message: err instanceof Error ? err.message : 'Gagal mengekspor data historis downtime.',
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const handleClassificationSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['active-downtimes'] });
     queryClient.invalidateQueries({ queryKey: ['downtime'] });
   };
 
-  const columns = useMemo<ColumnDef<DowntimeEvent, unknown>[]>(
-    () => [
-      {
-        id: 'machine',
-        header: 'Mesin & Perangkat',
-        cell: ({ row }) => {
-          const ev = row.original;
-          const machLbl = formatDeletedRelationLabel(ev.machine_name, ev.machine_id);
-          const devLbl = formatDeletedRelationLabel(ev.device_id, null);
-          return (
-            <div className="text-xs">
-              <div
-                className={
-                  machLbl.isDeleted
-                    ? 'italic text-slate-400'
-                    : 'font-semibold text-slate-900 dark:text-slate-100'
-                }
-              >
-                {machLbl.label}
-              </div>
-              <div className="text-[11px] font-tabular text-slate-400">
-                {devLbl.isDeleted ? '[dihapus]' : ev.device_id}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'category',
-        header: 'Six Big Losses & Kategori',
-        cell: ({ row }) => {
-          const ev = row.original;
-          const sbl = mapDowntimeToSixBigLoss(ev.category);
-          return (
-            <div className="text-xs">
-              {/* E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' = server tidak
-                  mengirim kategori — tampilkan label jujur. */}
-              <div className="font-medium text-slate-800 dark:text-slate-200">
-                {ev.category === 'UNKNOWN' ? 'Belum dikategorikan' : ev.category}
-              </div>
-              <div className="text-[11px] text-sky-600 dark:text-sky-400">{sbl.label}</div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'reason',
-        header: 'Alasan / Catatan',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return (
-            <div className="text-xs max-w-xs">
-              <div className="text-slate-800 dark:text-slate-200">{ev.reason}</div>
-              {ev.notes && (
-                <div className="text-[11px] text-slate-500 mt-0.5 italic">Note: {ev.notes}</div>
-              )}
-            </div>
-          );
-        },
-      },
-      {
-        id: 'duration',
-        header: 'Durasi & Waktu',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return (
-            <div className="text-xs font-tabular">
-              <div className="font-semibold text-slate-900 dark:text-slate-100">
-                {ev.durationFormatted || formatDuration(ev.duration_seconds)}
-              </div>
-              <div className="text-[11px] text-slate-400">
-                {formatDateTime(ev.started_at)}
-                {ev.ended_at === null && ' (Ongoing)'}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'status',
-        header: 'Status Label',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return ev.is_labeled ? (
-            <div className="space-y-1">
-              <Badge variant="success">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Labeled
-              </Badge>
-              {ev.is_overwrite && (
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                  Overwritten
-                </div>
-              )}
-            </div>
-          ) : (
-            <Badge variant="danger">Unlabeled</Badge>
-          );
-        },
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Klasifikasi</div>,
-        cell: ({ row }) => {
-          const ev = row.original;
-          const rowLabelCap = checkCapability('downtime_event.label', ev.id);
-          return (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant={ev.is_labeled ? 'outline' : 'primary'}
-                disabled={!rowLabelCap.canInteract}
-                title={!rowLabelCap.canInteract ? rowLabelCap.reason : 'Labeli / overwrite alasan downtime'}
-                onClick={() => setSelectedEvent(ev)}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>{ev.is_labeled ? 'Overwrite' : 'Label'}</span>
-              </Button>
-            </div>
-          );
-        },
-      },
-    ],
-    [checkCapability]
-  );
+  // E31.5 (FAT-268): kolom tabel tinggal di hook sendiri (pola
+  // useOperationalEventColumns — hook itu tidak dipakai ulang karena
+  // tipenya berbeda: OperationalEvent + ack vs DowntimeEvent + label).
+  const columns = useDowntimeEventColumns(setSelectedEvent);
 
   const displayedEvents = activeTab === 'active' ? activeDowntimes : historyEvents;
   const unlabeledCount = displayedEvents.filter((e) => !e.is_labeled).length;
