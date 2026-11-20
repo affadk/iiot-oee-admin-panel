@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { X, Cpu, HardDrive, CheckCircle2, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
+import { telemetrySocket } from '../../services/ws/telemetrySocket';
+import { mapWsHealthEventToDeviceHealth } from '../../services/api/http/mappers/assets';
 import { DeviceHealth, EdgeDevice } from '../../types/assets';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -13,12 +15,16 @@ interface DeviceHealthDrawerProps {
 export const DeviceHealthDrawer: React.FC<DeviceHealthDrawerProps> = ({ device, onClose }) => {
   const [health, setHealth] = useState<DeviceHealth | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // FAT-261: dari mana health terakhir berasal — 'http' (snapshot awal /
+  // Refresh manual) atau 'ws' (HEALTH_UPDATE live tiap ~5 dtk).
+  const [source, setSource] = useState<'http' | 'ws'>('http');
 
   const fetchHealth = async (deviceId: string) => {
     setIsLoading(true);
     try {
       const res = await apiClient.getDeviceHealth(deviceId);
       setHealth(res);
+      setSource('http');
     } catch {
       setHealth(null);
     } finally {
@@ -28,10 +34,26 @@ export const DeviceHealthDrawer: React.FC<DeviceHealthDrawerProps> = ({ device, 
 
   useEffect(() => {
     if (device) {
+      setSource('http');
       fetchHealth(device.device_id);
     } else {
       setHealth(null);
     }
+  }, [device]);
+
+  // FAT-261: selagi drawer terbuka, HEALTH_UPDATE untuk device ini
+  // memperbarui health secara live — HTTP tetap jadi snapshot awal dan
+  // Refresh manual. Frame device lain diabaikan.
+  useEffect(() => {
+    if (!device) return;
+    const deviceId = device.device_id;
+    const unsub = telemetrySocket.subscribe((event) => {
+      if (event.type === 'HEALTH_UPDATE' && event.device_id === deviceId) {
+        setHealth(mapWsHealthEventToDeviceHealth(event));
+        setSource('ws');
+      }
+    });
+    return () => unsub();
   }, [device]);
 
   if (!device) return null;
@@ -54,11 +76,15 @@ export const DeviceHealthDrawer: React.FC<DeviceHealthDrawerProps> = ({ device, 
               <Cpu className="w-4 h-4 text-sky-600 dark:text-sky-400" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-tabular">
-                {device.device_id}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-tabular">
+                  {device.device_id}
+                </h2>
+                {source === 'ws' && health && <Badge variant="success">Live WS</Badge>}
+              </div>
               <p className="text-[11px] text-slate-500">
                 Diagnostik Kesehatan Perangkat Lapangan
+                {source === 'ws' && health && ' — diperbarui otomatis tiap ~5 detik'}
               </p>
             </div>
           </div>

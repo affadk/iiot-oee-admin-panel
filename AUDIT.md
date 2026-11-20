@@ -3427,3 +3427,53 @@ Dokumen: `AUDIT.md` §42 (file ini) + `docs/LINEAR.md` (§1.1 baris E30 +
 §8: 223 Done / 34 Todo / 2 In Progress / 1 Canceled, total 260) +
 `docs/linear-seed.json` v34 (`verified` 260/223/34/2; `issueMap` E30→FAT-248,
 E30-H30.1→FAT-249 … E30-D30.1→FAT-260). Belum di-push.
+
+## 43. FAT-261 — Panel konsumsi HEALTH_UPDATE dari WS (temuan audit WS health 2026-11-20)
+
+**Akar.** Backend mengirim `HEALTH_UPDATE` tiap ~5 dtk dengan lengkap
+(heap_free, tasks_healthy/total, stale_tasks, event_flags), tapi panel
+tidak membacanya sama sekali: `HEALTH_UPDATE` hanya terdaftar di
+`KNOWN_WS_TYPES` lalu diteruskan sebagai lifecycle event mentah
+(`payload: Record<string, unknown>`) — grep seluruh `src/` menemukan
+0 consumer. Health edge device di panel hanya berasal dari snapshot HTTP
+`GET /devices/{id}/health` saat drawer dibuka + tombol Refresh manual.
+Saluran push yang sudah mengalir terbuang; drawer tidak pernah ter-update
+live dan tidak ada indikator umur laporan berbasis WS.
+
+**Perbaikan (panel saja — sistem health TIDAK diubah).**
+1. `src/services/ws/telemetrySocket.ts`: `HEALTH_UPDATE` diparse jadi
+   event bertipe `TelemetryWsHealthEvent` (fail-soft: frame tanpa `data`
+   objek / tanpa `device_id` → null, koneksi tidak putus); dikeluarkan
+   dari union lifecycle (tidak ada pemanggil `emitLifecycleEvent` untuk
+   tipe ini). Timestamp frame (ISO, presisi ms) diutamakan atas
+   `data.timestamp` (epoch detik) — konsisten dengan fallback lifecycle.
+2. `src/services/api/http/mappers/assets.ts`: `mapWsHealthEventToDeviceHealth`
+   (baru) — WS → `DeviceHealth` yang sama dengan snapshot HTTP, pakai
+   `decodeEventFlags` 12-bit firmware. WS tidak membawa `ageSec`, jadi
+   umur laporan dihitung dari timestamp frame terhadap `nowMs`
+   (di-inject tes); timestamp masa depan dijepit ke 0.
+3. `src/features/assets/DeviceHealthDrawer.tsx`: selagi drawer terbuka,
+   subscribe WS — `HEALTH_UPDATE` untuk device yang sama memperbarui
+   health secara live + badge "Live WS" dan keterangan "diperbarui
+   otomatis tiap ~5 detik". HTTP tetap jadi snapshot awal + Refresh
+   manual; frame device lain diabaikan; unsubscribe saat drawer tutup /
+   ganti device. Mode Demo tidak berubah (sim hanya emit TELEMETRY_UPDATE,
+   drawer tetap HTTP seperti semula).
+
+**Yang TIDAK diubah (sengaja).** Endpoint `/health` + `/health/detail`,
+tipe `DeviceHealth`, `mapDeviceHealth`, `useDevices` (DEVICE_STATUS_UPDATE
+sudah memicu refetch), backend (HEALTH_UPDATE belum ada di OpenAPI —
+catatan terpisah untuk agen lain), HMI (sudah mengonsumsi HEALTH_UPDATE
+langsung — diverifikasi dari `useTelemetrySubscription.ts`).
+
+**Prasyarat.** Tree lokal disinkronkan dulu dengan remote `34e21cc`
+(26 file agen lain: FAT-228, FAT-202, B3, infra tes) sebelum
+implementasi — tes gabungan terverifikasi **512/512** di tree gabungan.
+
+**Hasil.** `tsc` 0, `npm test` **521/521** (512 + 9 baru: 5 parser
+`telemetrySocket.test.ts` + 4 mapper `wsHealth.test.ts`), `build` OK,
+checker 0 FAIL (338 file). Belum diverifikasi live (butuh Vercel
+redeploy + buka drawer di browser saat SIM mengirim).
+
+Dokumen: `AUDIT.md` §43 (file ini). Tiket FAT-261 dibuat sebelum
+implementasi, status In Progress dengan komentar progres.

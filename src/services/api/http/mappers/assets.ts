@@ -9,6 +9,7 @@ import { EdgeDeviceSchema, StationSchema, MachineSchema, OperatorSchema, Product
 import { normalizeFsmState } from '../../../../utils/oeeCalculations';
 import { Machine, EdgeDevice, Station, DeviceHealth, MachineStatusHistoryItem } from '../../../../types/assets';
 import { Product, Operator, ProductionLine, Shift, ShiftSchedule } from '../../../../types/production';
+import { TelemetryWsHealthEvent } from '../../../ws/telemetrySocket';
 
 export function mapDevice(raw: unknown): EdgeDevice {
   const r = (raw ?? {}) as Record<string, unknown>;
@@ -228,6 +229,32 @@ export function mapMachineStatusHistory(raw: unknown): MachineStatusHistoryItem 
     durationSec: num(pick(r.durationSec, r.duration_sec), 0),
     triggerSource: str(pick(r.triggerSource, r.trigger_source), 'SYSTEM'),
     isActive: bool(pick(r.isActive, r.is_active), false),
+  };
+}
+
+/**
+ * FAT-261 (temuan audit WS health 2026-11-20): HEALTH_UPDATE dari WS
+ * dipetakan ke DeviceHealth yang SAMA dengan snapshot HTTP — sistem health
+ * tidak diubah. WS tidak membawa ageSec, jadi umur laporan dihitung dari
+ * timestamp frame terhadap `nowMs` (bisa di-inject tes). eventFlags
+ * didekode tabel 12-bit firmware (decodeEventFlags).
+ */
+export function mapWsHealthEventToDeviceHealth(
+  event: TelemetryWsHealthEvent,
+  nowMs: number = Date.now(),
+): DeviceHealth {
+  const tsMs = Date.parse(event.timestampIso);
+  const ageSec = Number.isFinite(tsMs) ? Math.max(0, Math.floor((nowMs - tsMs) / 1000)) : 0;
+  return {
+    device_id: event.device_id,
+    timestamp: event.timestampIso,
+    heapFree: event.data.heapFree,
+    tasksHealthy: event.data.tasksHealthy,
+    tasksTotal: event.data.tasksTotal,
+    ageSec,
+    eventFlags: decodeEventFlags(event.data.eventFlags),
+    staleCount: event.data.staleCount,
+    staleTasks: event.data.staleTasks,
   };
 }
 

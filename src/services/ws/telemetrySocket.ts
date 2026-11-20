@@ -32,9 +32,30 @@ export interface TelemetryWsTelemetryEvent {
   plc_modbus?: { spindle_rpm?: number; temp_c?: number; alarm_code?: number };
 }
 
+export interface TelemetryWsHealthData {
+  heapFree: number;
+  tasksHealthy: number;
+  tasksTotal: number;
+  staleTasks: string[];
+  staleCount: number;
+  /** Bitmask angka (12-bit firmware) atau array string — didekode mapper. */
+  eventFlags: number | string[];
+}
+
+/**
+ * FAT-261: HEALTH_UPDATE sebagai event bertipe sendiri (bukan lifecycle
+ * mentah) — panel akhirnya mengonsumsinya. Bentuk frame: Build Guide §10 /
+ * API doc §7.A + observasi live 20 Nov 2026 (HEALTH_UPDATE tiap ~5 dtk).
+ */
+export interface TelemetryWsHealthEvent {
+  type: 'HEALTH_UPDATE';
+  device_id: string;
+  timestampIso: string;
+  data: TelemetryWsHealthData;
+}
+
 export interface TelemetryWsLifecycleEvent {
   type:
-    | 'HEALTH_UPDATE'
     | 'DEVICE_STATUS_UPDATE'
     | 'DEVICE_EVENT'
     // E20 P20.5 (FAT-157): nama event kanonis §7G.
@@ -64,7 +85,7 @@ export interface TelemetryWsLifecycleEvent {
   timestampIso: string;
 }
 
-export type TelemetryWsEvent = TelemetryWsTelemetryEvent | TelemetryWsLifecycleEvent;
+export type TelemetryWsEvent = TelemetryWsTelemetryEvent | TelemetryWsHealthEvent | TelemetryWsLifecycleEvent;
 
 export const KNOWN_WS_TYPES = new Set([
   'TELEMETRY_UPDATE',
@@ -170,6 +191,39 @@ export function parseWsIncomingFrame(rawData: string): TelemetryWsEvent | 'pong'
             alarm_code: plc.alarm_code !== undefined ? Number(plc.alarm_code) : undefined,
           }
         : undefined,
+    };
+  }
+
+  // FAT-261: HEALTH_UPDATE diparse bertipe (bukan lifecycle mentah) agar
+  // panel bisa mengonsumsinya. Frame tak valid diabaikan (fail-soft) —
+  // koneksi WS tidak boleh putus karena satu frame health rusak.
+  if (type === 'HEALTH_UPDATE') {
+    const data = parsed.data as Record<string, unknown> | undefined;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    const deviceId = String(parsed.device_id ?? data.device_id ?? '').trim();
+    if (!deviceId) return null;
+    const num = (v: unknown, fallback = 0): number => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const rawFlags = data.event_flags ?? data.eventFlags;
+    const rawStale = data.stale_tasks ?? data.staleTasks;
+    return {
+      type: 'HEALTH_UPDATE',
+      device_id: deviceId,
+      // Timestamp frame (ISO, presisi ms) diutamakan — konsisten dengan
+      // fallback lifecycle; data.timestamp (epoch detik) hanya cadangan.
+      timestampIso: normalizeWsTimestamp(parsed.timestamp ?? data.timestamp),
+      data: {
+        heapFree: num(data.heap_free ?? data.heapFree, 0),
+        tasksHealthy: num(data.tasks_healthy ?? data.tasksHealthy, 0),
+        tasksTotal: num(data.tasks_total ?? data.tasksTotal, 0),
+        staleTasks: Array.isArray(rawStale)
+          ? rawStale.filter((x): x is string => typeof x === 'string')
+          : [],
+        staleCount: num(data.stale_count ?? data.staleCount, 0),
+        eventFlags: Array.isArray(rawFlags) ? rawFlags.map((x) => String(x)) : num(rawFlags, 0),
+      },
     };
   }
 
