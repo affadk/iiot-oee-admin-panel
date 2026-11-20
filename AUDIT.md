@@ -3472,8 +3472,12 @@ implementasi — tes gabungan terverifikasi **512/512** di tree gabungan.
 
 **Hasil.** `tsc` 0, `npm test` **521/521** (512 + 9 baru: 5 parser
 `telemetrySocket.test.ts` + 4 mapper `wsHealth.test.ts`), `build` OK,
-checker 0 FAIL (338 file). Belum diverifikasi live (butuh Vercel
-redeploy + buka drawer di browser saat SIM mengirim).
+checker 0 FAIL (338 file). Terverifikasi LIVE 20 Nov 2026 17:48–17:49 WIB
+(login ADM-001, Edge Devices → drawer STM32-OEE-SIM, ~40 dtk tanpa
+Refresh): badge "Live WS" muncul dalam beberapa detik dan bertahan;
+"Pembaruan 4 detik lalu" → "0 detik lalu" dan tetap 0 dtk; memori 64,0 KB
++ proses 8/8 (statis, sesuai nilai tetap SIM); event flags kosong.
+FAT-261 → Done.
 
 Dokumen: `AUDIT.md` §43 (file ini). Tiket FAT-261 dibuat sebelum
 implementasi, status In Progress dengan komentar progres.

@@ -1792,10 +1792,10 @@
   },
   "verified": {
    "total": 261,
-   "done": 223,
+   "done": 224,
    "todo": 27,
-   "inProgress": 3,
-   "inReview": 7,
+   "inProgress": 2,
+   "inReview": 6,
    "canceled": 1,
    "parents": 34,
    "children": 225
