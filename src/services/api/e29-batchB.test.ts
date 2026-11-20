@@ -106,7 +106,7 @@ async function withStubServer(fn: () => Promise<void>): Promise<void> {
     httpApiClient.setSessionActive(false, null);
     httpApiClient.setNetworkMode('LAN');
     restoreEnv(snap);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 }
 

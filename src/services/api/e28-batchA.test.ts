@@ -79,7 +79,7 @@ function startStub(): Promise<http.Server> {
     const body = req.method === 'GET' ? null : await readBody(req);
     captured.push({ method: req.method ?? '', path: url.pathname, query: url.search, body });
     const json = (status: number, payload: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(payload));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/access-control/policies') {
@@ -143,7 +143,7 @@ async function withStub<T>(fn: () => Promise<T>): Promise<T> {
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 }
 

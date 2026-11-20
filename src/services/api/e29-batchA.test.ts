@@ -87,7 +87,7 @@ async function withStubServer(fn: () => Promise<void>): Promise<void> {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -130,7 +130,7 @@ async function withStubServer(fn: () => Promise<void>): Promise<void> {
     httpApiClient.setSessionActive(false, null);
     httpApiClient.setNetworkMode('LAN');
     restoreEnv(snap);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 }
 
@@ -171,7 +171,7 @@ test('T2: stub strict menolak body ber-station 400 — tapi login() client tidak
     // Kontrol negatif: kirim langsung dengan station_id → server 400.
     const raw = await fetch(`http://localhost:${PORT}/api/v1/auth/admin/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Connection: 'close' },
       body: JSON.stringify({ operator_id: 'ADM-001', password: 'Admin@2026!', station_id: 'ADMIN-CONSOLE-01' }),
     });
     assert.equal(raw.status, 400);

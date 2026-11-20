@@ -91,7 +91,7 @@ test('HTTP aggregate: seluruh rows kanonis dikembalikan + ringkasan dihitung dar
     const url = new URL(req.url ?? '/', 'http://localhost:3003');
     seenUrls.push(url.pathname + url.search);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -176,7 +176,7 @@ test('HTTP aggregate: seluruh rows kanonis dikembalikan + ringkasan dihitung dar
     assert.equal(aggUrl.searchParams.get('bucket'), '1h');
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -186,7 +186,7 @@ test('HTTP aggregate: baris bentuk ringkasan lama tetap termuat (kompatibel mund
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost:3004');
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -226,6 +226,6 @@ test('HTTP aggregate: baris bentuk ringkasan lama tetap termuat (kompatibel mund
     assert.equal(agg.avg_oee, 83.5);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });

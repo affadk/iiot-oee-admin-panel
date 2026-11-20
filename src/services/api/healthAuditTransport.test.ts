@@ -23,7 +23,7 @@ test('E20 P20.4: health/detail + hapus sintesis; op-events FR-034-01 + export sy
       }
       seen.push({ method: req.method, path: url.pathname, search: url.search, body });
       const json = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(payload));
       };
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -153,6 +153,7 @@ test('E20 P20.4: health/detail + hapus sintesis; op-events FR-034-01 + export sy
       if (req.method === 'GET' && url.pathname === '/api/v1/system/audit/export') {
         res.writeHead(200, {
           'Content-Type': 'text/csv',
+          Connection: 'close',
           'Content-Disposition': 'attachment; filename="system_audit_2026-11-19.csv"',
           'X-Export-Source': 'system_audit',
           'X-Export-Generated-At': '2026-11-19T03:00:00.000Z',
@@ -270,6 +271,6 @@ test('E20 P20.4: health/detail + hapus sintesis; op-events FR-034-01 + export sy
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });

@@ -230,7 +230,7 @@ test('E20 P20.3: HTTP stub port 3006 — 429 membawa Retry-After dari server; re
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost:3006');
     const json = (status: number, payload: unknown, headers: Record<string, string> = {}) => {
-      res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+      res.writeHead(status, { 'Content-Type': 'application/json', ...headers, Connection: 'close' });
       res.end(JSON.stringify(payload));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -274,6 +274,6 @@ test('E20 P20.3: HTTP stub port 3006 — 429 membawa Retry-After dari server; re
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });

@@ -160,7 +160,7 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
             rows={2}
             value={bindAbacJson}
             onChange={(e) => onAbacJsonChange(e.target.value)}
-            placeholder='{"line_id": "LINE-01"}'
+            placeholder='{"attr": "subject.line_id", "eq": "LINE-01"}'
             className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
           />
         </div>

@@ -236,7 +236,7 @@ test('HTTP transport vs stub server: login, retry 503, trailing slash, 409 tanpa
     seenPaths.push(url.pathname);
     seenAuth.push(req.headers.authorization);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -310,7 +310,7 @@ test('HTTP transport vs stub server: login, retry 503, trailing slash, 409 tanpa
     assert.equal(productsCalls, 1);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -331,7 +331,7 @@ test('E14 Fase 0: K-10 PUT IAM, K-10 PATCH dynsec, K-11 provision, K-03 slash co
       }
       seen.push({ method: req.method, path: url.pathname, body });
       const json = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(payload));
       };
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -412,7 +412,7 @@ test('E14 Fase 0: K-10 PUT IAM, K-10 PATCH dynsec, K-11 provision, K-03 slash co
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -433,7 +433,7 @@ test('E15 K-05: 4 sub-operasi dynsec mengirim objek tunggal (stub HTTP)', async 
       }
       seen.push({ method: req.method, path: url.pathname, body });
       const json = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(payload));
       };
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -501,7 +501,7 @@ test('E15 K-05: 4 sub-operasi dynsec mengirim objek tunggal (stub HTTP)', async 
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -674,7 +674,7 @@ test('E20 P20.2: provision/revoke/rotasi/health device via HTTP (stub, port 3005
       }
       seen.push({ method: req.method, path: url.pathname, body });
       const json = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(payload));
       };
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -787,6 +787,6 @@ test('E20 P20.2: provision/revoke/rotasi/health device via HTTP (stub, port 3005
     httpApiClient.setSessionActive(false, null);
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });

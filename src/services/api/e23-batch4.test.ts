@@ -53,17 +53,17 @@ function startStub(
       }
       seen.push({ method: req.method, path: url.pathname, url: url.pathname + url.search, body });
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(LOGIN_BODY));
         return;
       }
       const out = handler(req, url, body);
       if (out) {
-        res.writeHead(out.status, { 'Content-Type': 'application/json' });
+        res.writeHead(out.status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(out.payload));
         return;
       }
-      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.writeHead(404, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify({ error: 'NOT_FOUND', message: `Rute stub tidak dikenal: ${url.pathname}` }));
     });
   });
@@ -85,7 +85,7 @@ async function withStub(
     await run(seen);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
   }

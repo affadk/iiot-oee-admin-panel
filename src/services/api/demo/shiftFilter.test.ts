@@ -183,7 +183,7 @@ test('HTTP transport: getShiftSummary & getShiftTimeline mengirim date/shift; ge
     const url = new URL(req.url ?? '/', 'http://localhost:3005');
     seenUrls.push(url.pathname + url.search);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -281,6 +281,6 @@ test('HTTP transport: getShiftSummary & getShiftTimeline mengirim date/shift; ge
     assert.equal(plainSummaryUrl.searchParams.has('to'), false);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });

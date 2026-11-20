@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MqttRole } from '../../../types/mqtt';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -20,9 +20,22 @@ export const CreateMqttClientModal: React.FC<CreateMqttClientModalProps> = ({
 }) => {
   const [cUsername, setCUsername] = useState('');
   const [cPassword, setCPassword] = useState('');
-  const [cRoles, setCRoles] = useState<string[]>(['edge_publisher']);
+  // FAT-228 (MUT-02): JANGAN hardcode nama role. `edge_publisher` tidak ada di
+  // broker → mosquitto "Role not found" dan client-create selalu gagal. Pilih
+  // role nyata dari daftar `GET /mqtt/roles` (prop `roles`); default = role
+  // pertama yang tersedia. Disinkronkan saat modal dibuka / roles tiba.
+  const [cRoles, setCRoles] = useState<string[]>([]);
   const [cPasswordError, setCPasswordError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setCRoles((prev) => {
+      const valid = prev.filter((name) => roles.some((r) => r.rolename === name));
+      if (valid.length > 0) return valid;
+      return roles[0] ? [roles[0].rolename] : [];
+    });
+  }, [open, roles]);
 
   const submit = async () => {
     // K-06 (B33): API §M + Guide §7.2 — password wajib (min 8, maks 128);

@@ -103,14 +103,14 @@ test('Demo aggregate: rentang 7 hari sama dengan default (rasio 1)', async () =>
 });
 
 test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/limit sebagai query', async () => {
-  process.env.VITE_API_URL = 'http://localhost:3002/api/v1';
+  process.env.VITE_API_URL = 'http://localhost:3009/api/v1';
   const seenUrls: string[] = [];
 
   const server = http.createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://localhost:3002');
+    const url = new URL(req.url ?? '/', 'http://localhost:3009');
     seenUrls.push(url.pathname + url.search);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -144,7 +144,7 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
     }
     json(404, { error: 'NOT_FOUND', message: `Rute stub tidak dikenal: ${url.pathname}` });
   });
-  await new Promise<void>((resolve) => server.listen(3002, resolve));
+  await new Promise<void>((resolve) => server.listen(3009, resolve));
   try {
     await httpApiClient.login('ADM-001', 'Admin@2026!');
 
@@ -154,7 +154,7 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
       limit: 50,
     });
     assert.equal(hourly.length, 2);
-    const hourlyUrl = new URL(seenUrls.find((u) => u.includes('/hourly')) ?? '', 'http://localhost:3002');
+    const hourlyUrl = new URL(seenUrls.find((u) => u.includes('/hourly')) ?? '', 'http://localhost:3009');
     assert.equal(hourlyUrl.searchParams.get('from'), '2026-11-11T09:00:00+07:00');
     assert.equal(hourlyUrl.searchParams.get('to'), '2026-11-11T12:00:00+07:00');
     assert.equal(hourlyUrl.searchParams.get('limit'), '50');
@@ -165,7 +165,7 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
       limit: 50,
     });
     assert.equal(agg.sample_count, 432);
-    const aggUrl = new URL(seenUrls.find((u) => u.includes('/aggregate')) ?? '', 'http://localhost:3002');
+    const aggUrl = new URL(seenUrls.find((u) => u.includes('/aggregate')) ?? '', 'http://localhost:3009');
     assert.equal(aggUrl.searchParams.get('bucket'), '1h');
     assert.equal(aggUrl.searchParams.get('from'), '2026-11-11T09:00:00+07:00');
     assert.equal(aggUrl.searchParams.get('to'), '2026-11-11T12:00:00+07:00');
@@ -175,13 +175,13 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
     // terkirim, tetapi limit default spec (72) SELALU terkirim.
     seenUrls.length = 0;
     await httpApiClient.getHourlyTrend('STM32-OEE-01');
-    const plainUrl = new URL(seenUrls[0] ?? '', 'http://localhost:3002');
+    const plainUrl = new URL(seenUrls[0] ?? '', 'http://localhost:3009');
     assert.equal(plainUrl.searchParams.has('from'), false);
     assert.equal(plainUrl.searchParams.has('to'), false);
     assert.equal(plainUrl.searchParams.get('limit'), '72');
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -314,7 +314,7 @@ test('HTTP transport: getShiftSummary & getShiftTimeline mengirim from/to sebaga
     const url = new URL(req.url ?? '/', 'http://localhost:3003');
     seenUrls.push(url.pathname + url.search);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -392,7 +392,7 @@ test('HTTP transport: getShiftSummary & getShiftTimeline mengirim from/to sebaga
     assert.equal(plainTimelineUrl.searchParams.has('to'), false);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 
@@ -470,7 +470,7 @@ test('HTTP transport: getTelemetryRollup mengirim machine_id sebagai query', asy
     const url = new URL(req.url ?? '/', 'http://localhost:3004');
     seenUrls.push(url.pathname + url.search);
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -534,7 +534,7 @@ test('HTTP transport: getTelemetryRollup mengirim machine_id sebagai query', asy
     assert.equal(rollupUrl.searchParams.has('device_id'), false);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 

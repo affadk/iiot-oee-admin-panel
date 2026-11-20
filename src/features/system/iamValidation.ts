@@ -20,7 +20,7 @@ export function parseAbacCondition(json: string): AbacParseResult {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {
         ok: false,
-        error: 'abac_condition harus berupa objek JSON (mis. {"line_id": "LINE-01"}).',
+        error: 'abac_condition harus berupa objek JSON (mis. {"attr": "subject.line_id", "eq": "LINE-01"}).',
       };
     }
     return { ok: true, value: parsed as Record<string, unknown> };

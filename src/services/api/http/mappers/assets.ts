@@ -189,11 +189,23 @@ export function mapShiftSchedule(raw: unknown): ShiftSchedule {
   }, 'jadwal shift');
 }
 
+// FAT-202 (N-32): tabel bit OTORITATIF dari firmware
+// `App/Inc/tasks_config.h` (System Event Group Bits), didokumentasikan di
+// `firmware/docs/11-mqtt-contract.md`. Tabel lama (NTP_SYNCED/MQTT_TLS_ACTIVE/
+// MODBUS_*) karangan dan tidak cocok firmware — diganti, bukan ditambah.
 export const EVENT_FLAG_BITS: Array<[number, string]> = [
-  [1, 'NTP_SYNCED'],
-  [2, 'MQTT_TLS_ACTIVE'],
-  [4, 'MODBUS_HEALTHY'],
-  [8, 'MODBUS_RETRY'],
+  [1, 'ETHERNET_UP'],
+  [2, 'MQTT_CONNECTED'],
+  [4, 'JOB_CONFIGURED'],
+  [8, 'EMERGENCY_STOP'],
+  [16, 'SD_CARD_PRESENT'],
+  [32, 'FLASH_WARNING'],
+  [64, 'WEB_GUI_ACTIVE'],
+  [128, 'WEB_GUI_TIMEOUT'],
+  [256, 'PVD_EMERGENCY'],
+  [512, 'HEAP_LOW'],
+  [1024, 'STACK_OVERFLOW'],
+  [2048, 'START_REJECTED'],
 ];
 
 /** Backend lama memakai bitmask angka; panel memakai string[] (drawer badge). */

@@ -6,7 +6,7 @@
  *   Tunnel + private -> READ-ONLY  | Tunnel + public -> boleh mutasi
  *
  * Penegakan diuji di tiga lapis: resolver murni, client demo (in-memory),
- * dan client HTTP (vs stub server lokal di port 3002 — port 3001 dipakai
+ * dan client HTTP (vs stub server lokal di port 3008 — port 3001 dipakai
  * modeAndTransport.test.ts), plus gerbang capability UI.
  */
 import test from 'node:test';
@@ -158,9 +158,9 @@ test('HTTP: assertLanForMutation menolak sebelum fetch (private); public menerus
   const snap = snapshotEnv();
   let productsCalls = 0;
   const server = http.createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://localhost:3002');
+    const url = new URL(req.url ?? '/', 'http://localhost:3008');
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
       res.end(JSON.stringify(body));
     };
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -194,10 +194,10 @@ test('HTTP: assertLanForMutation menolak sebelum fetch (private); public menerus
     }
     json(404, { error: 'NOT_FOUND', message: `Rute stub tidak dikenal: ${url.pathname}` });
   });
-  await new Promise<void>((resolve) => server.listen(3002, resolve));
+  await new Promise<void>((resolve) => server.listen(3008, resolve));
   try {
     process.env.VITE_API_MODE = 'demo'; // demo client tidak dipakai di sini; jaga-jaga
-    process.env.VITE_API_URL = 'http://localhost:3002/api/v1';
+    process.env.VITE_API_URL = 'http://localhost:3008/api/v1';
     delete process.env.VITE_ALLOW_ACCESS_MODE_SWITCH;
     const loggedIn = await httpApiClient.login('ADM-001', 'Admin@2026!');
     assert.equal(loggedIn.token, 'stub-jwt');
@@ -240,7 +240,7 @@ test('HTTP: assertLanForMutation menolak sebelum fetch (private); public menerus
     httpApiClient.setSessionActive(false, null);
     httpApiClient.setNetworkMode('LAN');
     restoreEnv(snap);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
   }
 });
 

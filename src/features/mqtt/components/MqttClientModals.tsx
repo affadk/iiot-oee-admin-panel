@@ -65,17 +65,18 @@ interface AttachRoleModalProps {
 }
 
 export const AttachRoleModal: React.FC<AttachRoleModalProps> = ({ client, roles, onClose, onSubmit }) => {
-  const [attachRoleName, setAttachRoleName] = useState('edge_publisher');
+  const [attachRoleName, setAttachRoleName] = useState('');
 
   // Default milik form, diinisialisasi saat modal dibuka dari daftar roles —
   // bukan dari loader (perbaikan bug stale-closure loadAll, R9.5 §5a).
+  // FAT-228 (MUT-02): tanpa fallback hardcode `edge_publisher` (role fiktif).
   useEffect(() => {
-    if (client) setAttachRoleName(roles[0]?.rolename ?? 'edge_publisher');
+    if (client) setAttachRoleName(roles[0]?.rolename ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
   const submit = async () => {
-    if (!client) return;
+    if (!client || !attachRoleName) return;
     const ok = await onSubmit(client.username, attachRoleName);
     if (ok) onClose();
   };

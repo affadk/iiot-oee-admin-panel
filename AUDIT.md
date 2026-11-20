@@ -3248,3 +3248,101 @@ FAT-221 Todo) + `docs/linear-seed.json` v33 (`verified` 246/207/37/2;
 `issueMap` tak berubah — pemetaan N-43→FAT-213, E2E-07→FAT-221, E29→FAT-239
 sudah ada). Commit dokumen lokal: SATU commit dokumen saja — tanpa perubahan
 kode, tanpa push; hash lihat `git log -1` (HEAD lokal).
+
+## 41. E30 — Wave 1 perbaikan hasil audit backend↔panel (2026-11-20)
+
+**Konteks.** Audit gap backend↔admin-panel (13 verdict issue Linear sudah
+dicatat sebagai komentar; FAT-74/77/83 ternyata ID phantom — tidak ada di
+Linear, kerja B3/B6/B12 dilacak lewat dokumen ini + FAT-174). Wave 1
+mengejar perbaikan yang TIDAK butuh keputusan produk/keamanan Fathur:
+FAT-228 (MUT-02), FAT-202 (N-32), B3 (placeholder ABAC), plus stabilisasi
+infra tes yang ternyata rusak pra-ada. FAT-237/247/40 (B9/live-mode) tetap
+menunggu keputusan Fathur — TIDAK disentuh.
+
+### 41.1 FAT-228 (MUT-02): role default fiktif `edge_publisher`
+
+**Akar (terverifikasi).** `CreateMqttClientModal.tsx` meng-hardcode
+`useState(['edge_publisher'])` dan `MqttClientModals.tsx` (AttachRole)
+fallback `'edge_publisher'`. Role itu TIDAK ada di broker → mosquitto
+"Role not found" → create-client/attach-role selalu gagal.
+
+**Perbaikan.**
+- `CreateMqttClientModal.tsx`: default role diambil dari prop `roles`
+  (`GET /mqtt/roles`), bukan hardcode. `useEffect` menyinkronkan pilihan
+  saat modal dibuka / roles tiba: pertahankan pilihan yang masih valid,
+  bila kosong pilih role pertama yang tersedia. Tombol "Tambah" disabled
+  bila tak ada role terpilih (guard role-kosong sudah ada di disk).
+- `MqttClientModals.tsx` (AttachRole): fallback `roles[0]?.rolename ?? ''`
+  (tanpa `edge_publisher`); submit ditolak bila `attachRoleName` kosong.
+- Seed demo (`src/services/api/seeds/*`) TIDAK diubah — `edge_publisher`
+  di sana hanya data mock, bukan jalur mutasi nyata.
+
+### 41.2 FAT-202 (N-32): tabel bit event karangan
+
+**Akar.** `EVENT_FLAG_BITS` di `mappers/assets.ts` memakai
+NTP_SYNCED/MQTT_TLS_ACTIVE/MODBUS_HEALTHY/MODBUS_RETRY — tidak cocok
+firmware. Otoritatif: `firmware/App/Inc/tasks_config.h` (System Event Group
+Bits, 12 bit 1..2048), didokumentasikan di `firmware/docs/11-mqtt-contract.md`.
+
+**Perbaikan.** Ganti tabel (bukan tambah) dengan 12 bit firmware:
+ETHERNET_UP=1, MQTT_CONNECTED=2, JOB_CONFIGURED=4, EMERGENCY_STOP=8,
+SD_CARD_PRESENT=16, FLASH_WARNING=32, WEB_GUI_ACTIVE=64, WEB_GUI_TIMEOUT=128,
+PVD_EMERGENCY=256, HEAP_LOW=512, STACK_OVERFLOW=1024, START_REJECTED=2048.
+Tes baru `mappers/eventFlags.test.ts` (3 tes) mengunci tabel + decode
+bitmask/array/non-number.
+
+### 41.3 B3 (FAT-174): placeholder ABAC menyesatkan
+
+**Akar.** Placeholder `{"line_id": "LINE-01"}` di BindPermissionModal /
+EditPolicyModal / CreatePolicyModal dan pesan error `parseAbacCondition`
+memakai atribut telanjang `line_id` — bukan bentuk predikat terstruktur
+yang diterima backend (`authz/abac.ts`, whitelist 10 atribut bernamespace
+`subject.*`/`resource.*`). Operator menyalin placeholder → kondisi tak
+pernah match.
+
+**Perbaikan.** Placeholder + contoh pesan error diseragamkan ke
+`{"attr": "subject.line_id", "eq": "LINE-01"}` (bentuk predikat yang benar).
+`parseAbacCondition` tetap hanya memvalidasi objek JSON (bukan whitelist
+atribut) — penegakan atribut ada di backend; panel tidak menduplikasi
+whitelist sebagai sumber kebenaran kedua.
+
+### 41.4 Stabilisasi infra tes (rusak pra-ada, bukan regresi Wave 1)
+
+**Gejala.** `npm test` gagal 5–7 tes secara flaky (NETWORK / EADDRINUSE),
+padahal baseline HEAD juga gagal (dibuktikan via `git stash` + run ulang:
+set gagal identik dengan/tanpa perubahan Wave 1). Tiga akar independen:
+
+1. **Socket keep-alive undici lintas stub.** Stub HTTP per-tes ditutup lalu
+   stub berikutnya listen di port sama; undici memakai ulang soket lama →
+   `fetch failed` (NETWORK). Fix: `Connection: 'close'` di semua respons
+   stub + `server.closeAllConnections()` sebelum `server.close()` (24 situs,
+   18 file). Preseden sudah ada di `e29-batchB.test.ts`.
+2. **Tabrakan port antar-file paralel.** Node test runner menjalankan file
+   paralel; beberapa file memakai port stub sama (3031 dipakai e28-batchA
+   & e23-batch2) → EADDRINUSE. Fix: `--test-concurrency=1` di skrip `test`
+   (package.json) — file berjalan serial, port tidak bertabrakan.
+3. **Port 3002 dipegang proses live.** `rootlessport` (podman) memakai 3002
+   di host; `accessMode.test.ts` & `demo/telemetryRange.test.ts` listen di
+   3002 → EADDRINUSE permanen. Fix: pindah ke port fresh 3008 / 3009.
+
+**Hasil.** `npm test` 509/509 (506 lama + 3 baru N-32), `npm run lint`
+0 FAIL, `npm run build` sukses. Tanpa perubahan ini, gate tes tidak bisa
+hijau meski kode benar.
+
+### 41.5 Yang TIDAK dikerjakan (sengaja)
+
+- **B6 (silent default mapper IAM)** dan **B12 (SUP-042 inspector)**:
+  `useInspector.ts:18-22` punya komentar eksplisit bahwa swallow
+  `.catch(() => undefined)` deep-link DISENGAJA ("JANGAN memperbaiki jadi
+  reportError") — dihormati, tidak diubah. `mapIamRole` sudah menghapus
+  `privilege_level`/`policy_count` (E20 P20.3); sisa fallback
+  `is_system`/`created_at` butuh keputusan kontrak fail-hard → tunda.
+- **FAT-237 / FAT-247 / FAT-40 (B9 + live ACCESS_MODE)**: menunggu
+  keputusan Fathur (deviceId class, semantik OEE gapless, mode akses live).
+- **FAT-222 (docker volume)** + **backend spec 047**: batch terpisah
+  (repo iiot-oee), bukan di panel ini.
+
+Dokumen: `AUDIT.md` §41 (file ini). Verdict Linear sudah diposting sebagai
+komentar di 13 issue (bukan perubahan status). Commit lokal Wave 1 — tanpa
+push; hash lihat `git log -1`.
+

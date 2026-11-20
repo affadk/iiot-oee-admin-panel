@@ -98,7 +98,7 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             rows={3}
             value={editPolAbacJson}
             onChange={(e) => setEditPolAbacJson(e.target.value)}
-            placeholder='{"line_id": "LINE-01"}'
+            placeholder='{"attr": "subject.line_id", "eq": "LINE-01"}'
             className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
           />
         </div>

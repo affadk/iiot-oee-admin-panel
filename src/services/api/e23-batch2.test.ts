@@ -42,7 +42,7 @@ function startStub(
       }
       seen.push({ method: req.method, path: url.pathname, url: url.pathname + url.search, body });
       const json = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, { 'Content-Type': 'application/json', Connection: 'close' });
         res.end(JSON.stringify(payload));
       };
       if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
@@ -75,7 +75,7 @@ async function withStub(
     await run(seen);
   } finally {
     httpApiClient.setSessionActive(false, null);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
   }
