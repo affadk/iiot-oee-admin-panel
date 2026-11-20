@@ -353,7 +353,7 @@ flowchart TD
 ## 7. Edge Devices (`/admin/devices`)
 
 - **Rute**: `/admin/devices` (alias: `/admin/assets/devices`)
-- **Komponen**: `src/features/assets/DevicesPage.tsx`, `src/features/assets/DeviceHealthDrawer.tsx`
+- **Komponen**: `src/features/assets/DevicesPage.tsx`, `src/features/assets/components/DeviceHealthDrawer.tsx`
 - **Hak Akses**: Semua role dapat membaca & membuka drawer diagnostik; pendaftaran perangkat baru diblokir di Remote Tunnel (`isReadOnly`)
 
 ### Deskripsi & Tujuan

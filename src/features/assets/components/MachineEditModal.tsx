@@ -5,7 +5,8 @@ import { validateMachineInput } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
-import { mapApiIssuesToErrors, UpdateMachineInput } from '../hooks/useMachineCrud';
+import { UpdateMachineInput } from '../hooks/useMachineCrud';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 
 // E23 Batch 2 (FAT-183, N-14): default lini server (spec live PUT
 // /machines `lineId?` — update bisa pindah lini; kosong = tidak berubah).

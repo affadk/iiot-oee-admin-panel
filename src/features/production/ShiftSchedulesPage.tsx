@@ -1,18 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { CalendarClock, Plus, Edit3, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { ShiftSchedule, ProductionLine, Shift } from '../../types/production';
 import { ApiError } from '../../types/auth';
 import { useCapability, useAuth } from '../../context/AuthContext';
 import { validateShiftScheduleInput } from '../../utils/capabilities';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
-import { TableStateRow } from '../shared/TableStateRow';
+import { ShiftSchedulesTable } from './components/ShiftSchedulesTable';
+import { ShiftSchedulesFormModal } from './components/ShiftSchedulesFormModal';
 
 const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
@@ -271,90 +270,14 @@ export const ShiftSchedulesPage: React.FC = () => {
         />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                <th className="py-3 px-4">Jadwal ID</th>
-                <th className="py-3 px-4">Lini</th>
-                <th className="py-3 px-4">Shift</th>
-                <th className="py-3 px-4">Hari</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
-                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
-              {isLoading ? (
-                <TableStateRow isLoading isError={false} colSpan={6} />
-              ) : schedules.length === 0 ? (
-                <TableStateRow
-                  isLoading={false}
-                  isError={false}
-                  colSpan={6}
-                  emptyTitle="Belum ada jadwal shift"
-                  emptyDescription="Belum ada jadwal shift untuk kombinasi lini/shift. Tambah jadwal pertama lewat tombol 'Tambah Jadwal' di atas (butuh minimal satu lini dan satu shift)."
-                />
-              ) : (
-                schedules.map((sch) => {
-                  const rowManageCap = checkCapability('shift_schedule.manage', sch.scheduleId);
-                  return (
-                    <tr key={sch.scheduleId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 px-4 font-tabular">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-                          <CalendarClock className="w-4 h-4 text-sky-500 shrink-0" />
-                          <span>{sch.scheduleId}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{sch.lineId}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">
-                        {sch.shiftName ?? sch.shiftId}
-                        <div className="text-[11px] text-slate-500">
-                          {sch.shiftCode ?? ''} {sch.startTime && sch.endTime ? `· ${sch.startTime}–${sch.endTime}` : ''}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">
-                        {DAY_NAMES[sch.dayOfWeek - 1] ?? `Hari ${sch.dayOfWeek}`}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={sch.isActive ? 'success' : 'neutral'}>
-                          {sch.isActive ? 'ACTIVE' : 'INACTIVE'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Ubah jadwal shift'}
-                            onClick={() => openEditModal(sch)}
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Hapus jadwal shift'}
-                            onClick={() => setDeleteTarget(sch)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus</span>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ShiftSchedulesTable
+        schedules={schedules}
+        isLoading={isLoading}
+        dayNames={DAY_NAMES}
+        checkCapability={checkCapability}
+        onEdit={openEditModal}
+        onDelete={setDeleteTarget}
+      />
 
       <CursorPaginationBar
         loadedCount={schedules.length}
@@ -370,67 +293,25 @@ export const ShiftSchedulesPage: React.FC = () => {
       />
 
       {/* Create / Edit Modal */}
-      <Modal
+      <ShiftSchedulesFormModal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingSchedule ? `Edit Jadwal ${editingSchedule.scheduleId}` : 'Tambah Jadwal Shift Baru'}
-        subtitle="Satu lini tidak boleh punya dua shift yang jamnya tumpang tindih di hari yang sama (409 SHIFT_SCHEDULE_OVERLAP)."
-        footer={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setIsFormOpen(false)} disabled={isSaving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmitForm} isLoading={isSaving}>
-              {editingSchedule ? 'Simpan Perubahan' : 'Buat Jadwal'}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleSubmitForm} className="space-y-4">
-          <Select
-            label="Lini Produksi"
-            value={formLineId}
-            onChange={(e) => setFormLineId(e.target.value)}
-            options={lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))}
-            error={formErrors.lineId}
-            required
-            disabled={Boolean(editingSchedule)}
-          />
-          {editingSchedule && (
-            <p className="text-[11px] text-slate-500 -mt-2">
-              Lini tidak dapat diubah setelah jadwal dibuat (body PATCH spec tidak menerima lineId).
-            </p>
-          )}
-
-          <Select
-            label="Shift"
-            value={formShiftId}
-            onChange={(e) => setFormShiftId(e.target.value)}
-            options={shifts.map((s) => ({ value: s.shiftId, label: `${s.shiftName} (${s.shiftCode} ${s.startTime}–${s.endTime})` }))}
-            error={formErrors.shiftId}
-            required
-          />
-
-          <Select
-            label="Hari"
-            value={String(formDayOfWeek)}
-            onChange={(e) => setFormDayOfWeek(Number(e.target.value))}
-            options={DAY_NAMES.map((d, i) => ({ value: String(i + 1), label: `${d} (hari ke-${i + 1})` }))}
-            error={formErrors.dayOfWeek}
-            required
-          />
-
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formActive}
-              onChange={(e) => setFormActive(e.target.checked)}
-              className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            <span>Jadwal aktif dan dipakai untuk ringkasan OEE shift</span>
-          </label>
-        </form>
-      </Modal>
+        editingSchedule={editingSchedule}
+        lines={lines}
+        shifts={shifts}
+        dayNames={DAY_NAMES}
+        formLineId={formLineId}
+        onFormLineIdChange={setFormLineId}
+        formShiftId={formShiftId}
+        onFormShiftIdChange={setFormShiftId}
+        formDayOfWeek={formDayOfWeek}
+        onFormDayOfWeekChange={setFormDayOfWeek}
+        formActive={formActive}
+        onFormActiveChange={setFormActive}
+        formErrors={formErrors}
+        isSaving={isSaving}
+        onSubmit={handleSubmitForm}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmationDialog

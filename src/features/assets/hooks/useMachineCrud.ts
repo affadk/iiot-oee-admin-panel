@@ -6,17 +6,6 @@ import { useAuth } from '../../../context/AuthContext';
 import { ConflictDialogState } from '../../../components/ui/ConflictDialog';
 import { FeedbackState } from './useMachines';
 
-export const mapApiIssuesToErrors = (err: unknown): Record<string, string> => {
-  if (err instanceof ApiError && Array.isArray(err.issues)) {
-    const mapped: Record<string, string> = {};
-    for (const issue of err.issues) {
-      if (issue.field) mapped[issue.field] = issue.message;
-    }
-    return mapped;
-  }
-  return {};
-};
-
 export interface CreateMachineInput {
   machineId: string;
   name: string;

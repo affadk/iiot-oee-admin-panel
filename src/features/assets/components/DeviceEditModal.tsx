@@ -4,7 +4,8 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { validateDeviceInput } from '../../../utils/capabilities';
-import { mapApiIssuesToErrors, UpdateDeviceInput } from '../hooks/useDevices';
+import { UpdateDeviceInput } from '../hooks/useDevices';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 
 export interface DeviceEditModalProps {
   target: EdgeDevice | null;

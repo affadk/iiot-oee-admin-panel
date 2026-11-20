@@ -1,24 +1,13 @@
 import React, { useMemo } from 'react';
 import { HourlyOeePoint, ShiftSummary, ShiftTimelineSegment } from '../../../types/analytics';
 import { DowntimeEvent, MachineFsmState } from '../../../types/monitoring';
-import { Button } from '../../../components/ui/Button';
-import { formatJakartaTime } from '../../../utils/historicalExport';
 import { formatShiftScopeLabel, joinScopeLabel } from '../scopeLabels';
-import { buildTimelineAxisTicks } from '../timelineAxis';
 import { segmentProvisionalFlags } from '../timelineProvisional';
 import { ShiftTimelineDetail } from './ShiftTimelineDetail';
+import { FSM_SEGMENT_COLORS, ShiftTimelineBar } from './ShiftTimelineBar';
+import { ShiftTimelineAxis } from './ShiftTimelineAxis';
+import { ShiftTimelineStates } from './ShiftTimelineStates';
 import { TimelineBucket } from '../hooks/useOeeAnalytics';
-
-const FSM_SEGMENT_COLORS: Record<MachineFsmState, string> = {
-  RUNNING: 'bg-emerald-500',
-  READY: 'bg-sky-500',
-  UNCONFIGURED: 'bg-slate-400',
-  PLANNED_DOWNTIME: 'bg-amber-400',
-  UNPLANNED_DOWNTIME: 'bg-red-500',
-  BATCH_FINISHED: 'bg-indigo-500',
-  // E20 P20.5 (FAT-157, D-4): OFFLINE nilai item sah (D-4) — segmen abu-abu.
-  OFFLINE: 'bg-zinc-500',
-};
 
 interface ShiftTimelineProps {
   timeline: ShiftTimelineSegment[];
@@ -59,6 +48,18 @@ interface ShiftTimelineProps {
   onRetry?: () => void;
 }
 
+/**
+ * E31 (FAT-277): orkestrator timeline — bar segmen dipisah ke
+ * `ShiftTimelineBar`, sumbu waktu ke `ShiftTimelineAxis` (aturan R8).
+ *
+ * CATATAN BATAS (temuan saat membaca kedua file): panel rincian segmen
+ * (detail overlay) SUDAH terpisah sejak R9.2 di `ShiftTimelineDetail`
+ * — tidak ada duplikasi logika seleksi di sini: seleksi dihitung fungsi
+ * murni `resolveActiveTimelineSegment` di `useShiftTimeline`, komponen
+ * ini hanya menerima `activeSegmentIdx`/`activeSegment`/`matchedDowntime`
+ * sebagai props dan meneruskannya. Jadi yang dipecah di tiket ini
+ * adalah bar + sumbu, bukan overlay (yang sudah benar).
+ */
 export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
   timeline,
   timelineBucket,
@@ -84,12 +85,10 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
   // (window shift_start/shift_end + tz) + bucket yang dipilih. Bila summary
   // belum ada (memuat/gagal), hanya bucket yang ditampilkan — tanpa tebakan shift.
   const scopeLabel = joinScopeLabel(formatShiftScopeLabel(summary), `bucket ${timelineBucket}`);
-  // E12 T12.11 (X-4 / FAT-59): sumbu waktu dari start/end segmen dalam
-  // Asia/Jakarta — timeline bisa dibaca jamnya tanpa membuka tooltip.
-  // Tanggal jangkar = tanggal kalender shift_start summary (Jakarta);
-  // tanpa summary, segmen 'HH:MM' lama tetap berlabel jam saja.
+  // E12 T12.11 (X-4 / FAT-59): tanggal jangkar = tanggal kalender
+  // shift_start summary (Jakarta); tanpa summary, segmen 'HH:MM' lama
+  // tetap berlabel jam saja.
   const anchorDate = summary?.shift_start?.slice(0, 10) ?? null;
-  const axis = buildTimelineAxisTicks(timeline, anchorDate);
   // E12 T12.12 (X-5 / FAT-58): flag provisional per segmen, diturunkan
   // dari jam hourly yang provisional — pola penanda sama dengan
   // Hourly/Rollup/Aggregate: teks "(Provisional)" amber.
@@ -120,113 +119,24 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
           pesan (gap G17, Guide §5) — bedakan memuat / gagal / tidak ada
           data pada rentang ini. Fallback totalTimelineMin 480 hanya
           dipakai bila segmen ada. */}
-      {isLoading ? (
-        <div
-          aria-busy="true"
-          aria-label="Memuat timeline"
-          className="w-full h-9 rounded bg-slate-100 dark:bg-slate-800 animate-pulse"
-        >
-          <span className="sr-only">Memuat timeline…</span>
-        </div>
-      ) : isError ? (
-        <div
-          role="alert"
-          className="w-full rounded border border-red-200 dark:border-red-900 bg-white dark:bg-slate-900 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-        >
-          <div className="space-y-0.5">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-              Gagal memuat timeline
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Terjadi kesalahan saat memuat timeline status mesin. Coba lagi atau periksa koneksi.
-            </p>
-          </div>
-          {onRetry && (
-            <Button size="sm" variant="secondary" onClick={onRetry} className="shrink-0">
-              Coba lagi
-            </Button>
-          )}
-        </div>
-      ) : timeline.length === 0 ? (
-        <div className="w-full rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 text-center space-y-0.5">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            Tidak ada data timeline pada rentang ini
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Belum ada segmen status mesin untuk mesin dan periode yang dipilih.
-          </p>
-        </div>
+      {isLoading || isError || timeline.length === 0 ? (
+        <ShiftTimelineStates
+          isLoading={isLoading}
+          isError={isError}
+          isEmpty={timeline.length === 0}
+          onRetry={onRetry}
+        />
       ) : (
         <>
-          <div className="w-full h-9 rounded overflow-hidden flex border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800">
-            {timeline.map((seg, idx) => {
-            const pct = Math.max(1.5, (seg.duration_min / totalTimelineMin) * 100);
-            const hasDowntime = Boolean(seg.downtime_id);
-            const isSelected = activeSegmentIdx === idx;
-            // E12 T12.12 (X-5 / FAT-58): segmen di jam provisional —
-            // diturunkan dari hourly, bukan dari field segmen.
-            const isProvisional = provisionalFlags[idx] ?? false;
-            // E12 T12.11 (X-4 / FAT-59): jam segmen diformat ke WIB —
-            // start/end kini ISO 8601 (demo + Real), bukan 'HH:MM' polos.
-            const segClock = `${formatJakartaTime(seg.start)}–${formatJakartaTime(seg.end)}`;
-            return (
-              <button
-                key={`${seg.start}-${idx}`}
-                type="button"
-                onClick={() => onSelectSegment(idx)}
-                style={{ width: `${pct}%` }}
-                title={`${segClock}: ${seg.fsm_state} (${seg.duration_min} min)${seg.downtime_id ? ` · ${seg.downtime_id}` : ''}${isProvisional ? ' · Provisional' : ''}`}
-                className={`${FSM_SEGMENT_COLORS[seg.fsm_state] ?? 'bg-slate-400'} relative h-full border-r border-white/30 last:border-r-0 transition-opacity hover:opacity-90 cursor-pointer focus:outline-none ${
-                  isSelected ? 'ring-2 ring-inset ring-slate-950 dark:ring-white' : ''
-                }`}
-              >
-                {isProvisional && (
-                  <span
-                    aria-hidden="true"
-                    title="Provisional"
-                    className="absolute inset-x-0 top-0.5 mx-auto w-1.5 h-1.5 rounded-full bg-amber-300 ring-1 ring-white/70 shadow-xs"
-                  />
-                )}
-                {hasDowntime && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-x-0 bottom-0.5 mx-auto w-1.5 h-1.5 rounded-full bg-white shadow-xs"
-                  />
-                )}
-              </button>
-            );
-            })}
-          </div>
+          <ShiftTimelineBar
+            timeline={timeline}
+            totalTimelineMin={totalTimelineMin}
+            activeSegmentIdx={activeSegmentIdx}
+            onSelectSegment={onSelectSegment}
+            provisionalFlags={provisionalFlags}
+          />
 
-          {/* E12 T12.11 (X-4 / FAT-59): sumbu waktu Asia/Jakarta di bawah
-              bar — tick dari start/end segmen; tick yang jatuh keesokan
-              harinya membawa tanggalnya ("00:00 · 17 Nov"). */}
-          {axis.ticks.length > 0 && (
-            <div className="space-y-0.5">
-              <div
-                className="relative h-5"
-                role="img"
-                aria-label={`Sumbu waktu Asia/Jakarta: ${axis.ticks[0].label} sampai ${axis.ticks[axis.ticks.length - 1].label}`}
-              >
-                {axis.ticks.map((tick) => (
-                  <span
-                    key={tick.ms}
-                    className="absolute top-0 text-[10px] font-tabular text-slate-500 dark:text-slate-400 whitespace-nowrap"
-                    style={{
-                      left: `${tick.pct}%`,
-                      transform:
-                        tick.pct <= 0 ? 'translateX(0)' : tick.pct >= 100 ? 'translateX(-100%)' : 'translateX(-50%)',
-                    }}
-                  >
-                    {tick.label}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 text-right">
-                Semua waktu Asia/Jakarta (WIB)
-              </p>
-            </div>
-          )}
+          <ShiftTimelineAxis timeline={timeline} anchorDate={anchorDate} />
           {/* E12 T12.12 (X-5 / FAT-58): keterangan penanda provisional —
               teks "(Provisional)" yang sama dengan Hourly/Rollup/Aggregate. */}
           {anyProvisional && (

@@ -4,7 +4,7 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { validateStationInput } from '../stationValidation';
-import { mapApiIssuesToErrors } from '../hooks/useDevices';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 import { UpdateStationInput } from '../hooks/useStations';
 
 export interface StationEditModalProps {

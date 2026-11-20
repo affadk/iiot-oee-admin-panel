@@ -3571,3 +3571,80 @@ BELUM dimulai — menunggu persetujuan urutan/prioritas Fathur.
 
 Dokumen: `AUDIT.md` §45 (file ini), `docs/UI_STRUCTURE_RULES.md`,
 `docs/LINEAR.md` §8, `docs/linear-seed.json` v35.
+
+## 46. E31 ronde 1 — Refactor production + assets + analytics (prioritas Fathur)
+
+Perintah Fathur 2026-11-20 19:33 WIB: mulai refactor, kelompok
+production, assets, data analysis menjadi yang utama. Eksekusi
+19:34–19:42 WIB, tiga subagent paralel (satu per kelompok), murni
+pindah kode — tanpa ubah perilaku/UI.
+
+**Production — E31.11 (FAT-274, Done).** 4 halaman CRUD diekstrak
+tabel + form modal ke `components/` (8 file baru): Shifts 413→283,
+Products 402→278, ProductionLines 379→269, ShiftSchedules 454→335
+(total −483 baris; semua kini di bawah lunak 400). Form modal
+controlled — form state, validasi, submit tetap di Page; JSX hasil
+ekstraksi dicek identik dengan aslinya (hanya rename prop).
+Tidak migrasi ke DataTable (E31.10) dan tidak buat CrudPage generik
+(di luar tiket).
+
+**Assets — E31.14 bagian assets (FAT-277, tetap In Progress).**
+`DeviceDetailModal` + `DeviceHealthDrawer` pindah dari root fitur ke
+`components/`; `DeviceDetailModal` 392 baris wajib dipecah juga saat
+pindah (batas keras komponen 300) → `DeviceBindingInfo` (68) +
+`DeviceCredentialActions` (176), induk 193. `DeviceHealthDrawer`
+utuh 219 baris — perilaku FAT-261 (subscribe HEALTH_UPDATE + badge
+"Live WS") dipertahankan persis. `mapApiIssuesToErrors` dikanonikalisasi
+ke `features/assets/utils/apiErrors.ts` (salinan identik ternyata ada
+juga di `useMachineCrud.ts`; 6 modal pemakai diperbarui).
+`MachineDetailModal` 222→157 (info binding keluar ke
+`MachineBindingInfo` 87) — klaim audit soal "histori" di modal ini
+tidak cocok dengan file saat ini (tidak ada seksi histori yang
+dirender). `useDevices` 224→213 (helper keluar; split `useDeviceCrud`
+lanjutan tidak termasuk tiket ini). WARN lunak baru:
+`DeviceHealthDrawer` 219 di `components/` (lunak 200).
+
+**Analytics — E31.3 (FAT-266, Done) + E31.4 (FAT-267, Done) +
+E31.14 bagian analytics.** `useOeeAnalytics` 247→111 (komposisi
+tipis) + `useOeeAnalyticsBase` (116) + `useOeeRollup` (62) +
+`useShiftTimeline` (85) + `useRejectPareto` (33); bentuk kembalian
+identik (42 field, urutan sama, dicek programatik) — `OeeAnalyticsPage`
+tidak perlu diubah. `TelemetryTabPanels` 296→30 (induk tipis) + 4
+panel (raw 80, hourly 60, aggregate 111, rollup 114) — ternyata ada
+4 tab, bukan 3 seperti tertulis di audit/tiket; tab rollup ikut
+dipecah. `ShiftTimeline` 272→182 + `ShiftTimelineBar` (86) +
+`ShiftTimelineAxis` (54) + `ShiftTimelineStates` (77) — detail overlay
+ternyata SUDAH terpisah sejak R9.2 (`ShiftTimelineDetail.tsx`), jadi
+yang dipecah adalah bar + sumbu + state, bukan overlay.
+
+**Prinsip Fathur 2026-11-20 19:42 WIB:** "baris target jangan jadikan
+target mutlak, yang terpenting adalah pemisahan komponen kontainer UI
+dan pemisahan tanggung jawab." Dicatat di `docs/UI_STRUCTURE_RULES.md`
+prinsip 0 + R8. Prinsip ini menyelesaikan penyimpangan E31.11
+(target ~200 baris/page tidak tercapai, hasil 269–335): keempat halaman
+dinyatakan selesai karena tanggung jawabnya sudah terpisah — memindah
+form state ke modal hanya demi angka akan mengubah alur submit.
+
+**Verifikasi pusat (gabungan ketiga kelompok):** tsc 0, tes 521/521,
+build OK, checker 0 FAIL / 39 WARN (sebelumnya 45), 361 file
+(sebelumnya 338).
+
+**Catatan.**
+1. `push_files` TIDAK bisa menghapus file — path lama
+   `src/features/assets/DeviceDetailModal.tsx` +
+   `src/features/assets/DeviceHealthDrawer.tsx` akan tetap ada sebagai
+   orphan di remote (ditambah orphan lama `MachineDetailModal.tsx` di
+   root). Penghapusan sisi repo butuh persetujuan Fathur.
+2. Local git HEAD masih detached di 7095217 (stale) — `git diff`
+   menampilkan ~87 entri, mayoritas konten tersinkron lama. Diverifikasi
+   via blob SHA vs remote a78e577 (contoh: `telemetryDefaults.test.ts`
+   6f4c76b6…, `mappers/assets.ts` 7c5838d2…, `package.json`
+   3b289c13… — sama dengan remote). Klaim subagent analytics soal
+   "file dimodifikasi agen lain" adalah salah baca diff vs HEAD stale,
+   bukan intrusi.
+3. E31.2 (mqtt `useBrokerConfig`) + E31.5 (monitoring
+   `DowntimeEventsPage`) + bagian system/mqtt E31.14 + seluruh P1/P3
+   tetap Todo — di luar prioritas ronde ini.
+
+Dokumen: `AUDIT.md` §46 (file ini), `docs/UI_STRUCTURE_RULES.md`
+(prinsip 0 + R8), `docs/LINEAR.md` §8, `docs/linear-seed.json` v36.

@@ -19,6 +19,15 @@ CRUD production adalah klon kerangka yang sama; aturan 5 kontrak
 
 ## 1. Prinsip
 
+0. **Angka bukan target mutlak.** Anggaran baris (kontrak R9) adalah
+   rambu, bukan tujuan. Yang utama adalah **pemisahan komponen
+   kontainer UI dan pemisahan tanggung jawab**: satu komponen = satu
+   tanggung jawab, satu hook = satu alur, page = orkestrasi. File yang
+   sudah terpisah tanggung jawabnya dengan benar dianggap selesai
+   meski masih mendekati batas lunak — jangan memecah lebih jauh hanya
+   demi angka, apalagi bila pemecahannya mengubah alur perilaku
+   (mis. memindah form state ke dalam modal). Keputusan Fathur
+   2026-11-20.
 1. **Page hanya orkestrasi.** `*Page.tsx` memuat data (lewat hook),
    menyusun layout, dan me-render. Tabel, form, modal, tab, dan filter
    tinggal di `components/`; alur data tinggal di `hooks/`.
@@ -102,15 +111,20 @@ Empat `*FilterBar` lama + `OperatorsToolbar` + `OperationalEventsFilters`
 digabung bertahap ke komponen ini.
 *Alasan:* satu pola, enam implementasi (audit §4.3e).
 
-### R8. Page hanya orkestrasi (target, bukan sekadar warning)
+### R8. Page hanya orkestrasi (rambu, bukan target mutlak)
 
 Tabel / form / modal / tab **dilarang inline** di `*Page.tsx`.
-Batas lunak page 400 baris diperlakukan sebagai **target refactor**:
-page yang melewatinya masuk daftar refactor (P2), bukan sekadar
-warning yang dibiarkan.
+Batas lunak page 400 baris adalah **rambu, bukan target mutlak**
+(prinsip 0): page yang sudah terpisah tanggung jawabnya — tabel/form/
+modal di `components/`, alur di `hooks/` — dianggap selesai meski
+masih 250–350 baris. Jangan memecah lebih jauh hanya demi angka.
 *Alasan:* 4 halaman CRUD production (379–454 baris) menanam tabel +
 form modal inline dengan kerangka identik; `DowntimeEventsPage`
-584 baris menanam ekspor + definisi kolom.
+584 baris menanam ekspor + definisi kolom. Bukti prinsip 0:
+refactor E31.11 (2026-11-20) membawa keempat halaman CRUD ke
+269–335 baris — sudah di bawah lunak dan terpisah tanggung jawabnya
+— tanpa memindah form state ke modal (yang akan mengubah alur
+submit).
 
 ### R9. Pecah dulu file di ambang batas keras
 

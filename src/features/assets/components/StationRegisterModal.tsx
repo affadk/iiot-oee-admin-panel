@@ -4,7 +4,7 @@ import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { Badge } from '../../../components/ui/Badge';
 import { validateStationInput, classifyStationId, STATION_KIND_LABELS } from '../stationValidation';
-import { mapApiIssuesToErrors } from '../hooks/useDevices';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 import { RegisterStationInput } from '../hooks/useStations';
 
 export interface StationRegisterModalProps {

@@ -1,18 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Factory, Plus, Edit3, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { ProductionLine } from '../../types/production';
 import { ApiError } from '../../types/auth';
 import { useCapability, useAuth } from '../../context/AuthContext';
 import { validateProductionLineInput } from '../../utils/capabilities';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Modal } from '../../components/ui/Modal';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
-import { TableStateRow } from '../shared/TableStateRow';
+import { ProductionLinesTable } from './components/ProductionLinesTable';
+import { ProductionLinesFormModal } from './components/ProductionLinesFormModal';
 
 export const ProductionLinesPage: React.FC = () => {
   const { reportForbidden, checkCapability } = useAuth();
@@ -210,81 +208,13 @@ export const ProductionLinesPage: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                <th className="py-3 px-4">Line ID</th>
-                <th className="py-3 px-4">Nama Lini</th>
-                <th className="py-3 px-4">Deskripsi</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
-                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
-              {isLoading ? (
-                <TableStateRow isLoading isError={false} colSpan={5} />
-              ) : lines.length === 0 ? (
-                <TableStateRow
-                  isLoading={false}
-                  isError={false}
-                  colSpan={5}
-                  emptyTitle="Belum ada lini produksi"
-                  emptyDescription="Daftar lini masih kosong. Tambah lini pertama lewat tombol 'Tambah Lini' di atas."
-                />
-              ) : (
-                lines.map((line) => {
-                  const rowManageCap = checkCapability('production_line.manage', line.lineId);
-                  return (
-                    <tr key={line.lineId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 px-4 font-tabular">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-                          <Factory className="w-4 h-4 text-sky-500 shrink-0" />
-                          <span>{line.lineId}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{line.lineName}</td>
-                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400">{line.description ?? '—'}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant={line.isActive ? 'success' : 'neutral'}>
-                          {line.isActive ? 'ACTIVE' : 'INACTIVE'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Ubah lini produksi'}
-                            onClick={() => openEditModal(line)}
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Hapus lini produksi'}
-                            onClick={() => setDeleteTarget(line)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus</span>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ProductionLinesTable
+        lines={lines}
+        isLoading={isLoading}
+        checkCapability={checkCapability}
+        onEdit={openEditModal}
+        onDelete={setDeleteTarget}
+      />
 
       <CursorPaginationBar
         loadedCount={lines.length}
@@ -300,62 +230,22 @@ export const ProductionLinesPage: React.FC = () => {
       />
 
       {/* Create / Edit Modal */}
-      <Modal
+      <ProductionLinesFormModal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingLine ? `Edit Lini ${editingLine.lineId}` : 'Tambah Lini Produksi Baru'}
-        subtitle="Line ID menggunakan 1–64 karakter huruf besar, angka, '_' atau '-'."
-        footer={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setIsFormOpen(false)} disabled={isSaving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmitForm} isLoading={isSaving}>
-              {editingLine ? 'Simpan Perubahan' : 'Buat Lini'}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleSubmitForm} className="space-y-4">
-          {!editingLine && (
-            <Input
-              label="Line ID"
-              value={formLineId}
-              onChange={(e) => setFormLineId(e.target.value.toUpperCase())}
-              placeholder="LINE-03"
-              error={formErrors.lineId}
-              required
-            />
-          )}
-
-          <Input
-            label="Nama Lini"
-            value={formLineName}
-            onChange={(e) => setFormLineName(e.target.value)}
-            placeholder="Contoh: Lini Produksi 3 — Assembly"
-            error={formErrors.lineName}
-            required
-          />
-
-          <Input
-            label="Deskripsi"
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-            placeholder="Keterangan singkat lini (opsional)"
-            error={formErrors.description}
-          />
-
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formActive}
-              onChange={(e) => setFormActive(e.target.checked)}
-              className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            <span>Lini aktif dan tersedia untuk operator, mesin, dan jadwal shift</span>
-          </label>
-        </form>
-      </Modal>
+        editingLine={editingLine}
+        formLineId={formLineId}
+        onFormLineIdChange={setFormLineId}
+        formLineName={formLineName}
+        onFormLineNameChange={setFormLineName}
+        formDescription={formDescription}
+        onFormDescriptionChange={setFormDescription}
+        formActive={formActive}
+        onFormActiveChange={setFormActive}
+        formErrors={formErrors}
+        isSaving={isSaving}
+        onSubmit={handleSubmitForm}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmationDialog

@@ -1526,7 +1526,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 35,
+ "version": 36,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -1809,8 +1809,8 @@
   },
   "verified": {
    "total": 279,
-   "done": 224,
-   "todo": 43,
+   "done": 228,
+   "todo": 39,
    "inProgress": 3,
    "inReview": 8,
    "canceled": 1,

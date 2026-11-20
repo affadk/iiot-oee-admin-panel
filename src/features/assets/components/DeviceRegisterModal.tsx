@@ -3,7 +3,8 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
 import { validateDeviceInput } from '../../../utils/capabilities';
-import { mapApiIssuesToErrors, RegisterDeviceInput } from '../hooks/useDevices';
+import { RegisterDeviceInput } from '../hooks/useDevices';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 
 const DEFAULT_DEVICE_ID = 'STM32-OEE-06';
 const DEFAULT_FIRMWARE = 'v2.4.1-rtos';

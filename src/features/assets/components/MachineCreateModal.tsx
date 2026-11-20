@@ -5,7 +5,8 @@ import { validateMachineInput } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
-import { mapApiIssuesToErrors, CreateMachineInput } from '../hooks/useMachineCrud';
+import { CreateMachineInput } from '../hooks/useMachineCrud';
+import { mapApiIssuesToErrors } from '../utils/apiErrors';
 
 const DEFAULT_MACHINE_ID = 'CNC-MILLING-03';
 // E23 Batch 2 (FAT-183, N-14): default lini server (spec live POST

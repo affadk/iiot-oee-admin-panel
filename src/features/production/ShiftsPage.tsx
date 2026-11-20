@@ -1,18 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Clock, Plus, Edit3, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { Shift } from '../../types/production';
 import { ApiError } from '../../types/auth';
 import { useCapability, useAuth } from '../../context/AuthContext';
 import { validateShiftInput } from '../../utils/capabilities';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Modal } from '../../components/ui/Modal';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
-import { TableStateRow } from '../shared/TableStateRow';
+import { ShiftsTable } from './components/ShiftsTable';
+import { ShiftsFormModal } from './components/ShiftsFormModal';
 
 export const ShiftsPage: React.FC = () => {
   const { reportForbidden, checkCapability } = useAuth();
@@ -220,85 +218,13 @@ export const ShiftsPage: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                <th className="py-3 px-4">Shift ID</th>
-                <th className="py-3 px-4">Nama Shift</th>
-                <th className="py-3 px-4">Kode</th>
-                <th className="py-3 px-4">Jam Kerja</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
-                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
-              {isLoading ? (
-                <TableStateRow isLoading isError={false} colSpan={6} />
-              ) : shifts.length === 0 ? (
-                <TableStateRow
-                  isLoading={false}
-                  isError={false}
-                  colSpan={6}
-                  emptyTitle="Belum ada shift"
-                  emptyDescription="Daftar shift masih kosong. Tambah shift pertama lewat tombol 'Tambah Shift' di atas."
-                />
-              ) : (
-                shifts.map((shift) => {
-                  const rowManageCap = checkCapability('shift.manage', shift.shiftId);
-                  return (
-                    <tr key={shift.shiftId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 px-4 font-tabular">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-                          <Clock className="w-4 h-4 text-sky-500 shrink-0" />
-                          <span>{shift.shiftId}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{shift.shiftName}</td>
-                      <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{shift.shiftCode}</td>
-                      <td className="py-3 px-4 font-tabular font-semibold text-slate-900 dark:text-slate-100">
-                        {shift.startTime}–{shift.endTime}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={shift.isActive ? 'success' : 'neutral'}>
-                          {shift.isActive ? 'ACTIVE' : 'INACTIVE'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Ubah shift'}
-                            onClick={() => openEditModal(shift)}
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            disabled={!rowManageCap.canInteract}
-                            title={!rowManageCap.canInteract ? rowManageCap.reason : 'Hapus shift'}
-                            onClick={() => setDeleteTarget(shift)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus</span>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ShiftsTable
+        shifts={shifts}
+        isLoading={isLoading}
+        checkCapability={checkCapability}
+        onEdit={openEditModal}
+        onDelete={setDeleteTarget}
+      />
 
       <CursorPaginationBar
         loadedCount={shifts.length}
@@ -314,82 +240,26 @@ export const ShiftsPage: React.FC = () => {
       />
 
       {/* Create / Edit Modal */}
-      <Modal
+      <ShiftsFormModal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingShift ? `Edit Shift ${editingShift.shiftId}` : 'Tambah Shift Baru'}
-        subtitle="Shift ID menggunakan 1–64 karakter huruf besar, angka, '_' atau '-'. Jam dalam format 24 jam (HH:MM)."
-        footer={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setIsFormOpen(false)} disabled={isSaving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmitForm} isLoading={isSaving}>
-              {editingShift ? 'Simpan Perubahan' : 'Buat Shift'}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleSubmitForm} className="space-y-4">
-          {!editingShift && (
-            <Input
-              label="Shift ID"
-              value={formShiftId}
-              onChange={(e) => setFormShiftId(e.target.value.toUpperCase())}
-              placeholder="SHIFT-4"
-              error={formErrors.shiftId}
-              required
-            />
-          )}
-
-          <Input
-            label="Nama Shift"
-            value={formShiftName}
-            onChange={(e) => setFormShiftName(e.target.value)}
-            placeholder="Contoh: Shift 4 (Sore)"
-            error={formErrors.shiftName}
-            required
-          />
-
-          <Input
-            label="Kode Shift"
-            value={formShiftCode}
-            onChange={(e) => setFormShiftCode(e.target.value.toUpperCase())}
-            placeholder="S4"
-            error={formErrors.shiftCode}
-            required
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Jam Mulai"
-              type="time"
-              value={formStartTime}
-              onChange={(e) => setFormStartTime(e.target.value)}
-              error={formErrors.startTime}
-              required
-            />
-            <Input
-              label="Jam Selesai"
-              type="time"
-              value={formEndTime}
-              onChange={(e) => setFormEndTime(e.target.value)}
-              error={formErrors.endTime}
-              required
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formActive}
-              onChange={(e) => setFormActive(e.target.checked)}
-              className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            <span>Shift aktif dan tersedia untuk penjadwalan</span>
-          </label>
-        </form>
-      </Modal>
+        editingShift={editingShift}
+        formShiftId={formShiftId}
+        onFormShiftIdChange={setFormShiftId}
+        formShiftName={formShiftName}
+        onFormShiftNameChange={setFormShiftName}
+        formShiftCode={formShiftCode}
+        onFormShiftCodeChange={setFormShiftCode}
+        formStartTime={formStartTime}
+        onFormStartTimeChange={setFormStartTime}
+        formEndTime={formEndTime}
+        onFormEndTimeChange={setFormEndTime}
+        formActive={formActive}
+        onFormActiveChange={setFormActive}
+        formErrors={formErrors}
+        isSaving={isSaving}
+        onSubmit={handleSubmitForm}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmationDialog
