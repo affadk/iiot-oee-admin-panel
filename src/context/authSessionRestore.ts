@@ -100,6 +100,26 @@ async function restoreSessionFromStorageInner(client: SessionRestoreClient): Pro
 }
 
 /**
+ * Apakah silent restore harus berjalan saat boot — dipakai sebagai nilai
+ * AWAL state `isRestoringSession` (lazy initializer, dievaluasi SINKRON
+ * saat render pertama AuthProvider).
+ *
+ * FAT-280 race (verifikasi live 2026-11-20 GAGAL sebelum perbaikan ini):
+ * nilai awal hook adalah `useState(false)`, sehingga render pertama
+ * punya isAuthenticated=false + isRestoringSession=false → AdminLayout
+ * langsung me-return `<Navigate to="/login" />` SEBELUM effect restore
+ * berjalan (effect jalan setelah render pertama). Restore lalu selesai
+ * di background, tapi route sudah /login dan LoginPage tidak redirect
+ * saat sudah terautentikasi → pengguna terjebak di /login. Dengan
+ * initializer sinkron ini, bila ada token tersimpan (mode Real), render
+ * pertama SUDAH menahan redirect (placeholder "Memulihkan sesi…").
+ * Tanpa token / mode Demo → false (redirect langsung, benar).
+ */
+export function shouldRestoreAtBoot(): boolean {
+  return resolveApiMode() === 'real' && getStoredHttpToken() !== null;
+}
+
+/**
  * Hook silent restore (FAT-280 Opsi B): dipanggil AuthProvider saat mount.
  * Mengembalikan true selama percobaan restore berjalan — AdminLayout
  * menahan redirect /login selama itu. Mode Demo tidak dipulihkan
@@ -108,7 +128,10 @@ async function restoreSessionFromStorageInner(client: SessionRestoreClient): Pro
 export function useSessionRestore(
   applySession: (user: SessionUser, ttl: number, mustChange: boolean) => void,
 ): boolean {
-  const [isRestoring, setIsRestoring] = useState(false);
+  // Nilai awal SINKRON (lihat shouldRestoreAtBoot) — JANGAN ganti ke
+  // useState(false): render pertama harus sudah menahan redirect bila
+  // ada token tersimpan, karena effect di bawah baru jalan setelahnya.
+  const [isRestoring, setIsRestoring] = useState(shouldRestoreAtBoot);
   const attemptedRef = useRef(false);
   useEffect(() => {
     if (attemptedRef.current || resolveApiMode() !== 'real') return;

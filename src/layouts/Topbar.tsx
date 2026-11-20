@@ -4,6 +4,7 @@ import { Sun, Moon, User, Radio, Database, Menu, LogOut, Clock, KeyRound } from 
 import { useAuth, useCapability } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNetworkAccess } from '../context/NetworkAccessContext';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { resolveApiMode, setApiMode, isApiModeSwitchAllowed, resolvePlantLabel, ApiMode } from '../services/api/mode';
 import {
   resolveAccessMode,
@@ -11,9 +12,6 @@ import {
   isAccessModeSwitchAllowed,
   AccessMode,
 } from '../services/api/mode';
-import { Modal } from '../components/ui/Modal';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 
 interface TopbarProps {
   onOpenMobileSidebar?: () => void;
@@ -21,17 +19,12 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const navigate = useNavigate();
-  const { currentUser, logout, sessionTtlRemaining, changePassword } = useAuth();
+  const { currentUser, logout, sessionTtlRemaining } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isReadOnly } = useNetworkAccess();
   const canReadBrokerConfig = useCapability('mqtt.config.read').canInteract;
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSuccess, setPwSuccess] = useState<string | null>(null);
-  const [pwSubmitting, setPwSubmitting] = useState(false);
   const [apiMode, setApiModeState] = useState<ApiMode>(() => resolveApiMode());
   // Switch mode dari UI hanya hidup bila dibuka di env
   // (VITE_ALLOW_API_MODE_SWITCH=true, dev lokal). Bila terkunci, Topbar hanya
@@ -63,23 +56,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPwError(null);
-    setPwSuccess(null);
-    setPwSubmitting(true);
-    try {
-      const res = await changePassword(currentPassword, newPassword);
-      setPwSuccess(res.message);
-      setCurrentPassword('');
-      setNewPassword('');
-    } catch (err: any) {
-      setPwError(err?.message || 'Gagal mengganti password.');
-    } finally {
-      setPwSubmitting(false);
-    }
   };
 
   const formatSessionTime = (seconds: number) => {
@@ -297,11 +273,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
               <span className="text-[10px] text-slate-400 font-mono leading-tight">{currentUser.operator_id}</span>
             </div>
             <button
-              onClick={() => {
-                setPwError(null);
-                setPwSuccess(null);
-                setShowPasswordModal(true);
-              }}
+              onClick={() => setShowPasswordModal(true)}
               disabled={isReadOnly}
               className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 rounded transition-colors disabled:opacity-40"
               title={isReadOnly ? 'Ganti password dinonaktifkan (mode observasi)' : 'Ganti Password Sendiri'}
@@ -321,51 +293,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
         </div>
       </header>
 
-      <Modal
+      {/* E31.13 (FAT-276): form ganti password dipindah ke
+          layouts/components/ChangePasswordModal.tsx */}
+      <ChangePasswordModal
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
-        title="Ganti Password Akun"
-        maxWidth="sm"
-      >
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Perubahan kata sandi hanya dapat dilakukan melalui jaringan lokal pabrik.
-          </div>
-          <Input
-            label="Password Saat Ini"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
-          />
-          <Input
-            label="Password Baru (min. 8 karakter)"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            minLength={8}
-            required
-          />
-          {pwError && (
-            <div className="p-2.5 text-xs bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300">
-              {pwError}
-            </div>
-          )}
-          {pwSuccess && (
-            <div className="p-2.5 text-xs bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded text-emerald-700 dark:text-emerald-300">
-              {pwSuccess}
-            </div>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowPasswordModal(false)}>
-              Tutup
-            </Button>
-            <Button type="submit" isLoading={pwSubmitting}>
-              Simpan Password
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      />
     </>
   );
 };

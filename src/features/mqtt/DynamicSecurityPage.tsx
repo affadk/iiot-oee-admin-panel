@@ -12,9 +12,12 @@ import { DynSecRolesTab } from './components/DynSecRolesTab';
 import { DynSecGroupsTab } from './components/DynSecGroupsTab';
 import { CreateMqttClientModal } from './components/CreateMqttClientModal';
 import { OneTimeSecretModal } from './components/OneTimeSecretModal';
-import { AttachRoleModal, RotatePasswordModal } from './components/MqttClientModals';
-import { AddAclModal, CreateRoleModal } from './components/MqttRoleModals';
-import { CreateGroupModal, ManageGroupMembersModal } from './components/MqttGroupModals';
+import { AttachRoleModal } from './components/AttachRoleModal';
+import { RotatePasswordModal } from './components/RotatePasswordModal';
+import { AddAclModal } from './components/AddAclModal';
+import { CreateRoleModal } from './components/CreateRoleModal';
+import { CreateGroupModal } from './components/CreateGroupModal';
+import { ManageGroupMembersModal } from './components/ManageGroupMembersModal';
 
 type DynTab = 'clients' | 'roles' | 'groups';
 

@@ -23,6 +23,7 @@ import {
 import { httpApiClient } from '../services/api/httpClient';
 import {
   restoreSessionFromStorage,
+  shouldRestoreAtBoot,
   type SessionRestoreClient,
 } from './authSessionRestore';
 
@@ -100,6 +101,58 @@ test('FAT-280: setSessionActive(false) = logout menghapus simpanan; (true, token
   httpCore.setSessionActive(false, null);
   assert.equal(getStoredHttpToken(), null);
   assert.throws(() => assertAuthenticatedHttp(), (e: unknown) => e instanceof ApiError && e.httpStatus === 401);
+});
+
+// --- shouldRestoreAtBoot: nilai AWAL isRestoringSession (perbaikan race) ---
+// Hook tidak bisa diuji tanpa @testing-library/react (tidak ada di repo) —
+// initializer diekstrak ke fungsi murni dan diuji langsung. Mode dikontrol
+// via process.env (readEnv mode.ts membaca process.env saat test via tsx);
+// switch sengaja dikunci agar env menang.
+function withApiMode(mode: string | undefined, fn: () => void): void {
+  const prevMode = process.env.VITE_API_MODE;
+  const prevSwitch = process.env.VITE_ALLOW_API_MODE_SWITCH;
+  try {
+    if (mode === undefined) delete process.env.VITE_API_MODE;
+    else process.env.VITE_API_MODE = mode;
+    delete process.env.VITE_ALLOW_API_MODE_SWITCH;
+    fn();
+  } finally {
+    if (prevMode === undefined) delete process.env.VITE_API_MODE;
+    else process.env.VITE_API_MODE = prevMode;
+    if (prevSwitch === undefined) delete process.env.VITE_ALLOW_API_MODE_SWITCH;
+    else process.env.VITE_ALLOW_API_MODE_SWITCH = prevSwitch;
+  }
+}
+
+test('FAT-280 race: shouldRestoreAtBoot true bila mode real + token tersimpan', () => {
+  resetState();
+  setHttpToken('tok-abc');
+  withApiMode('real', () => {
+    assert.equal(shouldRestoreAtBoot(), true);
+  });
+});
+
+test('FAT-280 race: shouldRestoreAtBoot false bila mode real + tanpa token', () => {
+  resetState();
+  withApiMode('real', () => {
+    assert.equal(shouldRestoreAtBoot(), false);
+  });
+});
+
+test('FAT-280 race: shouldRestoreAtBoot false bila mode demo + token tersimpan', () => {
+  resetState();
+  setHttpToken('tok-abc');
+  withApiMode('demo', () => {
+    assert.equal(shouldRestoreAtBoot(), false);
+  });
+});
+
+test('FAT-280 race: shouldRestoreAtBoot false bila mode tidak diset (default demo) + token tersimpan', () => {
+  resetState();
+  setHttpToken('tok-abc');
+  withApiMode(undefined, () => {
+    assert.equal(shouldRestoreAtBoot(), false);
+  });
 });
 
 test('FAT-280: restore tanpa token tersimpan → no-token, refresh tidak dipanggil', async () => {

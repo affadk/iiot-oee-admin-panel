@@ -3779,3 +3779,79 @@ FAT-265/268 tetap In Progress sampai verifikasi pusat ronde 3
 (tsc 0, tes hijau, build OK, checker 0 FAIL) selesai.
 
 Dokumen: `AUDIT.md` §48 (file ini), `docs/LINEAR.md` §8.
+
+## 49. E31 ronde 3 selesai (B + C) + perbaikan race FAT-280
+
+Ronde 3 (perintah Fathur 20:41 WIB "lanjutkan", 3 agen paralel).
+Kelompok A sudah di-push #15 (AUDIT.md §48). Kelompok B + C selesai
+lokal 2026-11-20 ~20:47–20:48 WIB; verifikasi pusat + push #16 di
+bagian ini.
+
+**Kelompok B — P2 sisa (FAT-275, FAT-276, FAT-277).**
+- E31.12: OverviewPage 456→355 + OverviewLiveTable baru (122);
+  LiveStatePage 292→194 + LiveStateCard baru (116).
+- E31.13: Topbar 371→304 + ChangePasswordModal baru (99) di
+  `layouts/components/` (subfolder baru — penyimpangan lokasi: modal
+  spesifik Topbar; anggaran checker layouts/ [250,400] mencakupnya;
+  bila lebih suka `features/auth/components/`, pindahnya sebaris
+  import); BackendHealthIndicator pindah ke
+  `features/auth/components/` (93, isi tidak berubah).
+- E31.14 (FAT-277, system+mqtt — SELESAI SELURUHNYA): RolesTab
+  202→94 + RoleCard baru (154); OperatorDetailModal 237→119 +
+  OperatorRoleAssignments (70) + OperatorQuickAssignForm (114);
+  Mqtt*Modals dipecah per modal (RotatePassword 62, AttachRole 63,
+  CreateGroup 49, ManageGroupMembers 90, CreateRole 55, AddAcl 67).
+  Catatan: ketiga file Mqtt*Modals lama dihapus lokal → jadi orphan di
+  remote setelah push (push_files tidak bisa menghapus) — masuk daftar
+  cleanup yang butuh persetujuan Fathur. Tabrakan nama CreateRoleModal
+  (mqtt vs IAM) didokumentasikan di header file mqtt.
+**Kelompok C — P3 (FAT-278, FAT-279).**
+- E31.15: dto.ts 540 → 7 file per domain + barrel; types/mqtt.ts 396
+  → mqtt-dynsec 65 + mqtt-config 342 + barrel; mappers/monitoring.ts
+  531 → 5 file + barrel; mappers/system.ts 455 → 3 file + barrel.
+  Semua barrel re-export di path lama — impor pemanggil tidak berubah;
+  semua export terverifikasi tanpa duplikat (dto 36/36, mqtt 26/26,
+  mapper 27 fungsi). types/mqtt-config.ts 342 masih di atas lunak
+  types (300) tapi di bawah keras (500) — satu domain kohesif,
+  tidak dipecah lebih jauh (prinsip 0).
+- E31.16: telemetrySocket.ts 461 → telemetryFrame 230 +
+  telemetrySim 85 + telemetrySocket 207; historyFilters.ts 453 →
+  utils/historyParams 232 + hooks/useHistoryFilters 62 +
+  utils/historyWorkOrder 184 + barrel; features/shared/ dirapikan ke
+  ui/hooks/utils + barrel di 5 path lama. TableStateRow ASLI dibiarkan
+  (primitif bersama, dipakai 8 file) — yang DIHAPUS hanya shim
+  re-export di features/analytics/components/ (0 importir) → orphan
+  remote, masuk daftar cleanup.
+**Perbaikan parent saat verifikasi pusat (2 bug split):**
+- BackendHealthIndicator yang dipindah B memakai path import relatif
+  lama (`../../services/api/...`) — diperbaiki ke `../../../`.
+- monitoring-shift.ts (pecahan C) memakai `pctOrNull` yang tidak
+  diekspor dari monitoring-telemetry.ts — helper diekspor + diimpor.
+**Checker FAIL + perbaikan:** `features/shared/hooks/useHistoricalQueries.ts`
+280 baris melanggar batas keras hook (250) — akibat pemindahan C dari
+`shared/` ke `hooks/` (anggaran lebih ketat). Dipecah parent per
+domain: useHistoryMasterQueries (61) + useHistoryDataQueries (239) +
+barrel (9); impor pemanggil tidak berubah (barrel lama di
+`features/shared/` tetap jalan). Catatan: saat pemindahan saya sempat
+salah menulis satu baris (useDowntimeHistoryQuery kehilangan
+`to: filters.to` + `active_only`) — diperbaiki sebelum verifikasi;
+tes hijau memastikan tidak ada perubahan perilaku.
+
+**FAT-280 — perbaikan race (In Review).** Verifikasi live 20:42 WIB
+GAGAL (reload tetap ke /login) — BUKAN deploy basi (bundle live
+mengandung marker FAT-280). Root cause: `useSessionRestore` init
+`isRestoringSession=false` → AdminLayout redirect ke /login SEBELUM
+effect restore berjalan. Perbaikan: `shouldRestoreAtBoot()` sebagai
+lazy initializer (mode Real + ada token tersimpan → restoring=true
+sejak render pertama) + LoginPage redirect bila sudah terautentikasi
+(hormati mustChangePassword → /force-change-password). AuthContext
+tidak diubah (293/300). Tes baru 4 (total 535). Cek live ulang
+menyusul setelah push #16 + redeploy.
+
+**Verifikasi pusat (ronde 3 + FAT-280 + perbaikan):** tsc 0,
+tes 535/535, build OK, checker 0 FAIL / 32 WARN, 409 file.
+**E31 SELESAI SELURUHNYA** — 16/16 tiket Done (audit + P0–P3).
+Arah lanjutan dicatat sebagai E32 (lihat docs/LINEAR.md §8).
+
+Dokumen: `AUDIT.md` §49 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v38.

@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { resolveDefaultDeviceId } from '../../features/shared/defaultDevice';
 import { TableStateRow, EmptyStateBlock } from '../../features/shared/TableStateRow';
 import { ShiftFilterBar } from '../../features/analytics/components/ShiftFilterBar';
-import { BackendHealthIndicator } from '../../features/auth/BackendHealthIndicator';
+import { BackendHealthIndicator } from '../../features/auth/components/BackendHealthIndicator';
 import { stripDowntimeCategoryPrefix } from '../../features/monitoring/DowntimeReasonModal';
 import { formatWorkOrderSubline } from '../../features/shared/historyFilters';
 import { formatCycleTemp } from '../../features/analytics/components/TelemetryRawColumns';

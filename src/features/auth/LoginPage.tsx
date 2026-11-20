@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Shield, Lock, UserCheck, AlertCircle, WifiOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkAccess } from '../../context/NetworkAccessContext';
@@ -14,7 +14,7 @@ import {
 } from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { BackendHealthIndicator } from './BackendHealthIndicator';
+import { BackendHealthIndicator } from './components/BackendHealthIndicator';
 
 /**
  * E29 (FAT-244, T5): pemetaan error login 403 — bedakan DUA sumber 403
@@ -45,7 +45,7 @@ export function mapLoginForbiddenMessage(err: unknown): string | null {
 }
 
 export const LoginPage: React.FC = () => {
-  const { login, sessionExpiredReason, clearSessionExpiredReason } = useAuth();
+  const { login, sessionExpiredReason, clearSessionExpiredReason, isAuthenticated, mustChangePassword, isRestoringSession } = useAuth();
   const { mode, isReadOnly } = useNetworkAccess();
   const navigate = useNavigate();
 
@@ -137,6 +137,25 @@ export const LoginPage: React.FC = () => {
   // Private biru / Public amber. Read-only, tanpa gate login baru.
   const apiMode = resolveApiMode();
   const accessMode = resolveAccessMode();
+
+  // FAT-280 Opsi B (perbaikan race, verifikasi live 2026-11-20 gagal):
+  // selama silent restore berjalan, JANGAN tampilkan form login —
+  // tampilkan placeholder yang sama seperti AdminLayout.
+  if (isRestoringSession) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-sm text-slate-500">Memulihkan sesi…</p>
+      </div>
+    );
+  }
+
+  // Sudah terautentikasi (mis. restore berhasil saat reload di /login,
+  // atau membuka /login manual saat masih login) → keluar dari halaman
+  // login. Tujuan sama seperti handleSubmit: gerbang ganti-password
+  // wajib didahulukan bila flag aktif, selain itu /admin.
+  if (isAuthenticated) {
+    return <Navigate to={mustChangePassword ? '/force-change-password' : '/admin'} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col justify-center items-center p-4">
