@@ -52,7 +52,7 @@ function startStub(
         body = undefined;
       }
       seen.push({ method: req.method, path: url.pathname, url: url.pathname + url.search, body });
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(LOGIN_BODY));
         return;

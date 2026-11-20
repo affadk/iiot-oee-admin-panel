@@ -2606,3 +2606,488 @@ bukti live, bukan hanya bukti lokal.
 - Q3–Q6 terbuka (lihat `tmp-e27-invest.md` §5): cara REVOKED →
   ACTIVE; DELETE device berhitori; batas panjang server; apakah
   `VITE_DEFAULT_STATION_ID` perlu jadi prefill opt-in.
+
+## 38. E28 — Triase semua issue terbuka + implementasi panel + penutupan di Linear (2026-11-20)
+
+### 38.1 Triase (06:13–06:40 WIB, baca saja, tanpa implementasi/mutasi/browser)
+
+Sumber: `~/workspace/tmp-e28-triage.md`. Acuan spec: `~/workspace/oee-live-openapi-2026-11-20.json`
+(104 paths, dump Zod mentah). Probe live tanpa auth 20 Nov ~06:13 WIB.
+
+Keadaan backend saat probe: `GET /health` uptime 5133 dtk (~85 mnt, restart terakhir
+~21:48 WIB 19 Nov), `db_connected: true`, `ws_clients: 3`, `totalReceived 2736`,
+`validIngested 1708`, **`lastIngestedAt` 23:14:11Z = detik probe — telemetri MENGALIR**.
+`GET /api/v1/live-state`: **STM32-OEE-SIM HIDUP** (oee 0.62, totalCount 5);
+**STM32-OEE-01 MASIH STALE** (`lastTelemetryAt` 2026-11-19T08:54:40Z = 15:54 WIB 19 Nov,
+semua 0.00, state RUNNING, `isOnline: false`, `lastSeenAt: null`). `GET /devices`: hanya
+2 device. `GET /products`: 5 produk, **tetap tanpa `sku`/`isActive`** (0 hit `sku` di spec
+20 Nov). Bucket aggregate SIM 23:10Z `oeePct: null`, `performancePct: null` — agregat
+null masih terjadi live. CORS: `OPTIONS /api/v1/auth/login` + Origin Vercel → **204** +
+`access-control-allow-origin: https://iiot-oee-admin-panel.vercel.app` — **N-6
+terkonfirmasi diperbaiki**. Spec 20 Nov: **0 hit `station_label` / `STATION_NOT_FOUND`**
+— spec STALE vs backend commit b4456eb (sesuai §37).
+
+Anomali Linear: `list_issues` (limit 200) mengembalikan 185 issue dengan
+`hasNextPage: false`, tetapi **FAT-71 s.d. FAT-121 (51 issue: epic E13 + SYS-B1–SYS-B50)
+hilang seluruhnya** — diverifikasi satu per satu lewat `get_issue` (36 Done, 15 Todo,
+persis close-list E21). Total rekonsiliasi: **236 issue = 172 Done / 62 Todo /
+2 In Progress**. Issue terbuka yang ditriase = **64 (62 Todo + 2 In Progress)**.
+
+Tabel verdict (64 issue terbuka):
+
+| Verdict | Jumlah | FAT |
+|---|---:|---|
+| RELEVAN | 32 | FAT-7, 27, 28, 31, 34, 71, 169, 170, 171, 173, 174, 207, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230 |
+| SUDAH SELESAI | 14 | FAT-175 (N-6), FAT-172 (N-5), FAT-82 (B11), FAT-88 (B17), FAT-94 (B23), FAT-102–108 (B31–B37, 7 issue), FAT-112 (B41), FAT-210 (N-41) |
+| TERBLOKIR | 8 | FAT-74 (B3), FAT-77 (B6), FAT-83 (B12), FAT-202 (N-32), FAT-209 (N-40), FAT-30 (V8.3 LAN), FAT-40 (A10.2), FAT-29 (V8.4 Nginx — butuh keputusan Fathur) |
+| BUKAN PEKERJAAN PROYEK | 4 | FAT-1, 2, 3, 4 (onboarding Linear) |
+| TIDAK DINILAI (E27, skop parent) | 6 | FAT-231–236 |
+| **Total** | **64** | = 62 Todo + 2 In Progress |
+
+Temuan paling mengejutkan: **spec 20 Nov menjawab 11 dari 14 SYS-B terbuka** (B11, B17,
+B23, B31–B37, B41) — tersisa 3 yang masih butuh backend (B3, B6, B12). **N-42 menyempit
+drastis**: telemetri mengalir lagi dan SIM hidup; yang stale hanya STM32-OEE-01 (device
+fisik offline sejak 15:54 WIB 19 Nov) — akar bukan lagi restart backend, melainkan
+presence/TTL tidak menurunkan state device offline. **N-5 ternyata sudah selesai di
+panel** (fallback `sku` ← `productId` di mapper + terkonfirmasi live MUT L8).
+**N-40 hampir tidak bergerak**: 17/18 operasi Access Control di spec 20 Nov masih hanya
+deklarasikan 200/201. **MUT-02 caveat menguat**: `edge_publisher` 0 hit di spec 20 Nov.
+
+Adendum triase (verifikasi live E27 oleh parent, 20 Nov 06:12–06:17 WIB, Vercel 3027dcc):
+AC1 GAGAL (backend, High, Q1 = TIDAK) — POST `/devices` menolak `ADMIN-CONSOLE-01`
+(`Device ID must start with 'STM32-'…`); tiket baru **FAT-237** (child FAT-231, High,
+Todo). AC2/AC3 TIDAK DAPAT DIVERIFIKASI (backend, High, Q2 = TIDAK) — event
+`STATION_NOT_FOUND` probe parent (`STATION-UNKNOWN-XYZ`) TIDAK DITEMUKAN di
+`/admin/audit` (0 baris); tiket baru **FAT-238** (child FAT-231, High, Todo). Hint
+`StationRegisterModal.tsx:97` terbukti menyesatkan → diperbaiki di Batch A (butir 38.2
+§7). AC4 LULUS live. Login tanpa station tetap jalan (2× login, OEE 0.6%).
+Hitungan terbuka setelah adendum: 64 + 2 = **66 issue terbuka**.
+
+### 38.2 Batch A — implementasi panel High/Medium (commit lokal `179ecf7`)
+
+Sumber: `~/workspace/tmp-e28-batchA.md`. Verifikasi: `tsc` 0 error · `npm test` **466/466**
+(454 lama + 12 baru) · `vite build` OK · `check:structure` 0 FAIL. Tanpa browser, tanpa
+push, tanpa mutasi API live. 28 file diubah + 2 baru.
+
+1. **FAT-215 E2E-01 (High)** — `LoadErrorBanner` baru (pola DataTable); `OverviewPage` +
+   `LiveStatePage`: `catch {}` → `loadError` + banner + retry, data lama dipertahankan,
+   skeleton + empty state eksplisit.
+2. **FAT-229 MUT-03 (Medium)** — `dto.ts:235` `abacCondition: z.record(...).optional()`
+   (null ditolak skema); `parseAbacCondition('')` → `undefined` (omit); `http/iam.ts`
+   create + bind omit kunci bila `undefined`/`null`; PUT tetap boleh null (hapus kondisi,
+   sah per spec); demo normalisasi null→undefined hanya saat baca.
+3. **FAT-227 MUT-01 (Medium)** — akar TERBUKTI dari kode: `createClient` set feedback
+   sukses dulu lalu `await loadAll()` yang menimpa feedback dengan error bila satu dari
+   tiga GET gagal; role/group create/add bahkan tak pernah menampilkan feedback sukses.
+   Perbaikan: `classifyTransportError` (AbortError → NETWORK timeout; TypeError fetch →
+   NETWORK; galat lain → `TRANSPORT_ERROR` + pesan jujur); `loadAll` → `Promise<boolean>`;
+   `refreshAfterMutation` satu-satunya jalur refetch pasca-mutasi (refetch senyap + 1 retry
+   600 ms, lalu feedback jujur). **Residu:** hipotesis kedua (mutasi sendiri melempar
+   NETWORK padahal server sudah menerapkan) belum terbukti dari kode statis — butuh repro
+   browser + network inspector (parent).
+4. **FAT-213 N-43 (Low) + FAT-218 E2E-04 (Medium)** — SATU aturan null: `mapShiftSummary`
+   oee/availability/performance/quality → `number | null` via `pctOrNull`, UI '—';
+   `mapHourly.parts_produced` null bila `totalCount` null/absen; turunan parts null bila
+   satu bucket pun null. `mapAggregate`/`mapRollup` sudah nullable.
+5. **FAT-216 E2E-02 (Medium)** — `QualityRejectsPage`: `catch` tidak lagi `setItems([])`;
+   `loadError` + banner + panel error terpisah + 'Coba lagi'; empty state asli hanya bila
+   tidak ada error.
+6. **FAT-217 E2E-03 (Medium)** — `SystemHealthPage`: `healthError`; `!health` tiga arah
+   (loading / gagal → banner + Refresh / sukses → konten lama).
+7. **Adendum E27 butir 3 (skop FAT-232, T1 tetap Todo)** — hint `StationRegisterModal`
+   diganti dari 'Station ID bebas pola STM32' (menyesatkan) menjadi kotak amber yang jujur
+   (server saat ini HANYA menerima pola STM32-; ID non-STM32 ditolak 400 sampai backend
+   diperbaiki, FAT-237); placeholder → `STM32-CONSOLE-01`; kemampuan create TIDAK dihapus;
+   validasi klien sengaja tetap longgar supaya penolakan server tampil apa adanya.
+8. **Tindak lanjut kecil (triase §4, belum ada tiket)** — (a) B17: `getIamUserRoles({operatorId})`
+   → `?operatorId=`, `getIamPolicies({roleId})` → `?roleId=` (demo memfilter setara).
+   (b) B41: apply/rollback menerima opsi `acknowledgeUnvalidated`; body
+   `{acknowledgeUnvalidated?, confirm, reason}`; `applyBrokerConfig` kirim `true` bila
+   `staged.validation.status !== 'passed'`.
+
+### 38.3 Batch B — implementasi panel Low + repro/analisis (commit lokal `d770c2b`)
+
+Sumber: `~/workspace/tmp-e28-batchB.md`. Verifikasi: `tsc` 0 error · `npm test` **483/483**
+(466 lama + 17 baru) · `vite build` OK · `check:structure` 0 FAIL (45 WARN di atas batas
+lunak). 29 file diubah + 4 baru.
+
+1. **FAT-170 N-2** — `resolveDefaultDeviceId(devices)` baru (online pertama → pertama →
+   `undefined`); Telemetry History + Downtime tanpa default hardcode (URL `device_id`
+   tetap menang; list kosong → kotak info amber); OEE Analytics ikatan mesin tetap utama,
+   fallback kini `resolveDefaultDeviceId`. Demo default tetap STM32-OEE-01.
+2. **FAT-207 N-38 (sisa)** — `BackendHealthIndicator` baru di /login: ping `GET /health`
+   saat mount + 'Periksa lagi'; memeriksa (amber) / terhubung · N ms (hijau) / tidak dapat
+   diperiksa (abu-abu netral, bukan merah); timeout 8 dtk; MODE-AWARE — Demo render null
+   tanpa ping. Badge API + label akses sudah ada sebelumnya (terkonfirmasi live §33.1).
+3. **FAT-219 E2E-05** — SATU pola shared: `TableStateRow` + `EmptyStateBlock` (dipindah ke
+   `shared/`, impor lama via shim); 4 halaman CRUD skeleton + empty state spesifik;
+   Reconciliation empty state + `LoadErrorBanner` + retry saat gagal muat.
+4. **FAT-230 MUT-04** — prefill overwrite kini `stripDowntimeCategoryPrefix()`; checkbox
+   'Kembalikan ke Belum dikategorikan' (overwrite saja): kategori dipaksa OTHER + select
+   dinonaktifkan. Spec 20 Nov `POST /downtime-events/{id}/reason` body `{category (enum 10
+   nilai, WAJIB), reason, notes?}` — tidak ada nilai UNKNOWN, tidak ada endpoint unlabel.
+   **Residu:** prefix '[KATEGORI] ' ditambahkan SERVER (panel selalu kirim reason tanpa
+   prefix — diverifikasi grep); panel kirim OTHER + teks asli tanpa prefix. Bila live
+   masih berprefix, itu tindak lanjut backend.
+5. **FAT-224 E2E-10** — 'SN:' hanya bila `serial_number` terisi; `formatWorkOrderSubline`
+   (duplikat `wo_id` + `shift_name` kosong dibuang, kosong → '—'); `formatCycleTemp`
+   (cycle > 0 dtk, suhu bukan null, keduanya absen → '—', 0°C tetap tampil); sel
+   LINE/SCOPE `op.line_id || '—'`.
+6. **FAT-220 E2E-06** — TERKONFIRMASI dari kode statis: `ShiftFilterBar` sudah terima
+   `shiftsLoading` tapi kedua pemanggil tidak pernah meneruskannya → peringatan 'tidak
+   tersedia' tampil saat loading lalu hilang. Perbaikan: prop `shiftsError`; peringatan
+   HANYA bila `!loading && shiftsError`; loading → 'Memuat daftar shift…'; sukses-kosong
+   → catatan netral.
+7. **FAT-221 E2E-07** — cacat panel TERKONFIRMASI + diperbaiki: timeline 7 hari
+   (10.080 mnt) dibandingkan mentah dengan ringkasan 1 shift (99 mnt) → 2 warning palsu.
+   Segmen timeline DIPOTONG ke jendela shift ringkasan sebelum dijumlahkan; check terpotong
+   ditandai field `note` + footnote. **Residu:** bila live masih warning setelah potong,
+   itu selisih NYATA di dalam shift — butuh analisis lanjutan dari data live.
+8. **FAT-225 E2E-11** — dua cacat TERKONFIRMASI + diperbaiki: (a) sumbu — langkah
+   diperpanjang ke `[..., 240, 360, 480, 720, 1440, 2880, 4320, 10080]`; 7 hari kini tick
+   harian (8 tick). Residu kosmetik: tick harian sejajar tengah malam UTC (= 07:00 WIB),
+   perlu penilaian visual parent. (b) 'Downtime ID tidak ditemukan' — akar di mapper
+   `mapTimelineSegment`: `downtime_id` numerik server tidak diubah `pick` menjadi string,
+   sementara peta overlay berkunci string '2' → `Map.get(2)` gagal; mapper kini selalu
+   `String(v)` + normalisasi defense-in-depth di selector.
+
+Yang masih butuh uji live oleh parent (browser) — Batch A §10 + Batch B §10: FAT-227
+(banner palsu hilang + list ter-refresh pasca-mutasi DynSec, termasuk skenario refetch
+gagal); FAT-215/216/217 (banner + retry saat backend/endpoint gagal); FAT-213/218
+(kartu '—' pada bucket all-null live, parts '—' tanpa totalCount); FAT-229 (create
+policy ABAC kosong lolos; PUT clear-ABAC tetap null dan diterima); hint stasiun
+(`STM32-CONSOLE-01` sukses, `ADMIN-CONSOLE-01` 400 tampil jelas); B41 (apply/rollback
+config unvalidated); FAT-170 (default kini STM32-OEE-SIM); FAT-207 (indikator /login
+Real vs Demo); FAT-219 (empty state CRUD/Reconciliation); FAT-230 (overwrite live +
+catat `operatorReason` + kolom kategori); FAT-224 (4 halaman kerapian); FAT-220
+(peringatan tidak berkedip saat loading); FAT-221 (warning rekonsiliasi hilang tanpa
+filter shift); FAT-225 (sumbu 7 hari + klik segmen downtime).
+
+### 38.4 Penutupan di Linear — Fase 3 (20 Nov 2026)
+
+Standar penutupan sama seperti E21: terjawab di spec/dokumen + bukti live bila ada
+(untuk issue spec), atau bukti commit + `tsc` 0 + tes + build OK + checker 0 FAIL
+(untuk issue panel). Setiap penutupan: bukti di-append ke deskripsi (deskripsi lama
+tidak dihapus), lalu state → Done, lalu diverifikasi dengan `get_issue` sesudahnya.
+Tidak ada perubahan kode di fase ini; tidak ada push GitHub; tidak ada mutasi API live.
+
+**Ditutup 29 issue:**
+
+| # | Issue | Bukti penutupan |
+|---|---|---|
+| 1 | FAT-175 N-6 CORS | OPTIONS 204 + allow-origin Vercel, probe 20 Nov 06:14 WIB + login browser lolos 19 Nov 18:05 (AUDIT §33) |
+| 2 | FAT-172 N-5 | Panel fallback `sku` ← `productId` (`mappers/assets.ts:101-104`) + live MUT L8; backend tetap tanpa sku = kondisi diterima |
+| 3 | FAT-82 B11 | Spec 20 Nov — parameter audit `subject, decision, mode, from, to, limit, format` terdefinisi |
+| 4 | FAT-88 B17 | Spec 20 Nov — `GET /user-roles` query `operatorId`; `GET /policies` query `roleId`; pengiriman filter panel dikerjakan Batch A |
+| 5 | FAT-94 B23 | Spec 20 Nov — `GET /operational-events` + export mencakup `machine_id` + `machineId` (membalik verdict E21) |
+| 6 | FAT-102 B31 | Spec 20 Nov — `POST /clients/{name}/roles` body `{rolename, priority?}`; panel sudah benar (`http/mqttDynsec.ts:145`) |
+| 7 | FAT-103 B32 | Spec 20 Nov — `POST /roles/{name}/acls` body `{acltype, allow, priority, topic}`; panel sudah benar |
+| 8 | FAT-104 B33 | Spec 20 Nov — `POST /clients` body `{username*, password*, ...}`; password WAJIB (auto-generate hanya di `POST /devices/provision`); panel mewajibkan password min 8 |
+| 9 | FAT-105 B34 | Spec 20 Nov — respons 201 `POST /clients` membawa field `password` (kanonis); panel baca defensif `generatedPassword ?? password` |
+| 10 | FAT-106 B35 | Spec 20 Nov — objek klien DynSec memakai `disabled`; panel benar (`mappers/system.ts:29-36`) |
+| 11 | FAT-107 B36 | Spec 20 Nov — `POST /groups/{name}/clients` body `{username, priority?}`; panel sudah benar |
+| 12 | FAT-108 B37 | Spec 20 Nov — `POST /groups/{name}/roles` body `{rolename, priority?}`; panel sudah benar |
+| 13 | FAT-112 B41 | Spec 20 Nov — `acknowledgeUnvalidated` ADA di body apply & rollback `{acknowledgeUnvalidated, confirm, reason}`; polling 202 cocok; panel kini mengirimnya (Batch A) |
+| 14 | FAT-210 N-41 | Spec 20 Nov — aggregate/downtime hanya deklarasikan 200/400/500 (tanpa 404) vs history/hourly/quality 404; perilaku by-design, panel menoleransi keduanya |
+| 15 | FAT-215 E2E-01 | Batch A `179ecf7` (tes 466/466): `LoadErrorBanner` + banner/retry Overview + Live-State |
+| 16 | FAT-229 MUT-03 | Batch A `179ecf7`: omit `abacCondition` saat kosong + perbaiki `dto.ts:235` |
+| 17 | FAT-227 MUT-01 | Batch A `179ecf7`: `classifyTransportError` + `refreshAfterMutation`; RESIDU: hipotesis kedua (mutasi sendiri lempar NETWORK) belum terbukti — butuh repro browser |
+| 18 | FAT-213 N-43 | Batch A `179ecf7`: aturan null agregat → '—' |
+| 19 | FAT-218 E2E-04 | Batch A `179ecf7`: `parts_produced` null → '—' |
+| 20 | FAT-216 E2E-02 | Batch A `179ecf7`: Quality bedakan error vs empty state |
+| 21 | FAT-217 E2E-03 | Batch A `179ecf7`: System Health banner + Refresh bila GET /health gagal |
+| 22 | FAT-170 N-2 | Batch B `d770c2b` (tes 483/483): default device dari daftar live |
+| 23 | FAT-207 N-38 | Batch B `d770c2b`: indikator koneksi backend di /login (mode-aware) |
+| 24 | FAT-219 E2E-05 | Batch B `d770c2b`: empty state 5 halaman (satu pola shared) |
+| 25 | FAT-230 MUT-04 | Batch B `d770c2b`: opsi kembalikan label downtime; RESIDU: prefix '[KATEGORI]' dari server — bila live masih berprefix, tindak lanjut backend |
+| 26 | FAT-224 E2E-10 | Batch B `d770c2b`: kerapian list (SN kosong, WO duplikat, suhu '-', LINE/SCOPE) |
+| 27 | FAT-220 E2E-06 | Batch B `d770c2b`: peringatan shift hanya setelah query benar-benar gagal (race terkonfirmasi) |
+| 28 | FAT-221 E2E-07 | Batch B `d770c2b`: rekonsiliasi potong timeline ke jendela shift; RESIDU: verifikasi live oleh parent — bila masih warning, selisih nyata di dalam shift |
+| 29 | FAT-225 E2E-11 | Batch B `d770c2b`: sumbu 7 hari (tick harian) + `downtime_id` numerik → string |
+
+**Deskripsi diperbarui, tetap Todo (8 terblokir):** FAT-74 B3, FAT-77 B6, FAT-83 B12
+(butuh backend: definisi/skema — R-1/R-21), FAT-202 N-32 (definisi bit `eventFlags`),
+FAT-209 N-40 (deklarasi error OpenAPI), FAT-30 V8.3 (akses LAN pabrik), FAT-40 A10.2
+(probe negatif tunnel + pembanding LAN), FAT-29 V8.4 (keputusan Fathur: Nginx on-prem
+vs Vercel). State/prioritas tidak diubah.
+
+**Deskripsi diperbarui, tetap Todo (6 backend/verifikasi, append ringkas):** FAT-171 N-3
+(urutan gate auth-vs-validasi — butuh probe ber-auth), FAT-173 N-4 (dua teks 401 —
+butuh probe ber-auth), FAT-212 N-42 (menyempit: SIM hidup, STM32-OEE-01 offline 14 jam,
+presence/TTL tidak menurunkan state — butuh backend/device), FAT-222 E2E-08 (ENOENT
+mosquitto.conf — butuh backend), FAT-223 E2E-09 (atribusi + JSON mentah — sisi panel
+E27 T2 sudah push `3027dcc`, verifikasi ulang pasca-push oleh parent), FAT-228 MUT-02
+('Role not found' persisten 5×, caveat `edge_publisher` — butuh log body request backend;
+JANGAN uji mutasi ulang sebelum log tersedia).
+
+**Tidak disentuh:** E27 FAT-231–238 (skop parent), FAT-1–FAT-4 (onboarding workspace),
+semua epic payung (FAT-7, 34, 71, 169, 174, 211, 214, 226 — masih punya anak terbuka),
+FAT-28 (In Progress, parent), FAT-27, FAT-31 (butuh Fathur).
+
+**Hitungan Linear pasca-E28:** total **238** issue (236 + FAT-237/238) = **201 Done /
+35 Todo / 2 In Progress**. Sebelum E28: 172 Done / 62 Todo / 2 In Progress (236) + 2
+tiket baru E27 (FAT-237/238, Todo). Yang ditutup fase ini: 29 (14 spec/live + 15 panel
+Batch A+B). Epic yang masih Todo dengan anak tersisa: E13 (FAT-71 — tersisa B3/B6/B12),
+E22 (FAT-169 — tersisa N-3/N-4), E23 (FAT-174 — tersisa N-32/N-40), E24 (FAT-211 —
+tersisa N-42), E25 (FAT-214 — tersisa E2E-08/E2E-09), E26 (FAT-226 — tersisa MUT-02),
+E8 (FAT-7 — V8.1/V8.3/V8.4/V8.5), E10 (FAT-34 — A10.2).
+
+### 38.5 Yang tetap terbuka / butuh Fathur / butuh backend
+
+**Butuh Fathur:** FAT-29 V8.4 (Nginx on-prem vs Vercel — keputusan), FAT-31 V8.1 (cek
+visual di browser), FAT-30 V8.3 (akses LAN pabrik), FAT-27 V8.5 (DoD — setelah
+V8.2/V8.3), FAT-28 V8.2 (lanjutkan verifikasi Real E2E: WS handshake, `/force-change-password`,
+respons 401-gated, konsistensi data N-42).
+
+**Butuh backend:** FAT-237 (Q1 — longgarkan validasi deviceId untuk stasiun ATAU sediakan
+endpoint registrasi stasiun), FAT-238 (Q2 — tulis penolakan `STATION_NOT_FOUND` sebagai
+operational event + kembalikan `station_label`), FAT-228 MUT-02 (log body create-client),
+FAT-222 E2E-08 (mosquitto.conf), FAT-212 N-42 (presence/TTL STM32-OEE-01), FAT-74/77/83
+(B3/B6/B12 — R-1/R-21), FAT-202 N-32 (definisi bit `eventFlags`), FAT-209 N-40
+(deklarasi error OpenAPI), FAT-171 N-3 + FAT-173 N-4 (probe ber-auth), FAT-223 E2E-09
+(atribusi + description audit), FAT-40 A10.2 (probe negatif tunnel + pembanding LAN).
+
+**Verifikasi live oleh parent (browser) — daftar lengkap di §38.2/§38.3 akhir:** semua
+perbaikan Batch A+B yang bersifat perilaku (banner error, aturan null '—', indikator
+koneksi /login, default device SIM, empty state, overwrite downtime, peringatan shift,
+rekonsiliasi, sumbu timeline) belum terverifikasi di browser nyata — panel masih di
+commit lokal `d770c2b`, **belum push** (push menunggu kata Fathur, seperti biasa).
+
+Dokumen: `docs/LINEAR.md` §1.1 (baris E28) + §1.3 (baris E22/E23/E24/E25/E26) + §8
+(hitungan) diperbarui; `docs/linear-seed.json` v31 (`verified` + `issueMap` dilengkapi
+entri E22–E25 yang selama ini tidak tercatat). Commit dokumen lokal: SATU commit dokumen saja (pesan "E28: tutup 29 issue Linear (14 spec/live + 15 panel Batch A/B) + AUDIT §38") — tanpa perubahan kode, tanpa push; hash lihat `git log -1` (HEAD lokal).
+
+## 39. E29 — Spec 044: Migrasi login admin ke POST /auth/admin/login (2026-11-20)
+
+Epic Linear FAT-239 (Todo, parent menutup setelah verifikasi live) + 7 anak
+FAT-240–FAT-246. Sumber kebenaran: `~/workspace/oee-live-openapi-2026-11-20b.json`
+(`POST /api/v1/auth/admin/login`, summary "Admin Panel entry point — operator
+credentials without station context (spec 044)"): body STRICT
+`{operator_id, password}` (`catchall: never`), respons 200 sama dengan login
+lama, error `200/400/401/403/429` (403 BARU — role-gate non-admin, lihat §39.4).
+
+Batch A (commit lokal `38752fc`, tes 492/492) mengerjakan T1/T2/T4; Batch B
+(commit lokal `e4d1d6a`, tes 499/499) mengerjakan T3/T5/T6/T7. TIDAK push
+(push menunggu kata Fathur, seperti biasa). TIDAK ada mutasi API live, TIDAK
+ada kerja browser — semua verifikasi lokal (tsc + tes stub + build + checker).
+
+### 39.1 Keputusan: nasib `AUTH_LOGIN` — DIHAPUS (Batch A, FAT-240)
+
+- Entri registry `AUTH_LOGIN` dihapus, diganti `AUTH_ADMIN_LOGIN` (POST
+  `/api/v1/auth/admin/login`). Registry tetap **137** (terverifikasi runtime
+  via tsx). Path lama `/api/v1/auth/login` masuk `FORBIDDEN_ENDPOINT_PATTERNS`
+  sebagai pola full-path — pola aman: `'/api/v1/auth/admin/login'.includes(
+  '/api/v1/auth/login')` → false, path lama → true; dijaga
+  `contractAlignment.test.ts:33-39`.
+- Alasan (aturan E18, satu alur kanonis): endpoint lama dan baru tidak boleh
+  hidup berdampingan sebagai fallback; body strict endpoint baru membuat
+  pengiriman `station_id` pasti ditolak 400 bila dicoba. Penghapusan hanya di
+  sisi panel — backend tetap menyediakan `/auth/login` untuk kiosk/perangkat.
+- Alternatif yang ditolak: mempertahankan `AUTH_LOGIN` sebagai alias/fallback
+  ("untuk jaga-jaga") — menyembunyikan kegagalan migrasi bila endpoint baru
+  bermasalah; bila endpoint baru gagal live, yang benar adalah tiket backend,
+  bukan fallback senyap.
+
+### 39.2 Verdict `assertLanForMutation` — TIDAK memblokir login/refresh dari Vercel (Batch A, FAT-243)
+
+- Rantai (investigasi `tmp-e29-invest.md` §a): `networkMode` modul
+  (`transport.ts:120`, default `'LAN'`) hanya ditulis `NetworkAccessContext`
+  (deteksi port lokal, `mode.ts:251-262`); di Vercel (https:443)
+  `window.location.port === ''` ≠ `'8080'` → selalu `'LAN'` →
+  `resolveEffectiveAccess` `canMutate: true` (LAN boleh mutasi, private
+  maupun public). Guard lolos BUKAN karena pengecualian bootstrap, melainkan
+  karena detektor kanal tidak bisa membedakan Vercel dari LAN pabrik. Model
+  dual-vhost D1 berasumsi panel disajikan Nginx pabrik (port 80) vs tunnel
+  (8080); di Vercel asumsi itu runtuh dan guard sisi-klien menjadi vakum.
+  Penegakan nyata di sana adalah sisi server.
+- **Batasan env (TIDAK dapat diverifikasi dari repo — perlu cek dashboard
+  Vercel oleh parent/Fathur):** bila `VITE_NETWORK_MODE=REMOTE_TUNNEL` diset
+  di dashboard Vercel, SEMUA login dari Vercel mati 403 (`FORBIDDEN`, pesan
+  "Mode observasi") — dibuktikan tes Batch A: gate menolak SEBELUM fetch
+  (stub `loginHits` tetap 0). Bila suatu hari guard harus benar-benar
+  membedakan Vercel dari LAN, itu pekerjaan desain baru (deteksi berbasis
+  origin/host, bukan port) — di luar E29. TIDAK ada pengecualian bootstrap
+  yang ditambahkan (T4 = verifikasi + dokumentasi saja).
+- Channel server (`GET /system/access-mode`, `channel: lan|tunnel|unknown`)
+  TIDAK PERNAH dibaca transport dan baru diambil SETELAH login — tidak
+  mungkin meng-gate login. Pra-login, `isReadOnly` berasal dari derivasi
+  env+kanal saja → `false` di Vercel → tombol submit LoginPage aktif.
+
+### 39.3 T3 — LoginPage tanpa station (Batch B, FAT-242)
+
+- Dihapus: state `stationId` + Input "Station / Terminal ID (Opsional)" +
+  `mapStationNotFoundMessage` (400 `STATION_NOT_FOUND` tidak lagi mungkin
+  dari login admin) + shim 3-param `AuthContext.login` (Batch A,
+  `AuthContext.tsx` kini 282 baris, di bawah hard cap 300 `context/*`).
+  LoginPage kini memanggil `login(operatorId, password)` 2-arg.
+- Dihapus sebagai dead code: `resolveDefaultStationId()` +
+  `VITE_DEFAULT_STATION_ID` (`mode.ts:447-461` + `.env.example:71` +
+  komentar header `mode.ts`) beserta tesnya
+  (`modeAndTransport.test.ts:617,635` + override `:627` + entri `ENV_KEYS`).
+  Tidak ada pemanggil produksi yang tersisa.
+- Copy diperbarui (registry stasiun `/admin/stations` TIDAK dihapus — hanya
+  copy login-nya): `StationsPage.tsx:74` (stasiun = khusus login kiosk;
+  login admin tidak memakai station_id) dan
+  `StationRegisterModal.tsx:83` (penegas "khusus login kiosk").
+- Demo login tak berubah: paritas 2-arg diuji (`e29-batchB.test.ts`, T3).
+
+### 39.4 T5 — Role-gate 403: pembeda gate lokal vs server (Batch B, FAT-244)
+
+- Masalah: `LoginPage.tsx:85-92` lama memetakan SEMUA 403 ke pesan
+  "jaringan jarak jauh" — 403 role-gate server dari endpoint admin
+  (OPERATOR, pesan generik) akan tertukar dengan pesan tunnel yang
+  menyesatkan.
+- **Aturan pembeda (satu-satunya yang andal dari kode): kesamaan message.**
+  `assertLanForMutation` (HTTP) dan `assertLanAccess` (demo) sama-sama
+  melempar `ApiError` 403 dengan message persis
+  `LAN_GATE_DENY_REASON` ("Mode observasi — perubahan dinonaktifkan. Akses
+  penuh tersedia dari LAN pabrik."), SEBELUM fetch — server tidak pernah
+  dihubungi. Server tidak pernah mengirim string Indonesia itu (pesan server
+  berbahasa Inggris, diteruskan verbatim oleh `mapHttpErrorToApiError`,
+  `schemas/transport.ts:119-147`). String itu kini konstanta tunggal
+  (`mode.ts`, `LAN_GATE_DENY_REASON`), dipakai `resolveEffectiveAccess` dan
+  `mapLoginForbiddenMessage` (`LoginPage.tsx`, diekspor untuk tes).
+- Perilaku baru: 403 dengan message == `LAN_GATE_DENY_REASON` → pesan
+  observasi (tidak berubah); 403 lain → pesan server tampil VERBATIM,
+  generik, TANPA tambahan alasan role (jangan bocorkan, jangan parafrasa).
+- **Batasan pembeda (dicatat, bukan disembunyikan):** pembeda ini bertumpu
+  pada string message, bukan flag asal-error di `ApiError` (tipe itu tidak
+  membawa penanda asal gate-vs-server). Bila server suatu hari mengirim
+  message yang persis sama (sangat tidak mungkin — server berbahasa Inggris)
+  atau bila copy gate diubah tanpa memperbarui konstanta, klasifikasi bisa
+  salah. Tes `LoginPage.test.ts` mengunci string konstanta + kesamaan alasan
+  `resolveEffectiveAccess('REMOTE_TUNNEL')` agar perubahan apa pun harus
+  disengaja. Pembeda berbasis konteks (`mode` dari `useNetworkAccess`) TIDAK
+  dipakai — kurang andal: `isReadOnly` juga bisa true karena
+  `mutations_allowed` server sementara `mode` LAN, sehingga 403 server bisa
+  salah dikira gate.
+- Tes (`LoginPage.test.ts`, 5 tes): 403 gate → pesan observasi; 403 server
+  (dua code berbeda) → verbatim, tanpa frasa "jaringan jarak jauh" /
+  "Mode observasi"; non-403 → null.
+
+### 39.5 T6 — Refresh Real mode tanpa gate LAN (Batch B, FAT-245)
+
+- **Verdict refresh (investigasi §b):** sliding refresh lama hanya fire bila
+  `mode === 'LAN'` (`AuthContext.tsx:203-205`) — di Vercel saat ini refresh
+  JALAN hanya secara kebetulan (detektor port vakum, lihat §39.2). Bug laten:
+  bila `networkMode` suatu saat menjadi `REMOTE_TUNNEL` (env diset, atau
+  panel disajikan via `:8080`), refresh tidak pernah fire → sesi mati di TTL
+  (fallback 900 dtk) tanpa percobaan refresh sama sekali. Refresh juga salah
+  digate sebagai mutasi: spec `/auth/refresh` hanya mengenal 200/400/401
+  (TANPA 403) — refresh adalah pemeliharaan sesi, bukan mutasi tulis.
+- Perubahan Batch B:
+  - (a) `http/auth.ts refreshSession()`: `assertLanForMutation()` DIHAPUS.
+    `changePassword` TETAP digate (mutasi nyata). `login` tetap digate
+    (tidak berubah perilaku di Vercel).
+  - (a2) `demo/auth.ts refreshSession()`: `assertLanAccess()` DIHAPUS
+    (paritas, rekomendasi investigasi) — `changePassword` demo tetap digate.
+  - (b) `AuthContext.tsx` sliding refresh: syarat `mode === 'LAN'` DIHAPUS
+    (refresh tanpa syarat kanal). `mode` tetap dipakai `checkCapability`, jadi
+    destructure tidak dihapus; `mode` dihapus dari dependency array efek.
+    Logika lain TIDAK berubah: single-flight, ambang 20% tersisa, logout
+    saat TTL habis, `.catch(() => {})` (401 tetap berakhir logout via hook
+    `onUnauthorized`).
+- Tes (`e29-batchB.test.ts`, stub port **3060** — 3051 dipakai Batch A;
+  stub membalas `Connection: close` agar socket keep-alive undici yang usang
+  tidak dipakai ulang tes berikutnya ke server stub baru di port sama dan
+  gagal `UND_ERR_SOCKET` — flaky yang terbukti via repro, BUKAN bug produk):
+  refresh HTTP lolos 200 walau `REMOTE_TUNNEL` + private (`refreshHits` 1);
+  kontrol negatif changePassword tetap 403 sebelum fetch (`changePasswordHits`
+  0); refresh demo lolos walau `REMOTE_TUNNEL`; demo login paritas.
+- **Batasan tes:** sliding refresh `AuthContext` (interval 1 detik) TIDAK
+  diuji via render — repo ini tidak punya harness render React (tanpa
+  testing-library/jsdom). Yang diuji adalah prasyarat fungsionalnya
+  (refreshSession ungated di kedua transport) + penghapusan kondisi
+  diverifikasi via grep (`mode === 'LAN'` = 0 sisa di AuthContext kecuali
+  komentar) + tsc. Uji perilaku sliding yang sesungguhnya menunggu uji
+  browser parent (sesi bertahan melewati ambang 20% TTL di tunnel).
+
+### 39.6 Q-02 — DITUTUP oleh migrasi ini
+
+- **Q-02 TIDAK tercatat di repo sebelumnya** — `grep -rn "Q-02"` repo-wide
+  (`*.md`, `*.ts`, `*.tsx`, `*.json`, termasuk `docs/API_SYNC_REVIEW.md`,
+  `AUDIT.md`, `docs/*.md`) = **0 hit**; `grep "Q-01"` = 0 hit; `"Spec 044"`
+  di repo = 0 hit. Satu-satunya kemunculan frasa "spec 044" adalah summary
+  endpoint di file spec live `~/workspace/oee-live-openapi-2026-11-20b.json`.
+  Q-02 hanya ada di teks tugas E29 — dicatat di sini (§39.6) agar terlacak.
+- Isi Q-02 (dari teks tugas): pertanyaan terbuka soal login admin pasca
+  Spec 044 — kini **tertutup oleh migrasi ini**: login admin satu-satunya via
+  `POST /auth/admin/login` (body strict tanpa station_id, §39.1), gate LAN
+  terbukti tidak memblokir di Vercel (§39.2), 403 role-gate dibedakan dari
+  gate tunnel (§39.4), refresh tanpa gate LAN (§39.5). Tidak ada tindak
+  lanjut Q-02 yang tersisa di sisi panel.
+
+### 39.7 Pertanyaan TERBUKA untuk uji live parent — urutan gate vs auth di server
+
+- **JANGAN klaim login dari tunnel sudah pasti lolos.** Yang terbukti di
+  sini hanya sisi KLIEN: guard klien lolos di Vercel (detektor port) dan
+  login/refresh tidak digate klien. Yang BELUM terbukti adalah sisi SERVER:
+  urutan gate vs auth di server belum diketahui — login VALID dari tunnel
+  bisa 403 bila gate tunnel server berjalan SETELAH validasi kredensial
+  (atau bila server menegakkan role-gate / channel-gate pada
+  `/auth/admin/login` dengan cara yang belum terdokumentasi di spec live).
+  Hanya uji browser parent yang bisa memastikan: login dengan kredensial
+  VALID dari jaringan tunnel (dan dari Vercel) pasca-push + redeploy, lalu
+  amati 200 vs 403 beserta body errornya.
+- Terkait: FAT-40 (A10.2, probe negatif tunnel + pembanding LAN) tetap Todo
+  dan mencakup pertanyaan ini; FAT-237/238 (registrasi stasiun + event
+  `STATION_NOT_FOUND`) tetap Todo backend.
+- Uji live lain yang masih menunggu parent (browser, pasca-push):
+  sliding refresh bertahan melewati ambang 20% TTL saat kanal tunnel;
+  403 role-gate server tampil verbatim di LoginPage (butuh login OPERATOR
+  non-admin — JANGAN uji dengan kredensial admin sungguhan tanpa
+  persetujuan); 401 endpoint admin tetap generik
+  (`Invalid operator credentials`, sudah dibuktikan via stub Batch A, belum
+  live); tidak ada regresi halaman lain pasca-hapus field Station.
+
+### 39.8 Penutupan di Linear — 7 issue (20 Nov 2026)
+
+Ditutup SETELAH verifikasi Batch B hijau (tsc 0, tes 499/499, build OK,
+checker 0 FAIL) — tiap penutupan diverifikasi via `get_issue`:
+
+| # | Issue | Bukti |
+| --- | --- | --- |
+| 1 | FAT-240 T1 (registry) | Batch A `38752fc`: `AUTH_ADMIN_LOGIN` di registry 137, path lama forbidden |
+| 2 | FAT-241 T2 (login strict) | Batch A `38752fc`: body strict + 401 generik + demo paritas |
+| 3 | FAT-243 T4 (gate) | Batch A `38752fc`: verdict §39.2 + tes batasan env REMOTE_TUNNEL |
+| 4 | FAT-242 T3 (LoginPage) | Batch B `e4d1d6a`: field Station + shim + `resolveDefaultStationId` dihapus |
+| 5 | FAT-244 T5 (403) | Batch B `e4d1d6a`: `mapLoginForbiddenMessage`, 5 tes |
+| 6 | FAT-245 T6 (refresh) | Batch B `e4d1d6a`: refresh ungated http+demo, sliding tanpa `mode === 'LAN'`, 4 tes |
+| 7 | FAT-246 T7 (tes/dokumen) | Batch B `e4d1d6a` + commit dokumen (lihat bawah): tes 499/499 + AUDIT §39 + LINEAR/seed |
+
+Epic **FAT-239 tetap Todo** — parent yang menutup setelah verifikasi live
+(§39.7).
+
+**Hitungan Linear pasca-E29:** total **246** issue (238 + 8 E29) =
+**208 Done / 36 Todo / 2 In Progress**. Sebelum E29: 201 Done / 35 Todo /
+2 In Progress. Todo pasca-E29 (36): 4 onboarding (FAT-1–FAT-4) + E13
+(FAT-71) + B3/B6/B12 (FAT-74/77/83) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27)
++ A10.2 (FAT-40) + E8 (FAT-7) + E22 (FAT-169) + N-3/N-4 (FAT-171/173) + E23
+(FAT-174) + N-32/N-40 (FAT-202/209) + E24 (FAT-211) + N-42 (FAT-212) + E25
+(FAT-214) + E2E-08/E2E-09 (FAT-222/223) + E26 (FAT-226) + MUT-02 (FAT-228)
++ E27 (FAT-231) + T1–T3 + LOGIN + VERIFY (FAT-232–236) + FAT-237 + FAT-238
++ **E29 (FAT-239, epic, menunggu verifikasi live)**.
+
+### 39.9 Verifikasi Batch B (2026-11-20)
+
+- `npx tsc --noEmit`: **0 error**.
+- `npm test`: **499/499 pass** (492 Batch A + 9 baru: 5 T5 `LoginPage.test.ts`
+  + 4 T6/T3 `e29-batchB.test.ts`), 0 fail; file batchB dijalankan 3×
+  berurutan (4/4 stabil) setelah perbaikan `Connection: close`.
+- `npm run build`: OK (chunk-size warning pre-existing).
+- `npm run check:structure`: **0 FAIL**, 45 WARN (di atas lunak, pre-existing).
+- Grep akhir: `AUTH_LOGIN` di src hanya sebagai substring
+  `AUTH_ADMIN_LOGIN` (+ tes registry yang menegaskan penghapusannya);
+  `/api/v1/auth/login` di src hanya entri FORBIDDEN `endpoints.ts:77`;
+  `station_id` di jalur login hanya di komentar sejarah + registry stasiun
+  `/admin/stations` (yang memang terpisah); `mode === 'LAN'` di AuthContext
+  hanya di komentar; `resolveDefaultStationId` / `VITE_DEFAULT_STATION_ID`
+  = 0 sisa di src + `.env.example` (hanya disebut di AUDIT.md historis).
+- `AuthContext.tsx` 282 baris (< 300 keras `context/*`); `LoginPage.tsx`
+  286 baris; `mode.ts` 452 baris (< 500 keras); `http/auth.ts` 91 baris.
+
+Dokumen: `AUDIT.md` §39 (file ini) + `docs/LINEAR.md` §1.1 (baris E29) +
+§8 (hitungan) + `docs/linear-seed.json` v32 (`verified` + `issueMap`
+dilengkapi E29/E29-T1–T7). Commit dokumen lokal: SATU commit dokumen saja
+(pesan "E29 Batch B: AUDIT §39 + LINEAR/seed (tutup FAT-240–246)") — tanpa
+perubahan kode, tanpa push; hash lihat `git log -1` (HEAD lokal).

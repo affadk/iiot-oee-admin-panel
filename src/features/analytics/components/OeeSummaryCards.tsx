@@ -5,6 +5,10 @@ import { MetricCard } from '../../../components/industrial/MetricCard';
 import { Button } from '../../../components/ui/Button';
 import { formatSummaryScopeLabel } from '../scopeLabels';
 
+// E28 Batch A (FAT-213 N-43): nilai pct null → '—' (bukan 0%); angka
+// diformat tanpa '%' karena MetricCard sudah merender unit="%" sendiri.
+const pctValue = (v: number | null): string => (v === null ? '—' : v.toFixed(1));
+
 interface OeeSummaryCardsProps {
   summary: ShiftSummary | null;
   /** Label periode dari filter aktif — dipakai bila summary tidak membawa info shift yang bermakna. */
@@ -45,17 +49,18 @@ export const OeeSummaryCards: React.FC<OeeSummaryCardsProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             label="Shift Total OEE"
-            value={summary.oee.toFixed(1)}
+            // E28 Batch A (FAT-213 N-43): semua *Pct null → '—', bukan 0%.
+            value={pctValue(summary.oee)}
             unit="%"
             // E23 Batch 3 (FAT-196, N-27): nama shift null bila server
             // tidak mengirimnya — tampil '—', bukan 'Shift' fabrikasi.
             subtext={`${summary.shift_name ?? '—'} (${summary.tz || 'Asia/Jakarta'})`}
-            statusVariant={summary.oee >= 80 ? 'success' : 'warning'}
+            statusVariant={summary.oee === null ? 'normal' : summary.oee >= 80 ? 'success' : 'warning'}
             icon={<TrendingUp className="w-4 h-4" />}
           />
           <MetricCard
             label="Availability"
-            value={summary.availability.toFixed(1)}
+            value={pctValue(summary.availability)}
             unit="%"
             subtext={`Run ${summary.run_time_min}m / Operating ${summary.operating_time_min}m`}
             statusVariant="normal"
@@ -63,7 +68,7 @@ export const OeeSummaryCards: React.FC<OeeSummaryCardsProps> = ({
           />
           <MetricCard
             label="Performance"
-            value={summary.performance.toFixed(1)}
+            value={pctValue(summary.performance)}
             unit="%"
             subtext={`Target/Jam: ${summary.target_per_hour ?? '-'} pcs · Break ${summary.planned_break_min ?? 0}m`}
             statusVariant="normal"
@@ -71,7 +76,7 @@ export const OeeSummaryCards: React.FC<OeeSummaryCardsProps> = ({
           />
           <MetricCard
             label="Quality"
-            value={summary.quality.toFixed(1)}
+            value={pctValue(summary.quality)}
             unit="%"
             // E23 Batch 3 (FAT-196, N-27): parts null = tidak diketahui
             // (server tidak mengirim) — tampil '—', bukan 0 fabrikasi.

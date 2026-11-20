@@ -12,17 +12,22 @@ import { AuthMeResponseSchema, LoginResponseSchema, RefreshResponseSchema } from
 import { ApiError, LoginResponse, AuthMeResponse } from '../../../types/auth';
 
 export const httpAuth = {
-  // -- Auth (4 ops, Guide §4.4; login/refresh LAN-only) --------------------
-  async login(operator_id: string, password?: string, station_id?: string): Promise<LoginResponse> {
+  // -- Auth (4 ops, Guide §4.4; login + ganti-password digate LAN) ---------
+  // E29 (FAT-241, Spec 044): login admin HANYA via POST /auth/admin/login,
+  // body STRICT {operator_id, password} — station_id DITOLAK server 400
+  // (VALIDATION_ERROR) bila dikirim. assertLanForMutation tetap di baris
+  // pertama: lolos di Vercel karena deteksi port menghasilkan 'LAN'
+  // (verdict T4, FAT-243) — BUKAN pengecualian bootstrap.
+  async login(operator_id: string, password?: string): Promise<LoginResponse> {
     assertLanForMutation();
     const parsed = await reqJson(
       {
         method: 'POST',
-        path: ADMIN_ENDPOINTS.AUTH_LOGIN.buildPath(),
-        body: { operator_id: operator_id.trim(), password: password ?? '', ...(station_id ? { station_id } : {}) },
+        path: ADMIN_ENDPOINTS.AUTH_ADMIN_LOGIN.buildPath(),
+        body: { operator_id: operator_id.trim(), password: password ?? '' },
         timeoutMs: MUTATION_TIMEOUT_MS,
         retry: false,
-        endpointKey: 'AUTH_LOGIN',
+        endpointKey: 'AUTH_ADMIN_LOGIN',
       },
       (raw) => LoginResponseSchema.parse(raw),
     );
@@ -30,8 +35,12 @@ export const httpAuth = {
     return parsed;
   },
 
+  // E29 (FAT-245, T6): refresh BUKAN mutasi — spec /auth/refresh hanya
+  // mengenal 200/400/401 (tanpa 403), jadi refreshSession TIDAK digate
+  // assertLanForMutation. Sliding refresh tidak boleh mati hanya karena
+  // kanal REMOTE_TUNNEL; 401 tetap berakhir logout via hook onUnauthorized.
+  // changePassword di bawah TETAP digate (mutasi nyata).
   async refreshSession(): Promise<{ token: string; expires_in: number; authz_version: number }> {
-    assertLanForMutation();
     if (!httpToken) throw new ApiError({ code: 'UNAUTHORIZED', message: 'Tidak ada sesi untuk di-refresh.', httpStatus: 401 });
     const parsed = await reqJson(
       {

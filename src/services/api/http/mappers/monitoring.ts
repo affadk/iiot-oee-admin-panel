@@ -239,7 +239,13 @@ export function mapHourly(raw: unknown): HourlyOeePoint {
     availability: pctOrNull(r.availabilityPct, r.availability),
     performance: pctOrNull(r.performancePct, r.performance),
     quality: pctOrNull(r.qualityPct, r.quality),
-    parts_produced: num(pick(r.totalCount, r.total_count), 0),
+    // E28 Batch A (FAT-218 E2E-04 + FAT-213 N-43): totalCount null/absen =
+    // jumlah tidak diketahui → null (tampil '—'), BUKAN 0. `pick` membuang
+    // null, jadi baca field mentah seperti pctOrNull di atas.
+    parts_produced: (() => {
+      const total = r.totalCount !== undefined ? r.totalCount : r.total_count;
+      return total === undefined || total === null ? null : num(total, 0);
+    })(),
     defect_count: num(pick(r.rejectCount, r.reject_count), 0),
     good_count: num(pick(r.goodCount, r.good_count), 0) || undefined,
     hourly_operating_sec: num(pick(r.operatingSec, r.operating_sec), 0) || undefined,
@@ -411,11 +417,16 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
   const explicitTotal = pick(r.totalCount, r.total_count);
   const explicitGood = pick(r.goodCount, r.good_count);
   const explicitDefect = pick(r.rejectCount, r.reject_count);
+  // E28 Batch A (FAT-218 E2E-04): turunan parts dari hourly[] hanya sah
+  // bila SEMUA bucket membawa parts_produced — satu bucket null (totalCount
+  // tidak diketahui) membuat Σ tidak diketahui → null, JANGAN fabrikasi 0.
   const derivedParts =
-    hourly && hourly.length > 0
+    hourly && hourly.length > 0 && !hourly.some((p) => p.parts_produced === null)
       ? hourly.reduce(
           (acc, p) => {
-            const total = p.parts_produced;
+            // Guard `.some(... === null)` di atas menjamin tidak ada null
+            // di sini; `?? 0` hanya untuk meyakinkan type-checker.
+            const total = p.parts_produced ?? 0;
             const defect = p.defect_count;
             const good = p.good_count ?? Math.max(0, total - defect);
             return { total: acc.total + total, good: acc.good + good, defect: acc.defect + defect };
@@ -430,10 +441,14 @@ export function mapShiftSummary(raw: unknown, machineId?: string): ShiftSummary 
     shift_start: iso(pick(win.from, r.shift_start, r.from)),
     shift_end: iso(pick(win.to, r.shift_end, r.to)),
     tz: str(pick(win.tz, r.tz), undefined) || undefined,
-    oee: num(pick(r.oee), 0),
-    availability: num(pick(r.availability), 0),
-    performance: num(pick(r.performance), 0),
-    quality: num(pick(r.quality), 0),
+    // E28 Batch A (FAT-213 N-43): `*Pct` ringkasan nullable seperti agregat
+    // (pctOrNull) — bila server mengirim semuanya null (kapasitas unknown /
+    // bucket kosong), kartu ringkasan menampilkan '—', BUKAN 0%. Nilai yang
+    // ADA tetap dipakai apa adanya (matematika tidak berubah).
+    oee: pctOrNull(r.oeePct, r.oee),
+    availability: pctOrNull(r.availabilityPct, r.availability),
+    performance: pctOrNull(r.performancePct, r.performance),
+    quality: pctOrNull(r.qualityPct, r.quality),
     planned_production_time_min: plannedProductionTimeMin,
     planned_break_min: num(pick(r.planned_break_min), 0) || undefined,
     operating_time_min: Math.round(operatingSec / 60),
@@ -459,7 +474,17 @@ export function mapTimelineSegment(raw: unknown): ShiftTimelineSegment {
     end,
     fsm_state: normalizeFsmState(str(pick(r.state), 'UNCONFIGURED')) as MachineFsmState,
     planned: bool(pick(r.planned), false),
-    downtime_id: (pick(r.downtime_id, r.downtimeId) as string | null) ?? (pick(r.downtime_id) !== undefined ? String(pick(r.downtime_id)) : null),
+    // E28 Batch B (FAT-225, E2E-11 — TERKONFIRMASI dari kode): server
+    // mengirim `downtime_id` numerik (id event downtime adalah number —
+    // lihat `mapDowntime`: `id: String(...)`), sementara peta overlay
+    // memakai kunci string. `pick(...) as string` TIDAK mengubah number
+    // menjadi string di runtime — lookup `Map<string>` gagal dan panel
+    // menampilkan "Downtime ID: 2 tidak ditemukan di antara 2 event"
+    // padahal event 2 sudah dimuat. Selalu String() bila ada nilainya.
+    downtime_id: (() => {
+      const v = pick(r.downtime_id, r.downtimeId);
+      return v === null || v === undefined ? null : String(v);
+    })(),
     // E12 T12.11 (X-4 / FAT-59): durasi benar untuk ISO 8601 (Real/demo
     // baru) MAUPUN 'HH:MM' polos (format demo lama) — `Date.parse('HH:MM')`
     // = NaN sehingga hitungan lama menghasilkan NaN di sini.

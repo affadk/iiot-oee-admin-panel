@@ -233,7 +233,7 @@ export const demoMqttConfig = {
 
   async applyBrokerConfigVersion(
     versionId: string,
-    options: { confirm: boolean; reason?: string }
+    options: { confirm: boolean; reason?: string; acknowledgeUnvalidated?: boolean }
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertCapability('mqtt.config.manage', ['ADMIN'], { resourceId: versionId });
     if (!options?.confirm) {
@@ -298,7 +298,7 @@ export const demoMqttConfig = {
 
   async rollbackBrokerConfig(
     versionId: string,
-    options: { confirm: boolean; reason?: string } = { confirm: true }
+    options: { confirm: boolean; reason?: string; acknowledgeUnvalidated?: boolean } = { confirm: true }
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertCapability('mqtt.config.manage', ['ADMIN'], { resourceId: versionId });
     if (!options?.confirm) {

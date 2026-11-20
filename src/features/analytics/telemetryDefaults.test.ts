@@ -73,7 +73,7 @@ test('HTTP transport: hourly tanpa limit mengirim limit default spec 72; rollup 
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       json(200, {
         success: true,
         token: 'stub-token',

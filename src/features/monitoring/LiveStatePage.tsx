@@ -5,6 +5,7 @@ import { telemetrySocket, WsConnectionStatus } from '../../services/ws/telemetry
 import { LiveStateRecord, MachineFsmState } from '../../types/monitoring';
 import { MachineStateBadge } from '../../components/industrial/MachineStateBadge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration } from '../../utils/oeeCalculations';
 
 const FSM_FILTER_STATES: Array<'ALL' | MachineFsmState> = [
@@ -22,14 +23,19 @@ export const LiveStatePage: React.FC = () => {
   const [filterState, setFilterState] = useState<'ALL' | MachineFsmState>('ALL');
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(telemetrySocket.getStatus());
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-215 E2E-01): kegagalan muat JANGAN ditelan diam-diam.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadLiveState = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await apiClient.getLiveState();
       setRecords(data);
-    } catch {
-      // Handle silently
+      setLoadError(null);
+    } catch (err: unknown) {
+      // E28 Batch A (FAT-215 E2E-01): jangan `catch {}` — catat pesan agar
+      // banner error + retry bisa tampil; kartu lama tetap tampil.
+      setLoadError(err instanceof Error ? err.message : 'Gagal memuat status mesin.');
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +118,15 @@ export const LiveStatePage: React.FC = () => {
         </Button>
       </div>
 
+      {/* E28 Batch A (FAT-215 E2E-01): banner error + retry bila muat gagal. */}
+      {loadError && !isLoading && (
+        <LoadErrorBanner
+          title="Gagal memuat status mesin"
+          message={loadError}
+          onRetry={() => void loadLiveState()}
+        />
+      )}
+
       {/* 6 Canonical FSM State Filter Bar */}
       <div className="flex flex-wrap items-center gap-2">
         {FSM_FILTER_STATES.map((st) => {
@@ -134,8 +149,42 @@ export const LiveStatePage: React.FC = () => {
       </div>
 
       {/* Grid of Machine Telemetry Cards (Strict Read-Only — ZERO Actuation Commands per ADR-003) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredRecords.map((rec) => (
+      {isLoading && records.length === 0 ? (
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+          aria-busy="true"
+          aria-label="Memuat status mesin"
+        >
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-4 space-y-3"
+            >
+              <div className="h-4 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="h-10 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="grid grid-cols-4 gap-2">
+                {[0, 1, 2, 3].map((j) => (
+                  <div key={j} className="h-10 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                ))}
+              </div>
+            </div>
+          ))}
+          <span className="sr-only">Memuat status mesin…</span>
+        </div>
+      ) : filteredRecords.length === 0 ? (
+        <div className="p-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-2">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {records.length === 0 ? 'Belum ada data live-state' : 'Tidak ada mesin pada filter ini'}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {records.length === 0
+              ? 'Tidak ada mesin yang melaporkan status saat ini.'
+              : 'Coba pilih filter status FSM lain.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredRecords.map((rec) => (
           <div
             key={rec.device_id}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-4 space-y-4 flex flex-col justify-between"
@@ -234,8 +283,9 @@ export const LiveStatePage: React.FC = () => {
               <span>DT: {formatDuration(rec.downtime_seconds)}</span>
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

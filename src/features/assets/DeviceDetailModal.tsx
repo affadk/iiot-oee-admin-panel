@@ -164,7 +164,10 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({
                   {device.device_id}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  {device.model || 'STM32H743-Edge-Pro'} · SN: {device.serial_number}
+                  {device.model || 'STM32H743-Edge-Pro'}
+                  {/* E28 Batch B (FAT-224, E2E-10): "SN:" kosong
+                      disembunyikan bila device tak punya serial. */}
+                  {device.serial_number ? ` · SN: ${device.serial_number}` : ''}
                 </div>
               </div>
             </div>

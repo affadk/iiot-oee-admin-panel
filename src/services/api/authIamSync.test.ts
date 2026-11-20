@@ -233,7 +233,7 @@ test('E20 P20.3: HTTP stub port 3006 — 429 membawa Retry-After dari server; re
       res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
       res.end(JSON.stringify(payload));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       const chunks: Buffer[] = [];
       req.on('data', (c: Buffer) => chunks.push(c));
       req.on('end', () => {

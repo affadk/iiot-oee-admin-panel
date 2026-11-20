@@ -6,6 +6,26 @@ import { Badge } from '../../../components/ui/Badge';
 import { formatDuration } from '../../../utils/oeeCalculations';
 import { formatJakartaDateTime } from '../../../utils/historicalExport';
 
+/**
+ * E28 Batch B (FAT-224, E2E-10): teks sel "Cycle / Temp" — hanya bagian
+ * yang ada yang dirender ("5.2s · 42°C", "5.2s", atau "42°C"); payload
+ * tanpa suhu DAN tanpa cycle menampilkan '—', bukan "0.0s · -°C".
+ * Cycle 0 tidak informatif (bukan siklus nyata).
+ */
+export function formatCycleTemp(rec: Pick<TelemetryHistoryRecord, 'lastCycleTimeSec' | 'cycle_time_ms' | 'temperature_c'>): string {
+  const cycleSec =
+    rec.lastCycleTimeSec !== undefined && rec.lastCycleTimeSec !== null
+      ? rec.lastCycleTimeSec
+      : rec.cycle_time_ms / 1000;
+  const parts = [
+    cycleSec > 0 ? `${cycleSec.toFixed(1)}s` : null,
+    rec.temperature_c !== undefined && rec.temperature_c !== null
+      ? `${rec.temperature_c}°C`
+      : null,
+  ].filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
+
 export function useTelemetryRawColumns() {
   return useMemo<ColumnDef<TelemetryHistoryRecord, unknown>[]>(
     () => [
@@ -82,18 +102,11 @@ export function useTelemetryRawColumns() {
       {
         id: 'cycle',
         header: 'Cycle / Temp',
-        cell: ({ row }) => {
-          const rec = row.original;
-          const cycleSec =
-            rec.lastCycleTimeSec !== undefined && rec.lastCycleTimeSec !== null
-              ? rec.lastCycleTimeSec.toFixed(1)
-              : (rec.cycle_time_ms / 1000).toFixed(1);
-          return (
-            <span className="font-tabular text-xs text-slate-500">
-              {cycleSec}s · {rec.temperature_c ?? '-'}°C
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <span className="font-tabular text-xs text-slate-500">
+            {formatCycleTemp(row.original)}
+          </span>
+        ),
       },
     ],
     []

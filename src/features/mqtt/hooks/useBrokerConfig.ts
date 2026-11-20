@@ -14,6 +14,8 @@ import { useAuth, useCapability } from '../../../context/AuthContext';
 
 export type BrokerConfirmAction = { type: 'APPLY' | 'ROLLBACK'; version: BrokerConfigVersion };
 
+// E28 Batch A (B41): versi belum tervalidasi → acknowledgeUnvalidated=true; status tak diketahui → omit.
+const ackUnvalidated = (v: BrokerConfigVersion): boolean | undefined => (v.validation && v.validation.status !== 'passed' ? true : undefined);
 /**
  * E23 Batch 1 (FAT-182, N-13): hasil diff = bentuk spec live
  * (`BrokerConfigDiffResult`: `lines[]`), bukan `diff_summary`/`changed_keys`.
@@ -182,10 +184,12 @@ export const useBrokerConfig = () => {
           ? await apiClient.applyBrokerConfigVersion(confirmAction.version.version_id, {
               confirm: true,
               reason: confirmReason.trim() || undefined,
+              acknowledgeUnvalidated: ackUnvalidated(confirmAction.version),
             })
           : await apiClient.rollbackBrokerConfig(confirmAction.version.version_id, {
               confirm: true,
               reason: confirmReason.trim() || undefined,
+              acknowledgeUnvalidated: ackUnvalidated(confirmAction.version),
             });
 
       // Poll operation status via GET /operations/:id

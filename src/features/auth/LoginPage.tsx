@@ -7,24 +7,41 @@ import { ApiError } from '../../types/auth';
 import {
   DEMO_PRESETS,
   DEMO_PRESET_PASSWORD,
+  LAN_GATE_DENY_REASON,
   isDemoPresetLoginEnabled,
   resolveAccessMode,
   resolveApiMode,
 } from '../../services/api/mode';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { BackendHealthIndicator } from './BackendHealthIndicator';
 
 /**
- * E27 (FAT-235): pemetaan error login 400 `STATION_NOT_FOUND` → pesan
- * Indonesia (bukan pesan mentah server berbahasa Inggris). Periksa
- * `httpStatus` DAN `code` — 400 lain (mis. `VALIDATION_ERROR`) tetap memakai
- * pesan generik/server. Mengembalikan null bila error ini bukan kasusnya.
+ * E29 (FAT-244, T5): pemetaan error login 403 — bedakan DUA sumber 403
+ * yang sebelumnya disamaratakan menjadi satu pesan "jaringan jarak jauh":
+ *
+ * - 403 GATE LOKAL (client): assertLanForMutation (HTTP) / assertLanAccess
+ *   (demo) melempar ApiError 403 DENGAN message persis LAN_GATE_DENY_REASON
+ *   ("Mode observasi — …"), SEBELUM fetch — server tidak pernah dihubungi.
+ *   Pembeda ini andal: kedua guard memakai string yang sama dari satu
+ *   sumber (mode.ts), dan server tidak pernah mengirim string Indonesia
+ *   itu (pesan server berbahasa Inggris, diteruskan verbatim oleh
+ *   mapHttpErrorToApiError). → pesan observasi (tidak berubah).
+ * - 403 SERVER: role-gate POST /auth/admin/login (Spec 044 — mis. operator
+ *   non-admin) atau penolakan server lain. → tampilkan pesan server APA
+ *   ADANYA (verbatim), generik, TANPA tambahan alasan role — jangan bocorkan
+ *   dan jangan tertukar dengan pesan tunnel.
+ *
+ * Mengembalikan null bila error ini bukan 403 (401/429/dll. ditangani cabang
+ * lain / fallback generik di handleSubmit).
  */
-export function mapStationNotFoundMessage(err: unknown): string | null {
-  if (err instanceof ApiError && err.httpStatus === 400 && err.code === 'STATION_NOT_FOUND') {
-    return 'Stasiun tidak terdaftar. Periksa Station / Terminal ID, atau daftarkan stasiun ini di halaman Stations (admin).';
+export function mapLoginForbiddenMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.httpStatus !== 403) return null;
+  if (err.message === LAN_GATE_DENY_REASON) {
+    return 'Login tidak dapat dilakukan melalui jaringan jarak jauh. Silakan hubungkan ke jaringan lokal pabrik untuk masuk.';
   }
-  return null;
+  // 403 server — passthrough verbatim, tanpa alasan role tambahan.
+  return err.message;
 }
 
 export const LoginPage: React.FC = () => {
@@ -39,14 +56,10 @@ export const LoginPage: React.FC = () => {
 
   const [operatorId, setOperatorId] = useState(presetsEnabled ? 'ADM-001' : '');
   const [password, setPassword] = useState(presetsEnabled ? DEMO_PRESET_PASSWORD : '');
-  // E27 (FAT-235, f2): field Station/Terminal ID dimulai KOSONG — prefill
-  // default yang tak terdaftar (ADMIN-CONSOLE-01) membuat semua login gagal
-  // 400 STATION_NOT_FOUND secara default (verifikasi live 2026-11-20
-  // 00:46 WIB: login tanpa station_id berhasil, dengan station tak
-  // terdaftar gagal). Placeholder memberi contoh format, bukan nilai.
-  // Jalur sementara: login dengan station kosong sampai ADMIN-CONSOLE-01
-  // didaftarkan lewat registry stasiun (T1).
-  const [stationId, setStationId] = useState('');
+  // E29 (FAT-242, T3): field Station/Terminal ID DIHAPUS — login admin
+  // (POST /auth/admin/login, Spec 044) tidak lagi memakai station_id;
+  // body strict menolak field itu 400. Registry stasiun /admin/stations
+  // tetap ada, khusus login kiosk — bukan login admin panel.
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Hitung mundur throttle SERVER (header Retry-After respons 429, §L).
@@ -69,7 +82,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       clearSessionExpiredReason();
-      const res = await login(operatorId.trim(), password, stationId.trim() || undefined);
+      const res = await login(operatorId.trim(), password);
       // Spec 043 (§L): flag gerbang dari respons login → layar wajib ganti password.
       if (res.operator.must_change_password === true) {
         navigate('/force-change-password', { replace: true });
@@ -79,11 +92,14 @@ export const LoginPage: React.FC = () => {
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         if (err.httpStatus === 403) {
-          // Mode observasi / Remote Tunnel
-          setErrorMsg(
-            'Login tidak dapat dilakukan melalui jaringan jarak jauh. Silakan hubungkan ke jaringan lokal pabrik untuk masuk.'
-          );
-          return;
+          // E29 (FAT-244, T5): bedakan 403 gate LAN lokal (pesan observasi)
+          // dari 403 role-gate server (pesan server verbatim, tanpa alasan
+          // role tambahan). Jangan samaratakan keduanya.
+          const forbiddenMsg = mapLoginForbiddenMessage(err);
+          if (forbiddenMsg) {
+            setErrorMsg(forbiddenMsg);
+            return;
+          }
         }
         if (err.httpStatus === 429) {
           // Sisa waktu dari server (Retry-After); tanpa nilai server, jangan
@@ -95,13 +111,6 @@ export const LoginPage: React.FC = () => {
               ? `Terlalu banyak percobaan login. Tunggu ${seconds} detik sebelum mencoba kembali.`
               : 'Terlalu banyak percobaan login. Silakan coba lagi sebentar lagi.'
           );
-          return;
-        }
-        // E27 (FAT-235): 400 STATION_NOT_FOUND — stasiun belum terdaftar di
-        // registry devices; pesan Indonesia, bukan pesan mentah server.
-        const stationMsg = mapStationNotFoundMessage(err);
-        if (stationMsg) {
-          setErrorMsg(stationMsg);
           return;
         }
       }
@@ -169,6 +178,11 @@ export const LoginPage: React.FC = () => {
           </span>
         </div>
 
+        {/* E28 Batch B (FAT-207, N-38): indikator koneksi backend (GET
+            /health) — hanya di mode Real, informatif saja (lihat
+            BackendHealthIndicator); tidak memblokir submit login. */}
+        <BackendHealthIndicator />
+
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {isReadOnly && (
@@ -217,14 +231,6 @@ export const LoginPage: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Masukkan password operator (min. 8 karakter)"
             required
-            disabled={isLoading}
-          />
-
-          <Input
-            label="Station / Terminal ID (Opsional)"
-            value={stationId}
-            onChange={(e) => setStationId(e.target.value)}
-            placeholder="ADMIN-CONSOLE-01"
             disabled={isLoading}
           />
 

@@ -18,12 +18,26 @@ import { ApiError } from '../../../../types/auth';
 import { isAdminRoleName, isReservedPermission, policyMatchesSubject, policyTargetsAdmin, validateAbacCondition } from '../../../../utils/capabilities';
 import { IamPolicyRuleSchema } from '../../schemas';
 
+// E28 Batch A (FAT-229 MUT-03): skema baris policy TIDAK lagi menerima
+// null — tapi seed/store lama menyimpan `abacCondition: null` untuk "tanpa
+// syarat". Normalisasi null → undefined SEBELUM parse (baca saja); nilai
+// yang ditulis ke server tetap di-omit di lapisan HTTP (http/iam.ts).
+function toSchemaPolicy(p: IamPolicyRule): IamPolicyRule {
+  return IamPolicyRuleSchema.parse({ ...p, abacCondition: p.abacCondition ?? undefined });
+}
+
 export const demoIamPolicies = {
-  async getIamPolicies(signal?: AbortSignal): Promise<IamPolicyRule[]> {
+  async getIamPolicies(
+    filters: { roleId?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<IamPolicyRule[]> {
     checkAbort(signal);
     assertCapability('access_control.read', ['ADMIN']);
-    store.recordEndpoint('IAM_POLICIES_LIST', ADMIN_ENDPOINTS.IAM_POLICIES_LIST.buildPath());
-    return store.iamPolicies.map((p) => IamPolicyRuleSchema.parse({ ...p }));
+    const qs = filters.roleId ? `?roleId=${encodeURIComponent(filters.roleId)}` : '';
+    store.recordEndpoint('IAM_POLICIES_LIST', `${ADMIN_ENDPOINTS.IAM_POLICIES_LIST.buildPath()}${qs}`);
+    const all = store.iamPolicies.map((p) => toSchemaPolicy(p));
+    // E28 Batch A (B17): filter server-side (paritas dengan HTTP).
+    return filters.roleId ? all.filter((p) => p.roleId === filters.roleId) : all;
   },
 
   async createIamPolicy(data: {
@@ -74,7 +88,7 @@ export const demoIamPolicies = {
         });
       }
     }
-    const newPol: IamPolicyRule = IamPolicyRuleSchema.parse({
+    const newPol: IamPolicyRule = toSchemaPolicy({
       id: `pol-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 100)}`,
       roleId: role.id,
       roleName: role.name,
@@ -143,7 +157,7 @@ export const demoIamPolicies = {
     store.iamInfo.authzVersion += 1;
     store.tokenAuthzVersion = store.iamInfo.authzVersion;
     store.addAudit('UPDATE_POLICY', 'IAM', policyId, `Updated policy ${policyId}`);
-    return IamPolicyRuleSchema.parse({ ...pol });
+    return toSchemaPolicy({ ...pol });
   },
 
   async toggleIamPolicy(policyId: string, enabled: boolean): Promise<IamPolicyRule> {

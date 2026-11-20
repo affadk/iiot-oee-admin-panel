@@ -4,11 +4,15 @@ import { apiClient } from '../../services/api/client';
 import { HealthDetail, SystemHealth } from '../../types/system';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration } from '../../utils/oeeCalculations';
 
 export const SystemHealthPage: React.FC = () => {
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-217 E2E-03): GET /health yang gagal JANGAN dibiarkan
+  // menampilkan "Memuat..." selamanya — tampilkan banner + Refresh.
+  const [healthError, setHealthError] = useState<string | null>(null);
   // E20 P20.4 (FAT-156): detail infrastruktur (ADMIN + LAN) — bila tidak
   // tersedia (non-admin / tunnel / 403), halaman tetap memakai /health
   // ringkas; tidak ada nilai yang dikarang.
@@ -20,8 +24,10 @@ export const SystemHealthPage: React.FC = () => {
     try {
       const res = await apiClient.getSystemHealth();
       setHealth(res);
-    } catch {
+      setHealthError(null);
+    } catch (err: unknown) {
       setHealth(null);
+      setHealthError(err instanceof Error ? err.message : 'Gagal memuat status kesehatan sistem.');
     } finally {
       setIsLoading(false);
     }
@@ -58,9 +64,18 @@ export const SystemHealthPage: React.FC = () => {
       </div>
 
       {!health ? (
-        <div className="p-8 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
-          Memuat status kesehatan sistem...
-        </div>
+        isLoading ? (
+          <div className="p-8 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
+            Memuat status kesehatan sistem...
+          </div>
+        ) : (
+          <LoadErrorBanner
+            title="Gagal memuat status kesehatan sistem"
+            message={healthError}
+            onRetry={() => void loadHealth()}
+            retryLabel="Refresh"
+          />
+        )
       ) : (
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md flex flex-wrap items-center justify-between gap-4">

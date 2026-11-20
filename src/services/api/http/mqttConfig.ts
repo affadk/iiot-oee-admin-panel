@@ -256,7 +256,7 @@ export const httpMqttConfig = {
    */
   async applyBrokerConfigVersion(
     versionId: string,
-    options: { confirm?: boolean; reason?: string } = {},
+    options: { confirm?: boolean; reason?: string; acknowledgeUnvalidated?: boolean } = {},
     signal?: AbortSignal,
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertAuthenticatedHttp();
@@ -264,7 +264,17 @@ export const httpMqttConfig = {
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
       path: ADMIN_ENDPOINTS.MQTT_CONFIG_VERSION_APPLY.buildPath(versionId),
-      body: { confirm: options.confirm ?? true, ...(options.reason ? { reason: options.reason } : {}) },
+      // E28 Batch A (B41): spec 20 Nov — body apply = {acknowledgeUnvalidated,
+      // confirm, reason}. Kirim acknowledgeUnvalidated=true HANYA bila
+      // pemanggil tahu staging config belum tervalidasi; bila tidak
+      // diketahui, omit (jangan karang true).
+      body: {
+        confirm: options.confirm ?? true,
+        ...(options.acknowledgeUnvalidated !== undefined
+          ? { acknowledgeUnvalidated: options.acknowledgeUnvalidated }
+          : {}),
+        ...(options.reason ? { reason: options.reason } : {}),
+      },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'MQTT_CONFIG_VERSION_APPLY',
@@ -290,7 +300,12 @@ export const httpMqttConfig = {
     assertAuthenticatedHttp();
     assertLanForMutation();
     const staged = await httpMqttConfig.stageBrokerConfig(newConfig, summary);
-    return httpMqttConfig.applyBrokerConfigVersion(staged.version_id, { confirm: true, reason: reason || summary });
+    // E28 Batch A (B41): staging yang belum tervalidasi (validation.status
+    // bukan 'passed') diakui eksplisit saat apply — bila status tidak
+    // diketahui (validation absen), omit.
+    const acknowledgeUnvalidated =
+      staged.validation && staged.validation.status !== 'passed' ? true : undefined;
+    return httpMqttConfig.applyBrokerConfigVersion(staged.version_id, { confirm: true, reason: reason || summary, acknowledgeUnvalidated });
   },
 
   /**
@@ -301,7 +316,7 @@ export const httpMqttConfig = {
    */
   async rollbackBrokerConfig(
     versionId: string,
-    options: { confirm?: boolean; reason?: string } = {},
+    options: { confirm?: boolean; reason?: string; acknowledgeUnvalidated?: boolean } = {},
     signal?: AbortSignal,
   ): Promise<{ version: BrokerConfigVersion; operation: BrokerOperation }> {
     assertAuthenticatedHttp();
@@ -309,7 +324,15 @@ export const httpMqttConfig = {
     const raw = await reqJson<Record<string, unknown>>({
       method: 'POST',
       path: ADMIN_ENDPOINTS.MQTT_CONFIG_VERSION_ROLLBACK.buildPath(versionId),
-      body: { confirm: options.confirm ?? true, ...(options.reason ? { reason: options.reason } : {}) },
+      // E28 Batch A (B41): sama seperti apply — body rollback =
+      // {acknowledgeUnvalidated, confirm, reason} (spec 20 Nov).
+      body: {
+        confirm: options.confirm ?? true,
+        ...(options.acknowledgeUnvalidated !== undefined
+          ? { acknowledgeUnvalidated: options.acknowledgeUnvalidated }
+          : {}),
+        ...(options.reason ? { reason: options.reason } : {}),
+      },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
       endpointKey: 'MQTT_CONFIG_VERSION_ROLLBACK',

@@ -5,12 +5,16 @@ import { RejectParetoItem } from '../../types/analytics';
 import { displayRejectReason } from './rejectReasonLabel';
 import { EdgeDevice } from '../../types/assets';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 
 export const QualityRejectsPage: React.FC = () => {
   const [devices, setDevices] = useState<EdgeDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('ALL');
   const [items, setItems] = useState<RejectParetoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-216 E2E-02): bedakan error vs kosong — error JANGAN
+  // disamarkan sebagai empty state.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     apiClient
@@ -27,8 +31,12 @@ export const QualityRejectsPage: React.FC = () => {
           ? await apiClient.getRejectParetoGlobal()
           : await apiClient.getRejectPareto(selectedDeviceId);
       setItems(data);
-    } catch {
-      setItems([]);
+      setLoadError(null);
+    } catch (err: unknown) {
+      // E28 Batch A (FAT-216 E2E-02): jangan `setItems([])` — itu menyamarkan
+      // error sebagai "tidak ada data reject". Pertahankan items lama dan
+      // tampilkan banner error + retry.
+      setLoadError(err instanceof Error ? err.message : 'Gagal memuat data reject.');
     } finally {
       setIsLoading(false);
     }
@@ -75,16 +83,40 @@ export const QualityRejectsPage: React.FC = () => {
         </div>
       </div>
 
+      {loadError && !isLoading && (
+        <LoadErrorBanner
+          title="Gagal memuat data reject"
+          message={loadError}
+          onRetry={() => void loadPareto()}
+        />
+      )}
+
       {items.length === 0 && !isLoading ? (
-        <div className="p-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-2">
-          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Tidak ada data reject dalam rentang waktu ini
+        loadError ? (
+          <div className="p-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-2">
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Data reject tidak dapat dimuat
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Periksa koneksi lalu coba lagi — ini bukan berarti tidak ada reject.
+            </p>
+            <div className="pt-1">
+              <Button size="sm" variant="secondary" onClick={() => void loadPareto()}>
+                Coba lagi
+              </Button>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Perangkat {selectedDeviceId} melaporkan 0 produk cacat (atau belum memiliki rekaman defect).
-          </p>
-        </div>
+        ) : (
+          <div className="p-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-2">
+            <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Tidak ada data reject dalam rentang waktu ini
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Perangkat {selectedDeviceId} melaporkan 0 produk cacat (atau belum memiliki rekaman defect).
+            </p>
+          </div>
+        )
       ) : (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">

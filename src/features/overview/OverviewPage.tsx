@@ -22,6 +22,7 @@ import { MetricCard } from '../../components/industrial/MetricCard';
 import { MachineStateBadge } from '../../components/industrial/MachineStateBadge';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
 
 export const OverviewPage: React.FC = () => {
@@ -32,6 +33,9 @@ export const OverviewPage: React.FC = () => {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(telemetrySocket.getStatus());
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-215 E2E-01): kegagalan muat JANGAN ditelan diam-diam —
+  // tampilkan banner + retry; data lama dipertahankan (stale-while-revalidate).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const canManageIam = useCapability('access_control.manage');
@@ -51,9 +55,12 @@ export const OverviewPage: React.FC = () => {
       setHealth(sysHealth);
       setWorkOrders(woPage.data);
       setRecentEvents(opEventsPage.data.slice(0, 5));
+      setLoadError(null);
       setLastUpdated(new Date());
-    } catch {
-      // Errors handled gracefully
+    } catch (err: unknown) {
+      // E28 Batch A (FAT-215 E2E-01): jangan `catch {}` — catat pesan agar
+      // banner error + retry bisa tampil; kartu lama tetap tampil.
+      setLoadError(err instanceof Error ? err.message : 'Gagal memuat data overview.');
     } finally {
       setIsLoading(false);
     }
@@ -152,6 +159,15 @@ export const OverviewPage: React.FC = () => {
         </div>
       </div>
 
+      {/* E28 Batch A (FAT-215 E2E-01): banner error + retry bila muat gagal. */}
+      {loadError && !isLoading && (
+        <LoadErrorBanner
+          title="Gagal memuat data overview"
+          message={loadError}
+          onRetry={() => void loadData()}
+        />
+      )}
+
       {/* Top KPI Grid (Max 4 cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -223,7 +239,30 @@ export const OverviewPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-                {liveStates.map((st) => (
+                {isLoading && liveStates.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-2.5 px-4">
+                      <div className="space-y-2" aria-busy="true" aria-label="Memuat status mesin">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-5 rounded bg-slate-100 dark:bg-slate-800/70 animate-pulse" />
+                        ))}
+                        <span className="sr-only">Memuat status mesin…</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : liveStates.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 px-4 text-center">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        Belum ada data live-state
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Tidak ada mesin yang melaporkan status saat ini.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  liveStates.map((st) => (
                   <tr key={st.device_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="py-2.5 px-4">
                       <div className="font-semibold text-slate-900 dark:text-slate-100">{st.machine_name}</div>
@@ -264,7 +303,8 @@ export const OverviewPage: React.FC = () => {
                       <span className="text-red-500 dark:text-red-400 font-medium">{st.reject_count}</span>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>
@@ -370,7 +410,17 @@ export const OverviewPage: React.FC = () => {
           </Link>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-          {recentEvents.map((ev) => {
+          {isLoading && recentEvents.length === 0 ? (
+            <div className="px-4 py-2.5" aria-busy="true" aria-label="Memuat event operasional">
+              <div className="h-5 rounded bg-slate-100 dark:bg-slate-800/70 animate-pulse" />
+              <span className="sr-only">Memuat event operasional…</span>
+            </div>
+          ) : recentEvents.length === 0 ? (
+            <p className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
+              Belum ada event operasional terbaru.
+            </p>
+          ) : (
+            recentEvents.map((ev) => {
             const devLbl = formatDeletedRelationLabel(ev.machine_name, ev.device_id);
             return (
               <div key={ev.id} className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -389,7 +439,8 @@ export const OverviewPage: React.FC = () => {
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
     </div>

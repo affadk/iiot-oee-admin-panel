@@ -132,7 +132,11 @@ export const httpIam = {
         permissionId,
         ...(options?.resourcePattern ? { resourcePattern: options.resourcePattern } : {}),
         ...(options?.effect ? { effect: options.effect } : {}),
-        ...(options?.abacCondition !== undefined ? { abacCondition: options.abacCondition } : {}),
+        // E28 Batch A (FAT-229 MUT-03): POST menolak `abacCondition: null`
+        // (optional record, bukan nullable) — omit bila kosong/null.
+        ...(options?.abacCondition !== undefined && options.abacCondition !== null
+          ? { abacCondition: options.abacCondition }
+          : {}),
       },
       timeoutMs: MUTATION_TIMEOUT_MS,
       retry: false,
@@ -158,11 +162,25 @@ export const httpIam = {
     return { success: raw?.success ?? true };
   },
 
-  async getIamUserRoles(signal?: AbortSignal): Promise<IamAssignment[]> {
+  /**
+   * E28 Batch A (B17): spec 20 Nov mendukung filter server-side
+   * `?operatorId=` — kirim ke server, jangan saring client-side bila hanya
+   * satu operator yang dibutuhkan.
+   */
+  async getIamUserRoles(
+    filters: { operatorId?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<IamAssignment[]> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqList(
-      { path: ADMIN_ENDPOINTS.IAM_USER_ROLES_LIST.buildPath(), signal, endpointKey: 'IAM_USER_ROLES_LIST', capability: IAM_READ_CAPABILITY },
+      {
+        path: ADMIN_ENDPOINTS.IAM_USER_ROLES_LIST.buildPath(),
+        query: filters.operatorId ? { operatorId: filters.operatorId } : undefined,
+        signal,
+        endpointKey: 'IAM_USER_ROLES_LIST',
+        capability: IAM_READ_CAPABILITY,
+      },
       mapIamAssignment,
       100,
     ).then((p) => p.data);
@@ -225,11 +243,25 @@ export const httpIam = {
     });
     return { success: raw?.success ?? true, removed: raw?.removed ?? 1 };
   },
-  async getIamPolicies(signal?: AbortSignal): Promise<IamPolicyRule[]> {
+  /**
+   * E28 Batch A (B17): spec 20 Nov mendukung filter server-side
+   * `?roleId=` — kirim ke server, jangan saring client-side bila hanya
+   * satu role yang dibutuhkan.
+   */
+  async getIamPolicies(
+    filters: { roleId?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<IamPolicyRule[]> {
     checkAbortHttp(signal);
     assertAuthenticatedHttp();
     return reqList(
-      { path: ADMIN_ENDPOINTS.IAM_POLICIES_LIST.buildPath(), signal, endpointKey: 'IAM_POLICIES_LIST', capability: IAM_READ_CAPABILITY },
+      {
+        path: ADMIN_ENDPOINTS.IAM_POLICIES_LIST.buildPath(),
+        query: filters.roleId ? { roleId: filters.roleId } : undefined,
+        signal,
+        endpointKey: 'IAM_POLICIES_LIST',
+        capability: IAM_READ_CAPABILITY,
+      },
       mapIamPolicy,
       100,
     ).then((p) => p.data);
@@ -259,7 +291,11 @@ export const httpIam = {
           permissionId: data.permissionId,
           resourcePattern: data.resourcePattern,
           effect: data.effect,
-          ...(data.abacCondition !== undefined ? { abacCondition: data.abacCondition } : {}),
+          // E28 Batch A (FAT-229 MUT-03): POST menolak `abacCondition: null`
+          // (optional record, bukan nullable) — omit bila kosong/null.
+          ...(data.abacCondition !== undefined && data.abacCondition !== null
+            ? { abacCondition: data.abacCondition }
+            : {}),
           ...(data.subjectMatch ? { subjectMatch: data.subjectMatch } : {}),
         },
         timeoutMs: MUTATION_TIMEOUT_MS,
@@ -274,6 +310,10 @@ export const httpIam = {
   /**
    * PUT policy (§3.4): hanya `subjectMatch`/`resourcePattern`/`effect`/
    * `abacCondition`/`enabled` — action TIDAK bisa diubah (ikatan permission).
+   *
+   * E28 Batch A (FAT-229 MUT-03): PUT BOLEH nullable — `abacCondition: null`
+   * di sini berarti HAPUS kondisi (per spec), jadi body diteruskan apa adanya
+   * (`{...changes}`), TIDAK di-omit seperti POST. Jangan samakan dengan create.
    */
   async updateIamPolicy(
     policyId: string,

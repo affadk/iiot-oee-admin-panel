@@ -1,4 +1,5 @@
 import { HourlyOeePoint, ShiftSummary, ShiftTimelineSegment } from '../../types/analytics';
+import { timelineBoundaryMs } from './timelineAxis';
 
 /**
  * E12 T12.6 (U-3 / FAT-56): indikator rekonsiliasi halaman OEE (gap G2).
@@ -21,6 +22,20 @@ import { HourlyOeePoint, ShiftSummary, ShiftTimelineSegment } from '../../types/
  * (satu shift yang sama). Bila filter mempersempit salah satu sumber
  * (mis. rentang kustom / shift yang dipotong), peringatan bisa muncul
  * karena jendela yang berbeda — bukan karena datanya salah.
+ *
+ * E28 Batch B (FAT-221, E2E-07 — ANALISIS, terkonfirmasi dari kode):
+ * peringatan live "RUNNING timeline vs summary 235 vs 99 mnt" dan "total
+ * timeline vs shift window 10.080 vs 99 mnt" adalah perbandingan jendela
+ * tak sebanding, BUKAN data yang salah. 10.080 mnt = tepat 7 hari: halaman
+ * mengirim from/to default 7 hari ke endpoint timeline (useOeeAnalytics),
+ * sehingga timeline mencakup 7 hari penuh; sementara endpoint
+ * shift-summary mengembalikan ringkasan SATU shift (99 mnt — shift yang
+ * sedang berjalan). Check lama membandingkan Σ timeline 7 hari dengan
+ * ringkasan 1 shift apa adanya. Perbaikan panel di sini: segmen timeline
+ * DIPOTONG ke jendela shift ringkasan ([shift_start, shift_end]) sebelum
+ * dijumlahkan — perbandingan kini sebanding, dan check yang dipotong
+ * menandainya lewat `note`. Bila ringkasan tak membawa jendela yang bisa
+ * diparse, perilaku lama (tanpa potong) dipertahankan.
  */
 
 /** Toleransi absolut waktu: 60 detik. */
@@ -47,6 +62,8 @@ export interface ReconciliationCheck {
   /** Selisih (kiri − kanan) dalam `unit`; null bila tidak bisa dihitung. */
   diff: number | null;
   status: ReconciliationStatus;
+  /** Catatan tambahan, mis. "timeline dipotong ke jendela shift". */
+  note?: string;
 }
 
 export interface OeeReconciliation {
@@ -90,10 +107,11 @@ function buildCheck(
   rightLabel: string,
   rightValue: number | null,
   unit: ReconciliationUnit,
-  exceeds: (diff: number, reference: number) => boolean
+  exceeds: (diff: number, reference: number) => boolean,
+  note?: string
 ): ReconciliationCheck {
   if (leftValue === null || rightValue === null) {
-    return { id, label, leftLabel, leftValue, rightLabel, rightValue, unit, diff: null, status: 'unavailable' };
+    return { id, label, leftLabel, leftValue, rightLabel, rightValue, unit, diff: null, status: 'unavailable', ...(note ? { note } : {}) };
   }
   const diff = leftValue - rightValue;
   return {
@@ -106,7 +124,41 @@ function buildCheck(
     unit,
     diff,
     status: exceeds(diff, rightValue) ? 'warning' : 'ok',
+    ...(note ? { note } : {}),
   };
+}
+
+/**
+ * E28 Batch B (FAT-221): jendela shift ringkasan sebagai [ms, ms], atau
+ * null bila shift_start/shift_end tak bisa diparse.
+ */
+function resolveSummaryWindowMs(summary: ShiftSummary): [number, number] | null {
+  const start = Date.parse(summary.shift_start);
+  const end = Date.parse(summary.shift_end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return [start, end];
+}
+
+/**
+ * E28 Batch B (FAT-221): durasi segmen yang jatuh DI DALAM jendela
+ * ringkasan (menit, dibulatkan ke bawah ke menit penuh — durasi segmen
+ * memang menit bulat). Bila batas segmen tak bisa diparse, pakai
+ * `duration_min` apa adanya (perilaku lama). Segmen lintas tengah malam
+ * ('HH:MM' dengan end < start) digeser +24 jam, sama seperti sumbu
+ * timeline (`timelineAxis`).
+ */
+function clippedDurationMin(
+  seg: ShiftTimelineSegment,
+  window: [number, number] | null,
+  anchorDate: string | null
+): number {
+  if (!window) return seg.duration_min;
+  const startMs = timelineBoundaryMs(seg.start, anchorDate);
+  let endMs = timelineBoundaryMs(seg.end, anchorDate);
+  if (startMs === null || endMs === null) return seg.duration_min;
+  if (endMs < startMs) endMs += 24 * 3600_000;
+  const overlapMs = Math.max(0, Math.min(endMs, window[1]) - Math.max(startMs, window[0]));
+  return Math.floor(overlapMs / 60000);
 }
 
 /**
@@ -183,16 +235,32 @@ export function computeOeeReconciliation(
   }
 
   if (timeline.length > 0) {
+    // E28 Batch B (FAT-221): potong segmen ke jendela shift ringkasan
+    // sebelum dijumlahkan — timeline dikirim dengan from/to halaman
+    // (default 7 hari) sementara ringkasan hanya satu shift.
+    const window = resolveSummaryWindowMs(summary);
+    const anchorDate = summary.shift_start.slice(0, 10) || null;
+    const clipped = timeline.map((s) => ({
+      ...s,
+      duration_min: clippedDurationMin(s, window, anchorDate),
+    }));
+    const wasClipped =
+      window !== null &&
+      clipped.reduce((acc, s) => acc + s.duration_min, 0) <
+        timeline.reduce((acc, s) => acc + s.duration_min, 0);
+    const clipNote = wasClipped
+      ? 'Timeline dipotong ke jendela shift ringkasan (bukan seluruh rentang filter).'
+      : undefined;
     const durationByState = new Map<string, number | null>();
     for (const state of ['RUNNING', 'PLANNED_DOWNTIME', 'UNPLANNED_DOWNTIME']) {
       durationByState.set(
         state,
         sumFinite(
-          timeline.filter((s) => s.fsm_state === state).map((s) => s.duration_min)
+          clipped.filter((s) => s.fsm_state === state).map((s) => s.duration_min)
         )
       );
     }
-    const timelineTotalMin = sumFinite(timeline.map((s) => s.duration_min));
+    const timelineTotalMin = sumFinite(clipped.map((s) => s.duration_min));
 
     checks.push(
       buildCheck(
@@ -203,7 +271,8 @@ export function computeOeeReconciliation(
         'run_time_min (ringkasan)',
         summary.run_time_min,
         'menit',
-        (diff, ref) => timeExceeds(diff * 60, ref * 60)
+        (diff, ref) => timeExceeds(diff * 60, ref * 60),
+        clipNote
       )
     );
     checks.push(
@@ -215,7 +284,8 @@ export function computeOeeReconciliation(
         'planned_downtime_min (ringkasan)',
         summary.planned_downtime_min,
         'menit',
-        (diff, ref) => timeExceeds(diff * 60, ref * 60)
+        (diff, ref) => timeExceeds(diff * 60, ref * 60),
+        clipNote
       )
     );
     checks.push(
@@ -227,7 +297,8 @@ export function computeOeeReconciliation(
         'unplanned_downtime_min (ringkasan)',
         summary.unplanned_downtime_min,
         'menit',
-        (diff, ref) => timeExceeds(diff * 60, ref * 60)
+        (diff, ref) => timeExceeds(diff * 60, ref * 60),
+        clipNote
       )
     );
     checks.push(
@@ -239,7 +310,8 @@ export function computeOeeReconciliation(
         'planned_production_time_min (ringkasan)',
         summary.planned_production_time_min,
         'menit',
-        (diff, ref) => timeExceeds(diff * 60, ref * 60)
+        (diff, ref) => timeExceeds(diff * 60, ref * 60),
+        clipNote
       )
     );
   }

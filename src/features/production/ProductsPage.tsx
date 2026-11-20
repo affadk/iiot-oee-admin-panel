@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/Modal';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
+import { TableStateRow } from '../shared/TableStateRow';
 
 export const ProductsPage: React.FC = () => {
   const { reportForbidden, checkCapability } = useAuth();
@@ -229,12 +230,18 @@ export const ProductsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
+                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
               {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Memuat katalog produk...
-                  </td>
-                </tr>
+                <TableStateRow isLoading isError={false} colSpan={5} />
+              ) : products.length === 0 ? (
+                <TableStateRow
+                  isLoading={false}
+                  isError={false}
+                  colSpan={5}
+                  emptyTitle="Belum ada produk"
+                  emptyDescription="Katalog produk masih kosong. Tambah produk pertama lewat tombol 'Tambah Produk' di atas."
+                />
               ) : (
                 products.map((prod) => {
                   const rowManageCap = checkCapability('product.manage', prod.product_id);

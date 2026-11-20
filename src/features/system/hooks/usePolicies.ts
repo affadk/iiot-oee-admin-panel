@@ -75,10 +75,16 @@ export const usePolicies = ({ deps }: { deps: IamMutationDeps }) => {
     }
     setIsSubmitting(true);
     try {
+      // E28 Batch A (FAT-229 MUT-03): teks ABAC kosong = "tanpa syarat".
+      // PUT boleh nullable (null = hapus kondisi) — kirim null HANYA bila
+      // policy sebelumnya memang punya kondisi; bila sudah tanpa kondisi,
+      // omit saja agar server tidak menerima null yang tak perlu.
+      const abacCondition =
+        parsed.value === undefined ? (target.abacCondition ? null : undefined) : parsed.value;
       await apiClient.updateIamPolicy(target.id, {
         effect: payload.effect,
         resourcePattern: payload.resourcePattern.trim(),
-        abacCondition: parsed.value,
+        abacCondition,
       });
       setEditPolicyTarget(null);
       await afterMutation(`Policy ${target.id} berhasil diperbarui.`);

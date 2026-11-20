@@ -29,8 +29,9 @@
  *   - Throttle login ............... DIHAPUS (E20 P20.3): server 5/60s
  *     (§L) satu-satunya throttle; panel TIDAK lockout paralel. Respons 429
  *     membawa header `Retry-After` yang ditampilkan ke pengguna.
- *   - Identitas deployment ......... `VITE_PLANT_LABEL` (`Plant 01`),
- *     `VITE_DEFAULT_STATION_ID` (`ADMIN-CONSOLE-01`)
+ *   - Identitas deployment ......... `VITE_PLANT_LABEL` (`Plant 01`).
+ *     (E29: `VITE_DEFAULT_STATION_ID` dihapus — login admin tidak lagi
+ *     memakai station_id.)
  *
  * Aturan prioritas mode API:
  *   - Switch TERKUNCI (default): mode = `VITE_API_MODE` atau `demo`.
@@ -367,6 +368,15 @@ export interface EffectiveAccess {
 }
 
 /**
+ * Pesan penolakan gate LAN klien — satu sumber kebenaran. Dipakai
+ * assertLanForMutation (HTTP) dan assertLanAccess (demo) lewat
+ * resolveEffectiveAccess, dan dipakai LoginPage sebagai pembeda 403
+ * gate-lokal vs 403 server (E29 FAT-244, T5 — lihat komentar di bawah).
+ */
+export const LAN_GATE_DENY_REASON =
+  'Mode observasi — perubahan dinonaktifkan. Akses penuh tersedia dari LAN pabrik.';
+
+/**
  * Akses efektif dari kombinasi mode akses + kanal jaringan saat ini.
  * Matriks: LAN selalu boleh mutasi; tunnel hanya bila mode `public`.
  */
@@ -397,7 +407,14 @@ export function resolveEffectiveAccess(channel: NetworkAccessMode): EffectiveAcc
     canMutate: false,
     // Copy penolakan dipertahankan dari perilaku lama (D1) supaya pesan yang
     // sudah diuji & dikenal operator tidak berubah: "Mode observasi".
-    reason: 'Mode observasi — perubahan dinonaktifkan. Akses penuh tersedia dari LAN pabrik.',
+    // E29 (FAT-244, T5): string ini SATU-SATUNYA penanda andal bahwa sebuah
+    // ApiError 403 berasal dari gate LAN klien (assertLanForMutation /
+    // assertLanAccess) dan BUKAN dari server — kedua guard melempar ApiError
+    // dengan message ini verbatim, sebelum fetch; server tidak pernah
+    // mengirim string Indonesia ini (pesan server berbahasa Inggris).
+    // LoginPage membedakan keduanya dengan membandingkan message terhadap
+    // LAN_GATE_DENY_REASON (lihat mapLoginForbiddenMessage).
+    reason: LAN_GATE_DENY_REASON,
   };
 }
 
@@ -432,22 +449,4 @@ export function resolveDemoSimIntervalMs(): number {
 /** Label plant yang tampil di Topbar (`Plant 01`). */
 export function resolvePlantLabel(): string {
   return (readEnv('VITE_PLANT_LABEL') ?? '').trim() || 'Plant 01';
-}
-
-/**
- * Station/terminal ID default yang diisi di form login.
- *
- * E27 (FAT-235, f2) — PERINGATAN: prefill dari fungsi ini HANYA aman bila
- * ID tersebut SUDAH terdaftar di tabel devices. Bila nilai yang dikirim
- * belum terdaftar, backend menolak login dengan 400 STATION_NOT_FOUND —
- * prefill default yang tak terdaftar (mis. fallback 'ADMIN-CONSOLE-01'
- * yang belum ada di registry) membuat SEMUA login gagal secara default
- * (terverifikasi live 2026-11-20 00:46 WIB). LoginPage TIDAK lagi memakai
- * fungsi ini sebagai nilai awal (field dimulai kosong; login tanpa
- * station_id berhasil). Fungsi ini tetap tersedia untuk pemakaian eksplisit
- * via env `VITE_DEFAULT_STATION_ID` pada kiosk yang station-nya sudah
- * terdaftar; bila ragu, kosongkan.
- */
-export function resolveDefaultStationId(): string {
-  return (readEnv('VITE_DEFAULT_STATION_ID') ?? '').trim() || 'ADMIN-CONSOLE-01';
 }

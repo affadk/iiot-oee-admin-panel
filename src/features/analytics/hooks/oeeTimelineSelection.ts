@@ -34,8 +34,11 @@ export function resolveActiveTimelineSegment(
       ? selectedSegmentIdx
       : (downtimeSegments[0]?.idx ?? null);
   const activeSegment = activeSegmentIdx !== null ? timeline[activeSegmentIdx] : null;
+  // E28 Batch B (FAT-225): samakan tipe kunci — `downtime_id` segmen
+  // bisa tiba sebagai number dari server lama (mapper kini String(),
+  // tapi segmen dari sumber lain tetap dinormalisasi di sini).
   const matchedDowntime = activeSegment?.downtime_id
-    ? downtimeMap.get(activeSegment.downtime_id) ?? null
+    ? downtimeMap.get(String(activeSegment.downtime_id)) ?? null
     : null;
 
   return { activeSegmentIdx, activeSegment, matchedDowntime };

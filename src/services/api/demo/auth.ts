@@ -17,11 +17,13 @@ export const demoAuth = {
   // =========================================================================
   // AUTHENTICATION (4 ops)
   // =========================================================================
-  async login(operator_id: string, password?: string, station_id?: string): Promise<LoginResponse> {
+  // E29 (FAT-241, Spec 044): login admin tanpa station_id — paritas dengan
+  // http/auth.ts (body STRICT {operator_id, password}).
+  async login(operator_id: string, password?: string): Promise<LoginResponse> {
     if (store.networkAccessMode === 'REMOTE_TUNNEL') {
-      assertLanAccess(undefined, 'auth/login');
+      assertLanAccess(undefined, 'auth/admin/login');
     }
-    store.recordEndpoint('AUTH_LOGIN', ADMIN_ENDPOINTS.AUTH_LOGIN.buildPath());
+    store.recordEndpoint('AUTH_ADMIN_LOGIN', ADMIN_ENDPOINTS.AUTH_ADMIN_LOGIN.buildPath());
     const op = store.operators.find((o) => o.operator_id === operator_id.trim());
     if (!op || !op.is_active) {
       throw new ApiError({
@@ -54,12 +56,12 @@ export const demoAuth = {
     store.isAuthenticated = true;
     store.tokenAuthzVersion = store.iamInfo.authzVersion;
     store.authToken = `mem_jwt_${Date.now()}_${op.operator_id}`;
-    store.addAuthzDecision('ALLOW', 'auth:login', ADMIN_ENDPOINTS.AUTH_LOGIN.buildPath());
+    store.addAuthzDecision('ALLOW', 'auth:admin/login', ADMIN_ENDPOINTS.AUTH_ADMIN_LOGIN.buildPath());
     store.addAudit(
-      'AUTH_LOGIN',
+      'AUTH_ADMIN_LOGIN',
       'OPERATOR',
       op.operator_id,
-      `Operator authenticated via LAN${station_id ? ` at station ${station_id}` : ''}`
+      'Operator authenticated via LAN'
     );
     return LoginResponseSchema.parse({
       success: true,
@@ -78,8 +80,10 @@ export const demoAuth = {
 
   async refreshSession(): Promise<{ token: string; expires_in: number; authz_version: number }> {
     // Refresh TIDAK diblokir gerbang rotasi (§L) — token baru tetap diterbitkan.
+    // E29 (FAT-245, T6): paritas dengan http/auth.ts — refresh bukan mutasi,
+    // jadi assertLanAccess DIHAPUS di sini (sliding refresh tidak boleh mati
+    // karena kanal REMOTE_TUNNEL). changePassword di bawah TETAP digate.
     assertAuthenticated({ skipRotationGate: true });
-    assertLanAccess(undefined, 'auth/refresh');
     store.recordEndpoint('AUTH_REFRESH', ADMIN_ENDPOINTS.AUTH_REFRESH.buildPath());
     store.tokenAuthzVersion = store.iamInfo.authzVersion;
     store.authToken = `mem_jwt_refresh_${Date.now()}`;

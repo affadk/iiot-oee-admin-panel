@@ -15,6 +15,7 @@ import { buildOeeAnalyticsQueryKeys, RollupScope, TimelineBucket } from './oeeQu
 import { resolveActiveTimelineSegment } from './oeeTimelineSelection';
 import { useDowntimeOverlay } from './useDowntimeOverlay';
 import { DEFAULT_ROLLUP_GROUP_BY, DEFAULT_TIMELINE_BUCKET } from '../telemetryDefaults';
+import { resolveMachineDeviceId } from '../../shared/defaultDevice';
 
 export type { TimelineBucket, RollupScope, OeeWidgetState };
 
@@ -33,34 +34,32 @@ export const useOeeAnalytics = () => {
   const [timelineBucket, setTimelineBucket] = useState<TimelineBucket>(DEFAULT_TIMELINE_BUCKET);
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(null);
   const [paretoScope, setParetoScope] = useState<'GLOBAL' | 'DEVICE'>('GLOBAL');
-  // E12 T12.10 (X-3 / FAT-57): scope rollup — 'MACHINE' (default, perilaku
-  // E11 T11.3) vs 'ALL' (plant-wide). State ini sengaja TIDAK di-reset
-  // saat ganti mesin: bila scope 'ALL', ganti mesin tidak diam-diam
-  // mengembalikan rollup ke mesin — rollup tetap plant-wide sampai
-  // pengguna sendiri mengubah toggle-nya.
+  // E12 T12.10 (X-3 / FAT-57): scope rollup 'MACHINE' vs 'ALL' —
+  // sengaja TIDAK di-reset saat ganti mesin (rollup 'ALL' tetap plant-wide).
   const [rollupScope, setRollupScope] = useState<RollupScope>('MACHINE');
 
   const { data: masterData } = useMasterAssetsQuery(canReadOee.canInteract);
   const machines = masterData?.machines ?? [];
 
-  // E12 T12.1 (X-1 / FAT-54): daftar shift (definisi Shift.startTime /
-  // endTime) untuk pemilih shift + kode shift yang dikirim ke
-  // shift-summary/timeline (API doc §I `?date=&shift=`).
-  const { data: shiftsPage } = useShiftsQuery(canReadOee.canInteract);
-  const shifts = shiftsPage?.data ?? [];
+  // E12 T12.1 (X-1 / FAT-54): daftar shift untuk pemilih shift + kode
+  // shift yang dikirim ke shift-summary/timeline (API doc §I `?date=&shift=`).
+  // E28 Batch B (FAT-220, E2E-06): loading/error query shift diteruskan
+  // ke halaman — peringatan "tidak tersedia" hanya setelah query gagal.
+  const shiftsQuery = useShiftsQuery(canReadOee.canInteract);
+  const shifts = shiftsQuery.data?.data ?? [];
   const selectedShift = shifts.find((s) => s.shiftId === filters.shiftId);
   const shiftCode = selectedShift?.shiftCode;
   const shiftDate = filters.shiftDate;
 
-  const resolvedDeviceId = useMemo(() => {
-    const matched = machines.find((m) => m.machine_id === selectedMachine);
-    return matched?.bound_device_id ?? matched?.boundDevice?.device_id ?? 'STM32-OEE-01';
-  }, [machines, selectedMachine]);
+  // E28 Batch B (FAT-170, N-2): ikatan mesin utama; fallback dari daftar
+  // live, bukan hardcode 'STM32-OEE-01' (daftar kosong → `undefined`).
+  const resolvedDeviceId = useMemo(
+    () => resolveMachineDeviceId(machines, masterData?.devices ?? [], selectedMachine),
+    [machines, masterData, selectedMachine]
+  );
 
-  // E12 T12.9 (X-2 / FAT-62): semua queryKey halaman dibangun dari satu
-  // fungsi murni (`oeeQueryKeys`) — semuanya memuat from/to, sehingga
-  // mengganti rentang di pemilih periode me-refetch summary, hourly,
-  // timeline, rollup, DAN downtime overlay (gap G1).
+  // E12 T12.9 (X-2 / FAT-62): semua queryKey dibangun dari satu fungsi
+  // murni (`oeeQueryKeys`) — semuanya memuat from/to (gap G1).
   const queryKeys = buildOeeAnalyticsQueryKeys({
     machineId: selectedMachine,
     deviceId: resolvedDeviceId,
@@ -74,12 +73,8 @@ export const useOeeAnalytics = () => {
     baseFilters: filters,
   });
 
-  // E11 T11.2 (F-2): periode (filters.from/to — sama dengan hourly) masuk
-  // queryKey + dikirim ke server, sehingga ganti periode via URL me-refetch
-  // summary/timeline juga; satu halaman, satu periode (gap G1).
-  // E12 T12.1 (X-1 / FAT-54): bila filter shift aktif, kirim juga
-  // date/shift (API doc §I) + masukkan ke queryKey supaya ganti shift
-  // me-refetch; from/to sudah jendela shift itu.
+  // E11 T11.2 (F-2): periode (from/to) masuk queryKey + dikirim ke
+  // server; bila filter shift aktif, kirim juga date/shift (API doc §I).
   const shiftSummaryQuery = useQuery({
     queryKey: queryKeys.shiftSummary,
     enabled: canReadOee.canInteract,
@@ -127,7 +122,7 @@ export const useOeeAnalytics = () => {
   // lanjutan diakumulasi, dedup per id, aktif tetap menang atas histori.
   const downtimeOverlay = useDowntimeOverlay({
     queryKey: queryKeys.downtimeOverlay,
-    deviceId: resolvedDeviceId,
+    deviceId: resolvedDeviceId ?? '',
     from: filters.from,
     to: filters.to,
     enabled: canReadOee.canInteract,
@@ -138,12 +133,13 @@ export const useOeeAnalytics = () => {
 
   const rejectParetoQuery = useQuery({
     queryKey: ['quality-rejects', paretoScope, resolvedDeviceId],
-    enabled: canReadQuality.canInteract,
+    // E28 Batch B (FAT-170): scope DEVICE tanpa device → jangan query.
+    enabled: canReadQuality.canInteract && (paretoScope === 'GLOBAL' || Boolean(resolvedDeviceId)),
     staleTime: HISTORY_DATA_STALE_TIME_MS,
     queryFn: ({ signal }) =>
       paretoScope === 'GLOBAL'
         ? apiClient.getRejectParetoGlobal(signal)
-        : apiClient.getRejectPareto(resolvedDeviceId, signal),
+        : apiClient.getRejectPareto(resolvedDeviceId ?? '', signal),
   });
 
   const summary = shiftSummaryQuery.data ?? null;
@@ -213,6 +209,8 @@ export const useOeeAnalytics = () => {
     setRollupScope,
     machines,
     shifts,
+    shiftsLoading: shiftsQuery.isLoading,
+    shiftsError: shiftsQuery.isError,
     selectedShift,
     timelineBucket,
     setTimelineBucket,

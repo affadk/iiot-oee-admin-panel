@@ -28,15 +28,18 @@ import {
   DEFAULT_AGGREGATE_BUCKET,
   DEFAULT_ROLLUP_GROUP_BY,
 } from './telemetryDefaults';
-import { useShiftsQuery } from '../shared/useHistoricalQueries';
+import { useShiftsQuery, useMasterAssetsQuery } from '../shared/useHistoricalQueries';
+import { resolveDefaultDeviceId } from '../shared/defaultDevice';
 
 export type { AggBucket, TelemetryTab };
 
 export const TelemetryHistoryPage: React.FC = () => {
   const { filters, isValid, validationErrors, updateFilters, resetFilters } = useHistoryFilters({
-    deviceId: 'STM32-OEE-01',
     // E12 T12.18 (U-4 / FAT-65): default dokumen — groupBy `day`
     // (API doc §K.3c), bucket aggregate `5m` (Guide §4.1).
+    // E28 Batch B (FAT-170, N-2): TANPA default device hardcode — device
+    // dipilih dari daftar live di bawah (online dulu); bila URL membawa
+    // device_id, nilai itu yang menang.
     groupBy: DEFAULT_ROLLUP_GROUP_BY,
     bucket: DEFAULT_AGGREGATE_BUCKET,
     limit: DEFAULT_HISTORY_PAGE_LIMIT,
@@ -58,11 +61,20 @@ export const TelemetryHistoryPage: React.FC = () => {
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
 
-  const selectedDevice = filters.deviceId || 'STM32-OEE-01';
+  // E28 Batch B (FAT-170, N-2): default device dari daftar live
+  // (online dulu, lalu pertama) — dibaca dari query master yang sama
+  // dengan `useTelemetryQueries` di bawah (React Query memakai cache yang
+  // sama, tanpa fetch ganda). Bila daftar kosong, tidak ada default —
+  // halaman menampilkan empty state, bukan device karangan.
+  const { data: masterData, isLoading: devicesLoading } = useMasterAssetsQuery();
+  const derivedDefaultDevice = resolveDefaultDeviceId(masterData?.devices ?? []);
+  const selectedDevice = filters.deviceId ?? derivedDefaultDevice ?? '';
   const aggBucket: AggBucket = filters.bucket ?? DEFAULT_AGGREGATE_BUCKET;
   const groupBy: TelemetryRollupGroupBy = filters.groupBy ?? DEFAULT_ROLLUP_GROUP_BY;
   // E12 T12.1 (X-1 / FAT-54): daftar shift untuk pemilih shift.
-  const { data: shiftsPage } = useShiftsQuery();
+  // E28 Batch B (FAT-220): loading/error diteruskan — lihat ShiftFilterBar.
+  const shiftsQuery = useShiftsQuery();
+  const shiftsPage = shiftsQuery.data;
   const shifts = shiftsPage?.data ?? [];
   const selectedShift = shifts.find((s) => s.shiftId === filters.shiftId);
   // E11 T11.5 (U-1): label periode dari from/to filter aktif — diteruskan
@@ -192,8 +204,22 @@ export const TelemetryHistoryPage: React.FC = () => {
         onResetFilters={resetFilters}
       />
 
+      {/* E28 Batch B (FAT-170): daftar device sudah dimuat tapi kosong —
+          tidak ada default yang bisa dipilih; sampaikan eksplisit. */}
+      {!devicesLoading && !selectedDevice && (
+        <div
+          role="status"
+          className="p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-900 dark:text-amber-200"
+        >
+          Belum ada perangkat edge yang terdaftar — daftarkan perangkat dulu di halaman Devices
+          sebelum melihat riwayat telemetri.
+        </div>
+      )}
+
       <ShiftFilterBar
         shifts={shifts}
+        shiftsLoading={shiftsQuery.isLoading}
+        shiftsError={shiftsQuery.isError}
         shiftDate={filters.shiftDate}
         shiftId={filters.shiftId}
         onFilterChange={handleFilterChange}

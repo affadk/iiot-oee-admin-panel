@@ -320,6 +320,20 @@ export function resolveWorkOrderDeviceId(wo: WorkOrder, machines: Machine[]): st
   return machine?.bound_device_id ?? machine?.boundDevice?.device_id ?? null;
 }
 
+/**
+ * E28 Batch B (FAT-224, E2E-10): sub-baris "WO / Batch" — order_number
+ * yang SAMA dengan wo_id (duplikat) dan shift_name kosong tidak dirender;
+ * pemisah "·" hanya di antara bagian yang ada; bila keduanya kosong,
+ * '—' (bukan "·" menggantung atau sel kosong).
+ */
+export function formatWorkOrderSubline(wo: Pick<WorkOrder, 'wo_id' | 'order_number' | 'shift_name'>): string {
+  const parts = [
+    wo.order_number && wo.order_number !== wo.wo_id ? wo.order_number : null,
+    wo.shift_name || null,
+  ].filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
+
 export interface CorrelatedWorkOrderSummary {
   woId: string;
   machineLabel: string;

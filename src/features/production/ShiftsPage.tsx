@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/Modal';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
+import { TableStateRow } from '../shared/TableStateRow';
 
 export const ShiftsPage: React.FC = () => {
   const { reportForbidden, checkCapability } = useAuth();
@@ -233,12 +234,18 @@ export const ShiftsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
+                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
               {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Memuat daftar shift...
-                  </td>
-                </tr>
+                <TableStateRow isLoading isError={false} colSpan={6} />
+              ) : shifts.length === 0 ? (
+                <TableStateRow
+                  isLoading={false}
+                  isError={false}
+                  colSpan={6}
+                  emptyTitle="Belum ada shift"
+                  emptyDescription="Daftar shift masih kosong. Tambah shift pertama lewat tombol 'Tambah Shift' di atas."
+                />
               ) : (
                 shifts.map((shift) => {
                   const rowManageCap = checkCapability('shift.manage', shift.shiftId);

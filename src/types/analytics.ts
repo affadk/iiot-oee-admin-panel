@@ -14,10 +14,10 @@ export interface ShiftSummary {
   shift_start: string;
   shift_end: string;
   tz?: string;
-  oee: number;
-  availability: number;
-  performance: number;
-  quality: number;
+  oee: number | null;
+  availability: number | null;
+  performance: number | null;
+  quality: number | null;
   planned_production_time_min: number;
   planned_break_min?: number;
   operating_time_min: number;
@@ -47,7 +47,12 @@ export interface HourlyOeePoint {
   availability: number | null;
   performance: number | null;
   quality: number | null;
-  parts_produced: number;
+  /**
+   * E28 Batch A (FAT-218 E2E-04 + FAT-213 N-43): `parts_produced` null =
+   * totalCount tidak dikirim server (jumlah tidak diketahui) — tampil '—',
+   * BUKAN 0. Pola yang sama dengan `*Pct` (pctOrNull) di atas.
+   */
+  parts_produced: number | null;
   defect_count: number;
   good_count?: number;
   hourly_operating_sec?: number;

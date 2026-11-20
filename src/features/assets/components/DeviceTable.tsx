@@ -66,7 +66,10 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({
                         <span>{dev.device_id}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 pl-6">
-                        {dev.model || 'STM32H743'} · SN: {dev.serial_number}
+                        {dev.model || 'STM32H743'}
+                        {/* E28 Batch B (FAT-224, E2E-10): device live tak
+                            punya serial — "SN:" kosong disembunyikan. */}
+                        {dev.serial_number ? ` · SN: ${dev.serial_number}` : ''}
                       </div>
                     </td>
                     <td className="py-3 px-4 font-tabular text-slate-700 dark:text-slate-300">

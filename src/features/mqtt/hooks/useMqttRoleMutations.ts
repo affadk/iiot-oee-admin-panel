@@ -3,7 +3,7 @@ import type { MqttAclType } from '../../../types/mqtt';
 import type { DynSecFeedback } from './useDynamicSecurityData';
 
 interface UseMqttRoleMutationsArgs {
-  loadAll: () => Promise<void>;
+  refreshAfterMutation: (successMsg: string | null) => Promise<boolean>;
   setFeedback: (feedback: DynSecFeedback | null) => void;
 }
 
@@ -13,7 +13,7 @@ export interface NewMqttAcl {
   allow: boolean;
 }
 
-export const useMqttRoleMutations = ({ loadAll, setFeedback }: UseMqttRoleMutationsArgs) => {
+export const useMqttRoleMutations = ({ refreshAfterMutation, setFeedback }: UseMqttRoleMutationsArgs) => {
   const createRole = async (rolename: string, textdescription: string): Promise<boolean> => {
     try {
       await apiClient.createMqttRole({
@@ -21,10 +21,13 @@ export const useMqttRoleMutations = ({ loadAll, setFeedback }: UseMqttRoleMutati
         textdescription: textdescription.trim(),
         acls: [],
       });
-      await loadAll();
+      // E28 Batch A (FAT-227 MUT-01): sukses mutasi dikonfirmasi lewat
+      // refreshAfterMutation — bukan loadAll mentah yang bisa menimpa
+      // feedback dengan banner network-error bila refetch gagal transien.
+      await refreshAfterMutation(`MQTT Role "${rolename.trim()}" berhasil dibuat.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal membuat MQTT role.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal membuat MQTT role.' });
       return false;
     }
   };
@@ -36,10 +39,10 @@ export const useMqttRoleMutations = ({ loadAll, setFeedback }: UseMqttRoleMutati
         topic: acl.topic.trim(),
         allow: acl.allow,
       });
-      await loadAll();
+      await refreshAfterMutation(`ACL ${acl.topic.trim()} ditambahkan ke role ${rolename}.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menambahkan ACL.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menambahkan ACL.' });
       return false;
     }
   };
@@ -49,10 +52,9 @@ export const useMqttRoleMutations = ({ loadAll, setFeedback }: UseMqttRoleMutati
   const deleteRole = async (rolename: string) => {
     try {
       await apiClient.deleteMqttRole(rolename);
-      await loadAll();
-      setFeedback({ type: 'success', msg: `Role ${rolename} dihapus.` });
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menghapus MQTT role.' });
+      await refreshAfterMutation(`Role ${rolename} dihapus.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menghapus MQTT role.' });
     }
   };
 
@@ -61,10 +63,9 @@ export const useMqttRoleMutations = ({ loadAll, setFeedback }: UseMqttRoleMutati
   const removeAcl = async (rolename: string, acltype: MqttAclType, topic: string) => {
     try {
       await apiClient.removeMqttRoleAcl(rolename, acltype, topic);
-      await loadAll();
-      setFeedback({ type: 'success', msg: `ACL ${topic} dihapus dari role ${rolename}.` });
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menghapus ACL.' });
+      await refreshAfterMutation(`ACL ${topic} dihapus dari role ${rolename}.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menghapus ACL.' });
     }
   };
 

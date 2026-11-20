@@ -113,7 +113,7 @@ test('HTTP transport: getHourlyTrend & getTelemetryAggregate mengirim from/to/li
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       json(200, {
         success: true,
         token: 'stub-jwt',
@@ -317,7 +317,7 @@ test('HTTP transport: getShiftSummary & getShiftTimeline mengirim from/to sebaga
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       json(200, {
         success: true,
         token: 'stub-jwt',
@@ -473,7 +473,7 @@ test('HTTP transport: getTelemetryRollup mengirim machine_id sebagai query', asy
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       json(200, {
         success: true,
         token: 'stub-jwt',

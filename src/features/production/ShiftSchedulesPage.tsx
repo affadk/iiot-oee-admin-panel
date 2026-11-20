@@ -12,6 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { ConfirmationDialog } from '../../components/ui/ConfirmationDialog';
 import { ConflictDialog, ConflictDialogState } from '../../components/ui/ConflictDialog';
 import { CursorPaginationBar } from '../../components/industrial/CursorPaginationBar';
+import { TableStateRow } from '../shared/TableStateRow';
 
 const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
@@ -284,12 +285,18 @@ export const ShiftSchedulesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+              {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
+                  (TableStateRow) — loading = skeleton, kosong = sebab + aksi. */}
               {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Memuat jadwal shift...
-                  </td>
-                </tr>
+                <TableStateRow isLoading isError={false} colSpan={6} />
+              ) : schedules.length === 0 ? (
+                <TableStateRow
+                  isLoading={false}
+                  isError={false}
+                  colSpan={6}
+                  emptyTitle="Belum ada jadwal shift"
+                  emptyDescription="Belum ada jadwal shift untuk kombinasi lini/shift. Tambah jadwal pertama lewat tombol 'Tambah Jadwal' di atas (butuh minimal satu lini dan satu shift)."
+                />
               ) : (
                 schedules.map((sch) => {
                   const rowManageCap = checkCapability('shift_schedule.manage', sch.scheduleId);

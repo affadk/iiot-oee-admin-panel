@@ -29,7 +29,9 @@ interface AuthContextType {
    */
   mustChangePassword: boolean;
   clearMustChangePassword: () => void;
-  login: (operator_id: string, password?: string, station_id?: string) => Promise<LoginResponse>;
+  // E29 (FAT-242, Spec 044): login admin 2-arg — station_id dihapus
+  // bersama endpoint lama (T3). Signature 3-param Batch A sudah dihapus.
+  login: (operator_id: string, password?: string) => Promise<LoginResponse>;
   // TIDAK ADA setRole: ganti peran HANYA lewat login — logout dulu, lalu
   // login sebagai operator lain. Pengalih peran langsung dari Topbar sudah
   // dihapus (bukan perilaku standar; peran berasal dari token /auth/me).
@@ -152,9 +154,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isAuthenticated, currentUser.role, currentUser.operator_id, refreshCapabilities, refreshServerAccessMode]);
 
-  const login = useCallback(async (operator_id: string, password?: string, station_id?: string) => {
+  // E29 (FAT-242, T3): login admin strict 2-arg — tanpa station_id
+  // (Spec 044, POST /auth/admin/login). Shim 3-param Batch A dihapus.
+  const login = useCallback(async (operator_id: string, password?: string) => {
     capabilityDenialStore.clearAll();
-    const res = await apiClient.login(operator_id, password, station_id);
+    const res = await apiClient.login(operator_id, password);
     setSessionExpiredReason(null);
     setCurrentUser({
       operator_id: res.operator.id,
@@ -188,7 +192,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return result;
   }, []);
 
-  // Session TTL countdown + proactive single-flight sliding refresh at 80% elapsed (20% remaining, LAN only)
+  // Session TTL countdown + proactive single-flight sliding refresh at 80% elapsed (20% remaining).
+  // E29 (FAT-245, T6): refresh TANPA syarat kanal — kondisi `mode === 'LAN'`
+  // dihapus. Refresh bukan mutasi (spec /auth/refresh tanpa 403); sesi tidak
+  // boleh mati di TTL hanya karena kanal REMOTE_TUNNEL. `mode` tetap dipakai
+  // checkCapability di bawah, jadi destructure tidak dihapus. Logika lain
+  // tidak berubah: single-flight, ambang 20%, logout saat TTL habis.
   useEffect(() => {
     if (!isAuthenticated) return;
     const refreshThreshold = Math.max(1, Math.floor(sessionTtlTotal * 0.2));
@@ -199,8 +208,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return 0;
         }
         const next = prev - 1;
-        // Refresh proactively at <= 20% remaining (80% elapsed) when on LAN
-        if (next === refreshThreshold && mode === 'LAN' && !refreshInFlightRef.current) {
+        // Refresh proactively at <= 20% remaining (80% elapsed), any channel
+        if (next === refreshThreshold && !refreshInFlightRef.current) {
           refreshInFlightRef.current = apiClient
             .refreshSession()
             .then((refreshed) => {
@@ -220,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, sessionTtlTotal, mode, logout, refreshCapabilities]);
+  }, [isAuthenticated, sessionTtlTotal, logout, refreshCapabilities]);
 
   const checkCapability = useCallback(
     (capability: CapabilityKey, resourceId?: string) => {

@@ -36,7 +36,15 @@ export interface TimelineAxis {
   timeZoneLabel: string;
 }
 
-const NICE_STEPS_MIN = [1, 5, 10, 15, 30, 60, 120];
+/**
+ * E28 Batch B (FAT-225, E2E-11 — TERKONFIRMASI dari kode): langkah lama
+ * berhenti di 120 mnt, sehingga rentang 7 hari (10.080 mnt — from/to
+ * default halaman) memakai langkah 120 mnt dan menghasilkan ~84 tick
+ * yang bertumpuk di sumbu. Langkah diperpanjang sampai 10.080 mnt
+ * (7 hari) supaya rentang berapa pun tetap ≤ 9 tick: 7 hari → tick
+ * harian (1.440 mnt), 14 hari → 2.880 mnt, dst.
+ */
+const NICE_STEPS_MIN = [1, 5, 10, 15, 30, 60, 120, 240, 360, 480, 720, 1440, 2880, 4320, 10080];
 
 /** 'HH:MM' dari menit absolut (0–1439). */
 function minutesToClock(min: number): string {

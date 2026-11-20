@@ -225,7 +225,7 @@ test('100% of ADMIN_ENDPOINTS catalog keys are wired and callable through apiCli
   const weekAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   // Auth, Health, WS (6)
-  await apiClient.login('ADM-001', 'admin1234', 'LAN-01');
+  await apiClient.login('ADM-001', 'admin1234'); // E29: login admin tanpa station_id
   await apiClient.refreshSession();
   await apiClient.changePassword('admin1234', 'NewAdminPass123!');
   await apiClient.getAuthMe();

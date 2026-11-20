@@ -16,7 +16,6 @@ import {
   resolveTunnelPort,
   resolveNetworkMode,
   resolvePlantLabel,
-  resolveDefaultStationId,
   resolveWsHeartbeatMs,
   resolveAuthTtlFallbackSec,
 } from './mode';
@@ -240,7 +239,7 @@ test('HTTP transport vs stub server: login, retry 503, trailing slash, 409 tanpa
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
-    if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+    if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
       json(200, {
         success: true,
         token: 'stub-jwt',
@@ -335,7 +334,7 @@ test('E14 Fase 0: K-10 PUT IAM, K-10 PATCH dynsec, K-11 provision, K-03 slash co
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       };
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         json(200, {
           success: true,
           token: 'stub-jwt',
@@ -437,7 +436,7 @@ test('E15 K-05: 4 sub-operasi dynsec mengirim objek tunggal (stub HTTP)', async 
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       };
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         json(200, {
           success: true,
           token: 'stub-jwt',
@@ -525,7 +524,6 @@ const ENV_KEYS = [
   'VITE_LOGIN_MAX_ATTEMPTS',
   'VITE_LOGIN_COOLDOWN_SEC',
   'VITE_PLANT_LABEL',
-  'VITE_DEFAULT_STATION_ID',
   'VITE_WS_HEARTBEAT_MS',
   'VITE_AUTH_TTL_FALLBACK_SEC',
 ] as const;
@@ -614,7 +612,6 @@ test('Resolver env: timeout/retry/tunnel/network/identitas + default (lockout DI
     assert.equal(resolveTunnelPort(), 8080);
     assert.equal(resolveNetworkMode(), 'LAN');
     assert.equal(resolvePlantLabel(), 'Plant 01');
-    assert.equal(resolveDefaultStationId(), 'ADMIN-CONSOLE-01');
     assert.equal(resolveWsHeartbeatMs(), 25000);
     assert.equal(resolveAuthTtlFallbackSec(), 900);
 
@@ -624,7 +621,6 @@ test('Resolver env: timeout/retry/tunnel/network/identitas + default (lockout DI
     process.env.VITE_TUNNEL_PORT = '8081';
     process.env.VITE_NETWORK_MODE = 'REMOTE_TUNNEL';
     process.env.VITE_PLANT_LABEL = 'Plant 99';
-    process.env.VITE_DEFAULT_STATION_ID = 'ST-1';
     process.env.VITE_WS_HEARTBEAT_MS = '10000';
     process.env.VITE_AUTH_TTL_FALLBACK_SEC = '600';
     assert.equal(resolveMutationTimeoutMs(), 20000);
@@ -632,7 +628,6 @@ test('Resolver env: timeout/retry/tunnel/network/identitas + default (lockout DI
     assert.equal(resolveTunnelPort(), 8081);
     assert.equal(resolveNetworkMode(), 'REMOTE_TUNNEL');
     assert.equal(resolvePlantLabel(), 'Plant 99');
-    assert.equal(resolveDefaultStationId(), 'ST-1');
     assert.equal(resolveWsHeartbeatMs(), 10000);
     assert.equal(resolveAuthTtlFallbackSec(), 600);
 
@@ -682,7 +677,7 @@ test('E20 P20.2: provision/revoke/rotasi/health device via HTTP (stub, port 3005
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       };
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         json(200, {
           success: true,
           token: 'stub-jwt',

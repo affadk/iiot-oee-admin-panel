@@ -1,14 +1,20 @@
 export type AbacParseResult =
-  | { ok: true; value: Record<string, unknown> | null }
+  | { ok: true; value: Record<string, unknown> | undefined }
   | { ok: false; error: string };
 
 /**
  * Parse abac_condition dari teks JSON mentah. Menggantikan 3 salinan identik
  * di handleBindPermission / handleCreatePolicy / handleUpdatePolicy.
- * Teks kosong = tanpa syarat (null). Pesan error dipertahankan verbatim.
+ *
+ * E28 Batch A (FAT-229 MUT-03): teks kosong = tanpa syarat → `undefined`
+ * (field DI-OMIT saat kirim), BUKAN null — server menolak
+ * `abacCondition: null` pada POST (spec: optional record, bukan nullable).
+ * Nilai null eksplisit (hapus kondisi) hanya dipakai jalur PUT — pemanggil
+ * yang membutuhkannya (updatePolicy) yang mengubah undefined → null bila
+ * policy sebelumnya memang punya kondisi. Pesan error dipertahankan verbatim.
  */
 export function parseAbacCondition(json: string): AbacParseResult {
-  if (!json.trim()) return { ok: true, value: null };
+  if (!json.trim()) return { ok: true, value: undefined };
   try {
     const parsed: unknown = JSON.parse(json.trim());
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {

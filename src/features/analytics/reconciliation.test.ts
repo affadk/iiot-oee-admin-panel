@@ -254,3 +254,45 @@ test('format nilai dan selisih memakai pemisah ribuan Indonesia', () => {
   assert.equal(formatReconciliationDiff(120, 'detik'), '+120 detik');
   assert.equal(formatReconciliationDiff(0, 'pcs'), '');
 });
+
+test('E28 Batch B (FAT-221): timeline 7 hari dipotong ke jendela shift ringkasan 99 mnt — bukan peringatan palsu', () => {
+  // Angka E2E live: RUNNING timeline 235 vs ringkasan 99; total 10.080 vs 99.
+  // Ringkasan = satu shift yang sedang berjalan (99 mnt); timeline = 7 hari.
+  const summary99: ShiftSummary = {
+    ...CONSISTENT_SUMMARY,
+    shift_start: '2026-11-19T14:21:00+07:00',
+    shift_end: '2026-11-19T16:00:00+07:00',
+    planned_production_time_min: 99,
+    operating_time_min: 99,
+    run_time_min: 90,
+    unplanned_downtime_min: 9,
+    planned_downtime_min: 0,
+  };
+  const weekTimeline: ShiftTimelineSegment[] = [
+    // Di luar jendela (sebelum shift): 145 mnt RUNNING — tidak dihitung.
+    timelineSegment('2026-11-19T11:56:00+07:00', '2026-11-19T14:21:00+07:00', 'RUNNING', 145),
+    // Di dalam jendela: RUNNING 90 + UNPLANNED 9 = 99 mnt.
+    timelineSegment('2026-11-19T14:21:00+07:00', '2026-11-19T15:51:00+07:00', 'RUNNING', 90),
+    timelineSegment('2026-11-19T15:51:00+07:00', '2026-11-19T16:00:00+07:00', 'UNPLANNED_DOWNTIME', 9),
+    // Di luar jendela (sesudah shift): 9.936 mnt — tidak dihitung.
+    timelineSegment('2026-11-19T16:00:00+07:00', '2026-11-26T09:36:00+07:00', 'RUNNING', 9936),
+  ];
+  const rec = computeOeeReconciliation(summary99, [], weekTimeline);
+  const run = rec.checks.find((c) => c.id === 'timeline-running-vs-summary')!;
+  const total = rec.checks.find((c) => c.id === 'timeline-total-vs-window')!;
+  assert.equal(run.leftValue, 90);
+  assert.equal(run.status, 'ok');
+  assert.equal(total.leftValue, 99);
+  assert.equal(total.status, 'ok');
+  assert.equal(rec.warningCount, 0);
+  assert.match(run.note ?? '', /dipotong ke jendela shift/);
+  assert.match(total.note ?? '', /dipotong ke jendela shift/);
+});
+
+test('E28 Batch B (FAT-221): ringkasan tanpa jendela yang bisa diparse → tanpa potong, tanpa note', () => {
+  const noWindow: ShiftSummary = { ...CONSISTENT_SUMMARY, shift_start: 'bukan-tanggal', shift_end: '' };
+  const rec = computeOeeReconciliation(noWindow, [], DEMO_TIMELINE);
+  const run = rec.checks.find((c) => c.id === 'timeline-running-vs-summary')!;
+  assert.equal(run.leftValue, 388);
+  assert.equal(run.note, undefined);
+});

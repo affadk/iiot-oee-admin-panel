@@ -26,10 +26,11 @@ export const DynamicSecurityPage: React.FC = () => {
   const data = useDynamicSecurityData();
   const { clients, roles, groups, isLoading, feedback } = data;
 
-  // SATU instansi loadAll dipakai bersama data + semua hook mutasi.
-  const clientMutations = useMqttClientMutations({ loadAll: data.loadAll, setFeedback: data.setFeedback });
-  const roleMutations = useMqttRoleMutations({ loadAll: data.loadAll, setFeedback: data.setFeedback });
-  const groupMutations = useMqttGroupMutations({ loadAll: data.loadAll, setFeedback: data.setFeedback });
+  // SATU instansi refreshAfterMutation dipakai bersama data + semua hook
+  // mutasi (E28 Batch A, FAT-227 MUT-01 — ganti loadAll mentah).
+  const clientMutations = useMqttClientMutations({ refreshAfterMutation: data.refreshAfterMutation, setFeedback: data.setFeedback });
+  const roleMutations = useMqttRoleMutations({ refreshAfterMutation: data.refreshAfterMutation, setFeedback: data.setFeedback });
+  const groupMutations = useMqttGroupMutations({ refreshAfterMutation: data.refreshAfterMutation, setFeedback: data.setFeedback });
 
   // Page hanya menyimpan flag buka + target; form state milik modal masing-masing.
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);

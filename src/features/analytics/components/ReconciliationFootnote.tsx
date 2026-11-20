@@ -91,6 +91,7 @@ function ReconciliationCheckRow({ check }: { check: ReconciliationCheck }) {
       <li>
         {check.label}: {left} vs {right} —{' '}
         <span className="text-slate-500 dark:text-slate-400">data tidak lengkap</span>
+        {check.note ? ` (${check.note})` : ''}
       </li>
     );
   }
@@ -99,12 +100,14 @@ function ReconciliationCheckRow({ check }: { check: ReconciliationCheck }) {
       <li className="text-amber-700 dark:text-amber-300">
         {check.label}: {left} vs {right} —{' '}
         <span className="font-medium">selisih {diffText}</span> ({thresholdNote})
+        {check.note ? ` — ${check.note}` : ''}
       </li>
     );
   }
   return (
     <li>
       {check.label}: {left} vs {right} — cocok
+      {check.note ? ` (${check.note})` : ''}
     </li>
   );
 }

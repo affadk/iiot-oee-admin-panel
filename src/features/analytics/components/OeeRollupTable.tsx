@@ -4,7 +4,7 @@ import { RollupScope } from '../hooks/oeeQueryKeys';
 import { formatRollupPerformance } from '../../shared/historyFilters';
 import { formatDuration, formatDeletedRelationLabel, formatNullablePct } from '../../../utils/oeeCalculations';
 import { formatRollupScopeTitle, joinScopeLabel } from '../scopeLabels';
-import { TableStateRow } from './TableStateRow';
+import { TableStateRow } from '../../shared/TableStateRow';
 
 interface OeeRollupTableProps {
   rollupRows: TelemetryRollupItem[];

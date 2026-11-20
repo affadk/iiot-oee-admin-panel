@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Tag, RefreshCw, Activity } from 'lucide-react';
@@ -26,6 +27,7 @@ import {
   useDowntimeHistoryQuery,
   useMasterAssetsQuery,
 } from '../shared/useHistoricalQueries';
+import { resolveDefaultDeviceId } from '../shared/defaultDevice';
 
 const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label: string }> = [
   { value: 'ALL', label: 'Semua Kategori' },
@@ -47,20 +49,31 @@ const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label:
 export const DowntimeEventsPage: React.FC = () => {
   const { reportForbidden, checkCapability } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
   const { filters, isValid, validationErrors, updateFilters, resetFilters } = useHistoryFilters({
-    deviceId: 'STM32-OEE-01',
+    // E28 Batch B (FAT-170, N-2): TANPA default device hardcode — device
+    // dipilih dari daftar live di bawah (online dulu); bila URL membawa
+    // device_id, nilai itu yang menang.
     limit: DEFAULT_HISTORY_PAGE_LIMIT,
   });
 
+  // Tab awal 'history' hanya bila URL secara eksplisit meminta device
+  // (tautan silang); tanpa itu tab 'active' — dulu memakai perbandingan
+  // dengan hardcode 'STM32-OEE-01' sebagai penanda default.
   const [activeTab, setActiveTab] = useState<'active' | 'history'>(() =>
-    filters.deviceId && filters.deviceId !== 'STM32-OEE-01' ? 'history' : 'active'
+    searchParams.get('device_id') ? 'history' : 'active'
   );
   const [customDeviceInput, setCustomDeviceInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
 
-  const selectedDeviceId = filters.deviceId || 'STM32-OEE-01';
+  // E28 Batch B (FAT-170, N-2): default dari daftar live (online dulu,
+  // lalu pertama); daftar kosong → tanpa default + empty state di bawah.
+  const { data: masterData, isLoading: devicesLoading } = useMasterAssetsQuery();
+  const devices = masterData?.devices ?? [];
+  const derivedDefaultDevice = resolveDefaultDeviceId(devices);
+  const selectedDeviceId = filters.deviceId ?? derivedDefaultDevice ?? '';
 
   const [preset, setPreset] = useState<TimeWindowPreset>('7d');
   const [isExporting, setIsExporting] = useState(false);
@@ -85,9 +98,6 @@ export const DowntimeEventsPage: React.FC = () => {
     setCursorStack([undefined]);
     updateFilters(patch);
   };
-
-  const { data: masterData } = useMasterAssetsQuery();
-  const devices = masterData?.devices ?? [];
 
   const activeQueueQuery = useQuery({
     queryKey: ['active-downtimes'],
@@ -501,6 +511,18 @@ export const DowntimeEventsPage: React.FC = () => {
             scopeLabel={`Perangkat: ${selectedDeviceId}`}
             cooldownSeconds={cooldownSeconds}
           />
+
+          {/* E28 Batch B (FAT-170): daftar device sudah dimuat tapi kosong
+              — tidak ada default yang bisa dipilih; sampaikan eksplisit. */}
+          {!devicesLoading && !selectedDeviceId && (
+            <div
+              role="status"
+              className="p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-900 dark:text-amber-200"
+            >
+              Belum ada perangkat edge yang terdaftar — daftarkan perangkat dulu di halaman Devices
+              sebelum melihat riwayat downtime per perangkat.
+            </div>
+          )}
         </>
       )}
 
@@ -526,7 +548,9 @@ export const DowntimeEventsPage: React.FC = () => {
         emptyDescription={
           activeTab === 'active'
             ? 'Semua mesin saat ini tidak memiliki insiden henti aktif.'
-            : `Tidak ada riwayat downtime untuk ${selectedDeviceId} sesuai filter aktif.`
+            : selectedDeviceId
+              ? `Tidak ada riwayat downtime untuk ${selectedDeviceId} sesuai filter aktif.`
+              : 'Belum ada perangkat yang dipilih — daftar device kosong.'
         }
         emptyActionLabel={activeTab === 'history' ? 'Reset Filter' : undefined}
         onEmptyAction={activeTab === 'history' ? resetFilters : undefined}

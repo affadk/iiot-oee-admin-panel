@@ -26,7 +26,7 @@ test('E20 P20.4: health/detail + hapus sintesis; op-events FR-034-01 + export sy
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       };
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         json(200, {
           success: true,
           token: 'stub-jwt',

@@ -26,6 +26,8 @@ export const OeeAnalyticsPage: React.FC = () => {
     setRollupScope,
     machines,
     shifts,
+    shiftsLoading,
+    shiftsError,
     selectedShift,
     timelineBucket,
     setTimelineBucket,
@@ -161,6 +163,8 @@ export const OeeAnalyticsPage: React.FC = () => {
 
       <ShiftFilterBar
         shifts={shifts}
+        shiftsLoading={shiftsLoading}
+        shiftsError={shiftsError}
         shiftDate={filters.shiftDate}
         shiftId={filters.shiftId}
         onFilterChange={updateFilters}
@@ -183,7 +187,7 @@ export const OeeAnalyticsPage: React.FC = () => {
         onSelectSegment={setSelectedSegmentIdx}
         activeSegment={activeSegment}
         matchedDowntime={matchedDowntime}
-        resolvedDeviceId={resolvedDeviceId}
+        resolvedDeviceId={resolvedDeviceId ?? ''}
         summary={summary}
         // E12 T12.12 (X-5 / FAT-58): hourly diteruskan agar segmen di jam
         // provisional mendapat penanda (diturunkan dari data hourly).
@@ -204,7 +208,7 @@ export const OeeAnalyticsPage: React.FC = () => {
       {/* Hourly Breakdown Table (authoritative /api/v1/oee/hourly fields) */}
       <OeeHourlyTable
         hourly={hourly}
-        resolvedDeviceId={resolvedDeviceId}
+        resolvedDeviceId={resolvedDeviceId ?? ''}
         periodLabel={periodLabel}
         machineLabel={selectedMachineLabel}
         isLoading={hourlyState.isLoading}
@@ -233,7 +237,7 @@ export const OeeAnalyticsPage: React.FC = () => {
         paretoItems={paretoItems}
         paretoScope={paretoScope}
         onScopeChange={setParetoScope}
-        resolvedDeviceId={resolvedDeviceId}
+        resolvedDeviceId={resolvedDeviceId ?? ''}
         canReadQuality={canReadQuality}
       />
 

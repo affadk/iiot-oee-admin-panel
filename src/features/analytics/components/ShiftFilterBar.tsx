@@ -14,6 +14,10 @@ import {
 export interface ShiftFilterBarProps {
   shifts: Shift[];
   shiftsLoading?: boolean;
+  /** E28 Batch B (FAT-220, E2E-06): query shift BENAR-BENAR gagal
+      (bukan masih loading, bukan daftar kosong). Hanya bila ini true
+      peringatan "tidak tersedia" boleh tampil. */
+  shiftsError?: boolean;
   shiftDate?: string;
   shiftId?: string;
   onFilterChange: (patch: Partial<HistoryFilters>) => void;
@@ -30,6 +34,7 @@ export interface ShiftFilterBarProps {
 export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
   shifts,
   shiftsLoading = false,
+  shiftsError = false,
   shiftDate,
   shiftId,
   onFilterChange,
@@ -73,7 +78,15 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
   };
 
   const shiftOne = findShiftOne(activeShifts);
-  const unavailable = !shiftsLoading && activeShifts.length === 0;
+  // E28 Batch B (FAT-220, E2E-06 — TERKONFIRMASI dari kode): kedua
+  // pemanggil lama tidak meneruskan `shiftsLoading` (default false),
+  // sehingga saat query shift masih memuat, `activeShifts` kosong dan
+  // peringatan "tidak tersedia" sempat berkedip lalu hilang sendiri —
+  // persis observasi E2E §33.4. Peringatan kini HANYA bila query gagal
+  // (`shiftsError`); saat loading tampil teks "Memuat…", dan bila query
+  // sukses tapi kosong tampil catatan netral (bukan tuduhan akses/koneksi).
+  const noActiveShifts = activeShifts.length === 0;
+  const unavailable = !shiftsLoading && noActiveShifts;
 
   return (
     <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex flex-col sm:flex-row sm:items-end gap-3">
@@ -128,9 +141,19 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
         )}
       </div>
 
-      {unavailable && (
+      {shiftsLoading && (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          Memuat daftar shift…
+        </p>
+      )}
+      {!shiftsLoading && shiftsError && (
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
           Daftar shift tidak tersedia — periksa akses shift.read / koneksi.
+        </p>
+      )}
+      {!shiftsLoading && !shiftsError && noActiveShifts && (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          Belum ada shift aktif yang terdaftar — filter shift tidak dapat dipakai.
         </p>
       )}
       {selectedShift && shiftDate && (

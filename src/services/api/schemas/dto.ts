@@ -232,7 +232,13 @@ export const IamPolicyRuleSchema = z.object({
   resourceType: z.string(),
   resourcePattern: z.string(),
   effect: z.enum(['ALLOW', 'DENY']),
-  abacCondition: z.union([z.record(z.string(), z.unknown()), z.null()]).optional(),
+  // E28 Batch A (FAT-229 MUT-03): `abacCondition` HANYA record — BUKAN
+  // nullable. Spec 20 Nov: POST /policies = optional record; server menolak
+  // null (400). Baris tanpa ABAC = field ABSEN (undefined), bukan null.
+  // Pengecualian yang disengaja: PUT /policies BOLEH nullable (null =
+  // hapus kondisi) — itu jalur tulis HTTP, bukan skema baris ini. Pembaca
+  // (mapIamPolicy) tetap toleran terhadap null dari server lama.
+  abacCondition: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean(),
   createdAt: z.string(),
 });

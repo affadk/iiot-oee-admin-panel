@@ -77,3 +77,18 @@ test('segmentDateNote: lintas tengah malam vs satu hari yang sama', () => {
   );
   assert.equal(segmentDateNote(SEG('23:30', '01:00', 90)), '');
 });
+
+test('E28 Batch B (FAT-225): rentang 7 hari memakai tick harian, maksimal 9 tick — tidak bertumpuk', () => {
+  const segs = [
+    SEG('2026-11-12T00:00:00+07:00', '2026-11-15T12:00:00+07:00', 5040),
+    SEG('2026-11-15T12:00:00+07:00', '2026-11-19T00:00:00+07:00', 5040),
+  ];
+  const axis = buildTimelineAxisTicks(segs, '2026-11-12');
+  assert.ok(axis.ticks.length <= 9, `tick ${axis.ticks.length} melebihi 9`);
+  assert.equal(axis.ticks.length, 8);
+  // Tick harian sejajar tengah malam UTC (= 07:00 WIB); tick terakhir
+  // adalah ujung rentang (00:00 WIB) — residu kosmetik (lihat scratch),
+  // bukan tumpukan label.
+  assert.equal(axis.ticks[0].label, '07:00');
+  assert.equal(axis.ticks[axis.ticks.length - 1].label, '00:00 · 19 Nov');
+});

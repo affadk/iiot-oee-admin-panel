@@ -108,7 +108,10 @@ export const OperatorsTable: React.FC<OperatorsTableProps> = ({
                       </div>
                     </td>
                     <td className="py-3 px-4 font-tabular text-slate-700 dark:text-slate-300">
-                      {op.line_id}
+                      {/* E28 Batch B (FAT-224, E2E-10): ADM-001 (admin,
+                          scope organisasi) tak punya line_id — sel kosong
+                          diganti '—', konsisten dengan sel kosong lain. */}
+                      {op.line_id || '—'}
                     </td>
                     <td className="py-3 px-4">
                       <Badge variant={op.is_active ? 'success' : 'danger'}>

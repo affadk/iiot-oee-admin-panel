@@ -7,7 +7,7 @@ import { formatDuration, formatNullablePct } from '../../../utils/oeeCalculation
 import { formatJakartaTime } from '../../../utils/historicalExport';
 import { formatRollupPerformance } from '../../shared/historyFilters';
 import { joinScopeLabel } from '../scopeLabels';
-import { TableStateRow } from './TableStateRow';
+import { TableStateRow } from '../../shared/TableStateRow';
 
 interface OeeHourlyTableProps {
   hourly: HourlyOeePoint[];
@@ -115,7 +115,8 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
                   {formatNullablePct(pt.availability, 2)} / {formatRollupPerformance(capacityUnknown ? null : pt.performance)} / {formatNullablePct(pt.quality, 2)}
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular">
-                  <strong>{pt.parts_produced}</strong>
+                  {/* E28 Batch A (FAT-218 E2E-04): parts null → '—', bukan 0. */}
+                  <strong>{pt.parts_produced ?? '—'}</strong>
                   <span className="text-slate-400"> / {pt.targetPerHour ?? '—'}</span>
                 </td>
                 <td className="py-2.5 px-4 text-right font-tabular text-emerald-600 dark:text-emerald-400">

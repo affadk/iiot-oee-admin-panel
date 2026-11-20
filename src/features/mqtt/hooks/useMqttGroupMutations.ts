@@ -2,11 +2,11 @@ import { apiClient } from '../../../services/api/client';
 import type { DynSecFeedback } from './useDynamicSecurityData';
 
 interface UseMqttGroupMutationsArgs {
-  loadAll: () => Promise<void>;
+  refreshAfterMutation: (successMsg: string | null) => Promise<boolean>;
   setFeedback: (feedback: DynSecFeedback | null) => void;
 }
 
-export const useMqttGroupMutations = ({ loadAll, setFeedback }: UseMqttGroupMutationsArgs) => {
+export const useMqttGroupMutations = ({ refreshAfterMutation, setFeedback }: UseMqttGroupMutationsArgs) => {
   const createGroup = async (groupname: string): Promise<boolean> => {
     try {
       await apiClient.createMqttGroup({
@@ -14,10 +14,12 @@ export const useMqttGroupMutations = ({ loadAll, setFeedback }: UseMqttGroupMuta
         clients: [],
         roles: [],
       });
-      await loadAll();
+      // E28 Batch A (FAT-227 MUT-01): lihat useMqttRoleMutations — sukses
+      // mutasi dikonfirmasi lewat refreshAfterMutation, bukan loadAll mentah.
+      await refreshAfterMutation(`MQTT Group "${groupname.trim()}" berhasil dibuat.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal membuat MQTT group.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal membuat MQTT group.' });
       return false;
     }
   };
@@ -27,10 +29,9 @@ export const useMqttGroupMutations = ({ loadAll, setFeedback }: UseMqttGroupMuta
   const deleteGroup = async (groupname: string) => {
     try {
       await apiClient.deleteMqttGroup(groupname);
-      await loadAll();
-      setFeedback({ type: 'success', msg: `Group ${groupname} dihapus.` });
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menghapus MQTT group.' });
+      await refreshAfterMutation(`Group ${groupname} dihapus.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menghapus MQTT group.' });
     }
   };
 
@@ -39,10 +40,10 @@ export const useMqttGroupMutations = ({ loadAll, setFeedback }: UseMqttGroupMuta
   const addGroupClient = async (groupname: string, username: string): Promise<boolean> => {
     try {
       await apiClient.addMqttGroupClient(groupname, username);
-      await loadAll();
+      await refreshAfterMutation(`Client ${username} ditambahkan ke group ${groupname}.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menambah client ke group.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menambah client ke group.' });
       return false;
     }
   };
@@ -51,10 +52,10 @@ export const useMqttGroupMutations = ({ loadAll, setFeedback }: UseMqttGroupMuta
   const addGroupRole = async (groupname: string, rolename: string): Promise<boolean> => {
     try {
       await apiClient.addMqttGroupRole(groupname, rolename);
-      await loadAll();
+      await refreshAfterMutation(`Role ${rolename} ditambahkan ke group ${groupname}.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menambah role ke group.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menambah role ke group.' });
       return false;
     }
   };

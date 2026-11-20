@@ -8,11 +8,11 @@ import type { DynSecFeedback } from './useDynamicSecurityData';
 export type CreateMqttClientPayload = { username: string; password?: string; roles: string[] };
 
 interface UseMqttClientMutationsArgs {
-  loadAll: () => Promise<void>;
+  refreshAfterMutation: (successMsg: string | null) => Promise<boolean>;
   setFeedback: (feedback: DynSecFeedback | null) => void;
 }
 
-export const useMqttClientMutations = ({ loadAll, setFeedback }: UseMqttClientMutationsArgs) => {
+export const useMqttClientMutations = ({ refreshAfterMutation, setFeedback }: UseMqttClientMutationsArgs) => {
   const [oneTimeSecret, setOneTimeSecret] = useState<{ username: string; secret: string } | null>(null);
 
   /** Wipe secret hasil generate — dipanggil SATU-SATUNYA lewat onClose modal secret. */
@@ -27,13 +27,15 @@ export const useMqttClientMutations = ({ loadAll, setFeedback }: UseMqttClientMu
           username: result.client.username,
           secret: result.generatedPassword,
         });
+        // E28 Batch A (FAT-227 MUT-01): modal secret adalah konfirmasi
+        // suksesnya — refetch tanpa banner sukses tambahan.
+        await refreshAfterMutation(null);
       } else {
-        setFeedback({ type: 'success', msg: `MQTT Client "${result.client.username}" berhasil dibuat.` });
+        await refreshAfterMutation(`MQTT Client "${result.client.username}" berhasil dibuat.`);
       }
-      await loadAll();
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal membuat MQTT client.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal membuat MQTT client.' });
       return false;
     }
   };
@@ -41,32 +43,30 @@ export const useMqttClientMutations = ({ loadAll, setFeedback }: UseMqttClientMu
   const toggleClient = async (c: MqttClient) => {
     try {
       await apiClient.toggleMqttClient(c.username, !c.enabled);
-      await loadAll();
-      setFeedback({ type: 'success', msg: `Client ${c.username} di-${!c.enabled ? 'aktifkan' : 'nonaktifkan'}.` });
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal mengubah status client.' });
+      await refreshAfterMutation(`Client ${c.username} di-${!c.enabled ? 'aktifkan' : 'nonaktifkan'}.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal mengubah status client.' });
     }
   };
 
   const deleteClient = async (username: string) => {
     try {
       await apiClient.deleteMqttClient(username);
-      await loadAll();
-      setFeedback({ type: 'success', msg: `Client ${username} dihapus.` });
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menghapus client.' });
+      await refreshAfterMutation(`Client ${username} dihapus.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menghapus client.' });
     }
   };
 
-  // Sengaja TIDAK memanggil loadAll setelah rotasi (sama seperti versi lama):
+  // Sengaja TIDAK memanggil refreshAfterMutation setelah rotasi (sama seperti versi lama):
   // rotasi password tidak mengubah list client yang ditampilkan.
   const rotatePassword = async (username: string, password: string): Promise<boolean> => {
     try {
       await apiClient.rotateMqttClientPassword(username, password);
       setFeedback({ type: 'success', msg: `Password MQTT untuk ${username} dirotasi.` });
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal merotasi password MQTT.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal merotasi password MQTT.' });
       return false;
     }
   };
@@ -75,10 +75,10 @@ export const useMqttClientMutations = ({ loadAll, setFeedback }: UseMqttClientMu
     if (!rolename) return false;
     try {
       await apiClient.addMqttClientRole(username, rolename);
-      await loadAll();
+      await refreshAfterMutation(`Role ${rolename} ditambahkan ke client ${username}.`);
       return true;
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal menambah role client.' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal menambah role client.' });
       return false;
     }
   };
@@ -86,9 +86,9 @@ export const useMqttClientMutations = ({ loadAll, setFeedback }: UseMqttClientMu
   const detachRole = async (username: string, rolename: string) => {
     try {
       await apiClient.removeMqttClientRole(username, rolename);
-      await loadAll();
-    } catch (err: any) {
-      setFeedback({ type: 'error', msg: err?.message || 'Gagal melepas role client.' });
+      await refreshAfterMutation(`Role ${rolename} dilepas dari client ${username}.`);
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal melepas role client.' });
     }
   };
 

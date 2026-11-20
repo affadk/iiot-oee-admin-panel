@@ -43,6 +43,8 @@
 | E19 Gaps doc: semua gap tertutup (status) + push | SYS-B1–B50 | Tabel status 50/50 di gaps doc (39 backend 18 Nov, 6 delegasi E18, 5 panel-side); "tertutup" = keputusan tercatat, bukan implementasi selesai — SYS-B1–B50 tetap Todo |
 | E20 Sinkronisasi ke API docs terupdate | 294 entri diff | Diff 162 OK / 102 CHANGE / 21 NEW / 9 REMOVE; D-1–D-14 diputuskan mengikuti api_docs; gaps lama diarsipkan; implementasi 4 batch SELESAI + terverifikasi independen 2026-11-19 (registry 132 → 137) |
 | E21 Penutupan backend sync/gaps di Linear | SYS-B1–B50 + R-1–R-15 | Dilaksanakan SETELAH E20 selesai + terverifikasi — verifikasi tiap gap vs api_docs terupdate, tutup yang implementasi backend-nya tercermin di dokumen |
+| E28 Triase + implementasi panel + penutupan Linear | AUDIT §38 | Triase 64 issue terbuka (14 SUDAH SELESAI, 8 TERBLOKIR, 32 RELEVAN); Batch A 7 panel (commit 179ecf7, tes 466/466) + Batch B 8 panel (commit d770c2b, tes 483/483); tutup 29 issue di Linear. Bukan epic Linear — paket kerja tanpa issue baru. |
+| E29 Spec 044: Migrasi login admin ke POST /auth/admin/login | Spec 044 | Login admin strict tanpa station_id (registry AUTH_ADMIN_LOGIN, LoginPage tanpa field Station, 403 role-gate passthrough, refresh tanpa gate LAN); Batch A commit 38752fc (tes 492/492) + Batch B commit e4d1d6a (tes 499/499); tutup 7 issue (FAT-240–246), epic FAT-239 Todo menunggu verifikasi live — AUDIT §39. |
 
 Setiap Epic adalah **parent issue**; modul di bawahnya adalah **child issue**
 (`parentId` ke Epic). Tidak ada issue yatim: semua task harus punya parent Epic,
@@ -146,19 +148,19 @@ dianggap selesai penuh.
 | SYS-B8 | Capability `access_control.read` tidak ada di panel; kunci capability panel belum tentu sama dengan katalog backend; 403 pada read bisa salah menurunkan `manage` | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B9 | Proyeksi capability `/auth/me`: `domain`/`surface`/`mode`/`reason` per capability dan `enforcedDomains` dibuang; mode `partial` tidak jelas sumbernya | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B10 | POST `/access-control/permissions`: tidak ada UI; demo aktif memblokir dengan kode karangan; casing body belum pasti | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B11 | GET `/access-control/audit`: tanpa filter server-side; limit di-hardcode 100; keputusan di atas 100 hilang diam-diam | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B11 | GET `/access-control/audit`: tanpa filter server-side; limit di-hardcode 100; keputusan di atas 100 hilang diam-diam | E13 | **Done** | Medium | `real-backend` |
 | SYS-B12 | Inspector `GET /subjects/:operatorId/effective-permissions`: bentuk respons tidak terdokumentasi; subjek default hardcode `SUP-042`; error deep-link ditelan | E13 | **Todo** | Low | `real-backend` |
 | SYS-B13 | POST `/access-control/roles/:id/permissions`: `reason` yang diketik admin dibuang di Real mode | E13 | **Todo** | Low | `real-backend` |
 | SYS-B14 | Mutasi assignment: `reason` tidak dikirim; revoke memakai composite key tanpa `id` | E13 | **Todo** | Low | `real-backend` |
 | SYS-B15 | Refresh token: panel mengembalikan `authz_version` karangan (selalu 0/stale di Real); penanganan 401 `AUTHZ_STALE`/`SUBJECT_INACTIVE` generik | E13 | **Todo** | Low | `real-backend` |
 | SYS-B16 | Login: lockout client-side (5 percobaan/30 dtk) vs rate limit server (5/60 dtk); dokumentasi `Retry-After` belum ada | E13 | **Todo** | Low | `real-backend` |
-| SYS-B17 | GET `/access-control/user-roles` & `/policies`: panel tidak mengirim filter `operatorId`/`roleId`; muat-semua + saring client-side | E13 | **Todo** | Low | `real-backend` |
+| SYS-B17 | GET `/access-control/user-roles` & `/policies`: panel tidak mengirim filter `operatorId`/`roleId`; muat-semua + saring client-side | E13 | **Done** | Low | `real-backend` |
 | SYS-B18 | Aturan anti-eskalasi/wildcard karangan panel/demo yang lebih ketat dari dokumen | E13 | **Todo** | Low | `real-backend` |
 | SYS-B19 | Skema item audit (`OperationalEventItem`) tidak didefinisikan di dokumen mana pun; semua kolom AuditTrailPage adalah asumsi mapper | E13 | **Todo** | High | `real-backend` |
 | SYS-B20 | `GET /health` tidak menyediakan field yang ditampilkan SystemHealthPage; transport HTTP mensintesis data kesehatan palsu | E13 | **Todo** | High | `real-backend` |
 | SYS-B21 | PATCH ack tidak mengirim `operatorId`; dokumen bertentangan soal wajib/tidak | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B22 | Filter `severity` dan `acknowledged` di halaman Operational Events dibuang oleh transport HTTP; di Demo jalan, di Real mode diam-diam diabaikan | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B23 | Konflik dokumen: `machine_id` pada list global dan ekspor operational-events; Guide bilang didukung, API doc tidak mencantumkannya | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B23 | Konflik dokumen: `machine_id` pada list global dan ekspor operational-events; Guide bilang didukung, API doc tidak mencantumkannya | E13 | **Done** | Medium | `real-backend` |
 | SYS-B24 | Dukungan `event_type` pada `GET /system/audit` tidak ada di dokumen; panel bisa mengirimnya (via URL) dan demo mengabaikannya | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B25 | Bentuk envelope `meta` list tidak didefinisikan; paginasi cursor dan total bisa gagal diam-diam | E13 | **Todo** | Low | `real-backend` |
 | SYS-B26 | System audit tidak bisa diekspor: tidak ada endpoint ekspor dan tidak ada tombolnya di UI | E13 | **Todo** | Low | `real-backend` |
@@ -166,17 +168,17 @@ dianggap selesai penuh.
 | SYS-B28 | Rotasi password MQTT: http memakai POST, dokumen memakai PATCH | E13 | **Todo** | High | `real-backend` |
 | SYS-B29 | Enable/disable klien MQTT: http memakai POST + `{disabled}`, dokumen memakai PATCH + `{enabled}` | E13 | **Todo** | High | `real-backend` |
 | SYS-B30 | Provisioning perangkat: http mengubah nilai `access` menjadi `telemetry` / `telemetry+state` | E13 | **Todo** | High | `real-backend` |
-| SYS-B31 | Tambah peran ke klien: http mengirim `{roles:[{rolename, priority}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Todo** | High | `real-backend` |
-| SYS-B32 | Tambah ACL ke peran: http mengirim `{acls:[acl]}`, dokumen memakai objek ACL tunggal `{acltype, topic, ...}` | E13 | **Todo** | High | `real-backend` |
-| SYS-B33 | Buat klien: password kosong dikirim sebagai string kosong; auto-generate tidak dijamin dokumen; field `textname`/`textdescription`/`groups`/`clientid` dibuang di sebagian mode | E13 | **Todo** | High | `real-backend` |
-| SYS-B34 | Bentuk respons `POST /clients` (password sekali tampil) tidak dinamai di dokumen | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B35 | Mapper `mapMqttClient`: logika `enabled` bisa terbalik bila backend mengembalikan `enabled:false` | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B36 | Tambah klien ke grup: http mengirim `{clients:[{username}]}`, dokumen memakai `{username, priority?}` | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B37 | Tambah peran ke grup: http mengirim `{roles:[{rolename}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B31 | Tambah peran ke klien: http mengirim `{roles:[{rolename, priority}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Done** | High | `real-backend` |
+| SYS-B32 | Tambah ACL ke peran: http mengirim `{acls:[acl]}`, dokumen memakai objek ACL tunggal `{acltype, topic, ...}` | E13 | **Done** | High | `real-backend` |
+| SYS-B33 | Buat klien: password kosong dikirim sebagai string kosong; auto-generate tidak dijamin dokumen; field `textname`/`textdescription`/`groups`/`clientid` dibuang di sebagian mode | E13 | **Done** | High | `real-backend` |
+| SYS-B34 | Bentuk respons `POST /clients` (password sekali tampil) tidak dinamai di dokumen | E13 | **Done** | Medium | `real-backend` |
+| SYS-B35 | Mapper `mapMqttClient`: logika `enabled` bisa terbalik bila backend mengembalikan `enabled:false` | E13 | **Done** | Medium | `real-backend` |
+| SYS-B36 | Tambah klien ke grup: http mengirim `{clients:[{username}]}`, dokumen memakai `{username, priority?}` | E13 | **Done** | Medium | `real-backend` |
+| SYS-B37 | Tambah peran ke grup: http mengirim `{roles:[{rolename}]}`, dokumen memakai `{rolename, priority?}` | E13 | **Done** | Medium | `real-backend` |
 | SYS-B38 | `GET /mqtt/configuration` tanpa trailing slash; dokumen API mewajibkan trailing slash | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B39 | Stage konfigurasi: panel mengirim `{config, summary}`, dokumen memakai `{config, baseVersionId?, reason?, comment?}` | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B40 | Detail error 422 staging: dokumen menyebut field `details`, panel hanya mem-parsing `issues` | E13 | **Todo** | Medium | `real-backend` |
-| SYS-B41 | Apply/rollback: panel tidak mengirim `acknowledgeUnvalidated`, dan hanya polling operasi satu kali | E13 | **Todo** | Medium | `real-backend` |
+| SYS-B41 | Apply/rollback: panel tidak mengirim `acknowledgeUnvalidated`, dan hanya polling operasi satu kali | E13 | **Done** | Medium | `real-backend` |
 | SYS-B42 | `POST /backups` tidak ada di dokumen (endpoint hantu); tidak ada restore/download backup | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B43 | Model konfigurasi terstruktur tidak dispesifikasi; field, default, dan enum status versi/operasi ditebak panel | E13 | **Todo** | Medium | `real-backend` |
 | SYS-B44 | Overview: bentuk dalam `{dynamicSecurity, configuration}` tidak dispesifikasi; `null` (plugin nonaktif) diubah panel menjadi nilai yang menyesatkan | E13 | **Todo** | Low | `real-backend` |
@@ -234,12 +236,12 @@ dianggap selesai penuh.
 | P21.7 | Verifikasi E21 + AUDIT §25 + LINEAR.md + seed v21 | E21 | Done | High | `verification`, `docs` |
 | FAT-168 | Arsip dokumen gap tertutup + perbarui dokumentasi admin panel | — | Done | High | `docs` |
 | E22 | Live API audit Fase 1: gap baru (N-2–N-5) | API_LIVE_AUDIT.md | Todo | Medium | `verification`, `real-backend` |
-| N-2 | Panel: default device hardcoded STM32-OEE-01 — ambil dari daftar live | E22 | Todo | Low | `verification`, `real-backend` |
+| N-2 | Panel: default device hardcoded STM32-OEE-01 — ambil dari daftar live | E22 | Done | Low | `verification`, `real-backend` |
 | N-3 | Backend: urutan gate auth-vs-validasi tidak konsisten pada mutasi | E22 | Todo | Low | `verification`, `real-backend` |
 | N-4 | Backend: dua teks pesan 401 berbeda | E22 | Todo | Low | `verification`, `real-backend` |
-| N-5 | Produk live tanpa sku/isActive — panel tampilkan productId sebagai SKU | E22 | Todo | Low | `verification`, `real-backend` |
+| N-5 | Produk live tanpa sku/isActive — panel tampilkan productId sebagai SKU | E22 | Done | Low | `verification`, `real-backend` |
 | E23 | Audit endpoint vs api_docs live (OpenAPI): gap baru N-6–N-41 | API_DOCS_AUDIT.md | Todo | High | `verification`, `real-backend` |
-| N-6 | CORS origin panel Vercel tidak diizinkan — blokir semua akses browser | E23 | Todo | Urgent | `security`, `real-backend`, `verification` |
+| N-6 | CORS origin panel Vercel tidak diizinkan — blokir semua akses browser | E23 | Done | Urgent | `security`, `real-backend`, `verification` |
 | N-7 | Inspector effective-permissions: roles string[] dibaca sebagai objek | E23 | Done | High | `verification`, `real-backend` |
 | N-8 | Reconciliation refresh: body {from,to} vs spec {startWindow,endWindow} | E23 | Done | High | `verification`, `real-backend` |
 | N-9 | 7 sub-op DynSec kembalikan {success} saja; panel petakan jadi objek penuh | E23 | Done | High | `verification`, `real-backend` |
@@ -271,30 +273,30 @@ dianggap selesai penuh.
 | N-35 | WO cancel/resolve: fabrikasi respons | E23 | Done | Low | `verification`, `real-backend` |
 | N-36 | IAM info: catalogueVersion dibuang | E23 | Done | Low | `verification`, `real-backend` |
 | N-37 | Legacy POST /devices: model/serial dibuang + mac_address diwajibkan | E23 | Done | Low | `verification`, `real-backend` |
-| N-38 | Halaman login tanpa badge mode API / indikator koneksi | E23 | Todo (parsial: badge + label akses selesai 6d54f97; indikator koneksi tersisa) | Low | `verification`, `real-backend` |
+| N-38 | Halaman login tanpa badge mode API / indikator koneksi | E23 | Done (E28, 20 Nov 2026) | Low | `verification`, `real-backend` |
 | N-39 | MQTT_CONFIG_GET: trailing slash di template registry | E23 | Done | Low | `verification`, `real-backend` |
 | N-40 | Spec OpenAPI tidak mendeklarasikan respons error 401/400 (17 op Access Control) | E23 | Todo | Low | `verification`, `real-backend` |
-| N-41 | Perilaku 404 vs [] untuk device tak dikenal tidak konsisten | E23 | Todo | Low | `verification`, `real-backend` |
+| N-41 | Perilaku 404 vs [] untuk device tak dikenal tidak konsisten | E23 | Done | Low | `verification`, `real-backend` |
 | E24 | Fase 2 browser pasca-push: temuan data live-state/presence | API_DOCS_AUDIT.md | Todo | High | `verification`, `real-backend` |
 | N-42 | Live-state & presence perangkat nol/stale setelah restart backend | E24 | Todo | High | `verification`, `real-backend` |
-| N-43 | Agregat all-null ditampilkan 0% bukan '—' | E24 | Todo | Low | `verification`, `real-backend` |
+| N-43 | Agregat all-null ditampilkan 0% bukan '—' | E24 | Done | Low | `verification`, `real-backend` |
 | E25 | End-to-end testing pasca-push: pencocokan panel vs API live | E2E_TEST.md | Todo | High | `verification`, `real-backend` |
-| E2E-01 | Overview + Live-State menelan error diam-diam (catch {} tanpa banner) | E25 | Todo | High | `verification`, `real-backend` |
-| E2E-02 | Halaman Quality menyamarkan error sebagai empty state | E25 | Todo | Medium | `verification`, `real-backend` |
-| E2E-03 | System Health macet di 'Memuat…' selamanya bila GET /health gagal | E25 | Todo | Medium | `verification`, `real-backend` |
-| E2E-04 | OEE hourly: totalCount null → parts_produced 0 (angka 0 menyesatkan) | E25 | Todo | Medium | `verification`, `real-backend` |
-| E2E-05 | 4 halaman CRUD + Reconciliation tanpa empty state (satu tiket pola) | E25 | Todo | Low | `verification`, `real-backend` |
-| E2E-06 | Peringatan shift 'tidak tersedia' sempat muncul saat loading di /telemetry (kemungkinan race) | E25 | Todo | Low | `verification`, `real-backend` |
-| E2E-07 | Investigasi: selisih rekonsiliasi 7 hari vs jendela shift (235 vs 99 mnt) | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-01 | Overview + Live-State menelan error diam-diam (catch {} tanpa banner) | E25 | Done | High | `verification`, `real-backend` |
+| E2E-02 | Halaman Quality menyamarkan error sebagai empty state | E25 | Done | Medium | `verification`, `real-backend` |
+| E2E-03 | System Health macet di 'Memuat…' selamanya bila GET /health gagal | E25 | Done | Medium | `verification`, `real-backend` |
+| E2E-04 | OEE hourly: totalCount null → parts_produced 0 (angka 0 menyesatkan) | E25 | Done | Medium | `verification`, `real-backend` |
+| E2E-05 | 4 halaman CRUD + Reconciliation tanpa empty state (satu tiket pola) | E25 | Done | Low | `verification`, `real-backend` |
+| E2E-06 | Peringatan shift 'tidak tersedia' sempat muncul saat loading di /telemetry (kemungkinan race) | E25 | Done | Low | `verification`, `real-backend` |
+| E2E-07 | Investigasi: selisih rekonsiliasi 7 hari vs jendela shift (235 vs 99 mnt) | E25 | Done | Low | `verification`, `real-backend` |
 | E2E-08 | MQTT live config tidak bisa dibaca: ENOENT /mosquitto/config/mosquitto.conf | E25 | Todo | High | `verification`, `real-backend` |
 | E2E-09 | Event audit: atribusi perangkat salah + description berisi JSON mentah | E25 | Todo | Medium | `verification`, `real-backend` |
-| E2E-10 | Kerapian tampilan list: WO ID duplikat, 'SN:' kosong, suhu '-', sel LINE/SCOPE kosong | E25 | Todo | Low | `verification`, `real-backend` |
-| E2E-11 | Tampilan timeline Analytics: label sumbu berantakan + 'Downtime ID tidak ditemukan' | E25 | Todo | Low | `verification`, `real-backend` |
+| E2E-10 | Kerapian tampilan list: WO ID duplikat, 'SN:' kosong, suhu '-', sel LINE/SCOPE kosong | E25 | Done | Low | `verification`, `real-backend` |
+| E2E-11 | Tampilan timeline Analytics: label sumbu berantakan + 'Downtime ID tidak ditemukan' | E25 | Done | Low | `verification`, `real-backend` |
 | E26 | Uji mutasi E2E panel vs API live (Bagian A+B) | E2E_MUTATION_TEST.md | Todo | High | `verification`, `real-backend` |
-| MUT-01 | DynSec menampilkan banner network-error palsu padahal mutasi sukses di server, dan list tampil stale sampai halaman di-remount | E26 | Todo | Medium | `verification`, `real-backend` |
+| MUT-01 | DynSec menampilkan banner network-error palsu padahal mutasi sukses di server, dan list tampil stale sampai halaman di-remount | E26 | Done | Medium | `verification`, `real-backend` |
 | MUT-02 | DynSec client-create selalu gagal 'Role not found' untuk semua role termasuk admin | E26 | Todo | High | `verification`, `real-backend` |
-| MUT-03 | Policy create dengan ABAC kosong mengirim abacCondition: null, server menolak (expected record) | E26 | Todo | Medium | `verification`, `real-backend` |
-| MUT-04 | Overwrite label downtime tidak bisa mengembalikan status 'Belum dikategorikan' / teks alasan asli | E26 | Todo | Low | `verification`, `real-backend` |
+| MUT-03 | Policy create dengan ABAC kosong mengirim abacCondition: null, server menolak (expected record) | E26 | Done | Medium | `verification`, `real-backend` |
+| MUT-04 | Overwrite label downtime tidak bisa mengembalikan status 'Belum dikategorikan' / teks alasan asli | E26 | Done | Low | `verification`, `real-backend` |
 | E27 | Spec 043: Device Registry & Station Audit | — | Todo | High | `verification`, `real-backend` |
 | T1 | Device Registry (CRUD devices) — halaman /admin/stations | E27 | Todo | High | `verification`, `real-backend` |
 | T2 | Audit Trail tampilkan station_label + badge "Tidak terdaftar" | E27 | Todo | High | `verification`, `real-backend` |
@@ -494,10 +496,11 @@ tapi status implementasi yang berlaku adalah status di Linear.
 - Project: **IIoT OEE Admin Panel** — `P-FAT-1`,
   https://linear.app/fattr/project/iiot-oee-admin-panel-f2137236e571
 - Label: 15 label §3 sudah dibuat (di luar `Bug`/`Feature`/`Improvement` bawaan).
-- Issue: **236 issue terverifikasi** via `list_issues` (project `P-FAT-1`,
-  paginasi penuh, 19 Nov 2026 pasca-E26; 6 issue E27 dibuat 20 Nov 2026
-  terverifikasi dari respons pembuatan, belum paginasi penuh):
-  **172 Done, 2 In Progress, 62 Todo**,
+- Issue: **246 issue terverifikasi** (238 per 20 Nov 2026 + 8 tiket baru E29
+  FAT-239–FAT-246 dibuat 20 Nov 2026; `list_issues` 20 Nov mengembalikan 183 issue
+  — FAT-1–FAT-4 + FAT-71–FAT-121 hilang dari hasil itu, diverifikasi lewat
+  `get_issue` satu per satu seperti anomali triase E28):
+  **208 Done, 2 In Progress, 36 Todo** (pasca-E29, 20 Nov 2026),
   32 tanpa parent, 204 child dengan `parentId`. Total mencakup 4 issue
   onboarding bawaan Linear (FAT-1–FAT-4, Todo, bukan kerja proyek); tanpa
   keempatnya, total proyek = 232. Todo tersisa (62): 4 onboarding + 14 SYS-B
@@ -507,7 +510,18 @@ tapi status implementasi yang berlaku adalah status di Linear.
   N-40/N-41 (FAT-209/210) + E24 (FAT-211) + N-42 (FAT-212) + N-43 (FAT-213)
   + E25 (FAT-214) + E2E-01–E2E-11 (FAT-215–225) + E26 (FAT-226) +
   MUT-01–MUT-04 (FAT-227–230) + E27 (FAT-231) + T1–T3 + LOGIN + VERIFY
-  (FAT-232–236).
+  (FAT-232–236) + FAT-237 (Q1, Todo) + FAT-238 (Q2, Todo).
+  E28 (20 Nov 2026, AUDIT.md §38): triase 64 issue terbuka — 14 SUDAH SELESAI
+  (FAT-175, 172, 82, 88, 94, 102–108, 112, 210) + 15 panel Batch A+B
+  (FAT-215, 229, 227, 213, 218, 216, 217, 170, 207, 219, 230, 224, 220, 221, 225)
+  ditutup = 29 Done; deskripsi 8 terblokir (FAT-74, 77, 83, 202, 209, 30, 40, 29)
+  + 6 backend/verifikasi (FAT-171, 173, 212, 222, 223, 228) diperbarui, tetap Todo.
+  Todo tersisa pasca-E28 (35): 4 onboarding (FAT-1–FAT-4) + E13 (FAT-71) + B3/B6/B12
+  (FAT-74/77/83) + V8.1/V8.3/V8.4/V8.5 (FAT-31/30/29/27) + A10.2 (FAT-40) + E8
+  (FAT-7) + E22 (FAT-169) + N-3/N-4 (FAT-171/173) + E23 (FAT-174) + N-32/N-40
+  (FAT-202/209) + E24 (FAT-211) + N-42 (FAT-212) + E25 (FAT-214) + E2E-08/E2E-09
+  (FAT-222/223) + E26 (FAT-226) + MUT-02 (FAT-228) + E27 (FAT-231) + T1–T3 + LOGIN
+  + VERIFY (FAT-232–236) + FAT-237 + FAT-238.
   E23 Batch 1–4 (19 Nov 2026) menutup 31 issue panel (FAT-176–182, 183–191,
   192–201, 203–206, 208).
   In Progress: E10 (FAT-34) + V8.2 (FAT-28, tidak lagi Blocked sejak API
@@ -534,6 +548,16 @@ tapi status implementasi yang berlaku adalah status di Linear.
   STATION_NOT_FOUND / hostname). Implementasi panel selesai + terverifikasi
   lokal 20 Nov 2026 (tsc 0, tes 454/454, build OK, checker 0 FAIL) — tiket
   tetap Todo menunggu VERIFY live AC1–AC4 (FAT-236, browser, parent).
+  E29 (FAT-239, Todo, High) + 7 anak T1 (FAT-240), T2 (FAT-241), T3
+  (FAT-242), T4 (FAT-243), T5 (FAT-244), T6 (FAT-245), T7 (FAT-246) dari
+  Spec 044 (20 Nov 2026) — migrasi login admin ke POST /auth/admin/login
+  (AUDIT.md §39). Batch A (commit lokal 38752fc, tes 492/492) + Batch B
+  (commit lokal e4d1d6a, tes 499/499) selesai + terverifikasi lokal;
+  7 anak DITUTUP 20 Nov 2026 (FAT-240–246, bukti di AUDIT §39.8); epic
+  FAT-239 tetap Todo menunggu verifikasi live parent (urutan gate vs auth
+  server belum terbukti — login VALID dari tunnel bisa 403; Q-02 tertutup
+  oleh migrasi ini, AUDIT §39.6). Todo tersisa pasca-E29 (36): 35 pasca-E28
+  + E29 (FAT-239).
   Riwayat: 28 issue awal + E9/R9.1–R9.6 dibuat 2026-11-16 ~14:20 WIB
   (R9.2–R9.6 Done malam itu); E11/T11.1–T11.6 dibuat 2026-11-16 malam dari
   audit telemetry `docs/TELEMETRY_AUDIT.md`, Done 2026-11-16 malam —

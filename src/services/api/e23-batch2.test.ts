@@ -45,7 +45,7 @@ function startStub(
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       };
-      if (req.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      if (req.method === 'POST' && url.pathname === '/api/v1/auth/admin/login') {
         json(200, LOGIN_BODY);
         return;
       }

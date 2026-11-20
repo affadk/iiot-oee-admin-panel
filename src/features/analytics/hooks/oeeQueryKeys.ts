@@ -12,7 +12,9 @@ export type RollupScope = 'MACHINE' | 'ALL';
 
 export interface OeeAnalyticsQueryInput {
   machineId: string;
-  deviceId: string;
+  /** E28 Batch B (FAT-170): boleh undefined bila tidak ada device
+      terderiva (daftar kosong / mesin tanpa ikatan) — hanya queryKey. */
+  deviceId: string | undefined;
   from: string;
   to: string;
   shiftDate?: string;

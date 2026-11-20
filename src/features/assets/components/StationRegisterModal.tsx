@@ -80,7 +80,7 @@ export const StationRegisterModal: React.FC<StationRegisterModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Daftarkan Stasiun / Terminal Login Baru"
-      subtitle="Registrasi legacy ke tabel devices (tanpa identitas broker MQTT). Station ID yang didaftarkan di sini menjadi nilai station_id yang diterima saat login kiosk."
+      subtitle="Registrasi legacy ke tabel devices (tanpa identitas broker MQTT). Station ID yang didaftarkan di sini menjadi nilai station_id yang diterima saat login kiosk — khusus login kiosk, login admin panel tidak memakai station_id (Spec 044)."
       footer={
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
@@ -93,9 +93,12 @@ export const StationRegisterModal: React.FC<StationRegisterModalProps> = ({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="p-2.5 rounded border border-sky-300 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200">
-          Station ID bebas pola STM32 (contoh: ADMIN-CONSOLE-01). API tidak menyediakan field hostname —
-          identitas stasiun adalah Station ID-nya.
+        <div className="p-2.5 rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200">
+          Server saat ini HANYA menerima Station ID berpola STM32- (contoh: STM32-CONSOLE-01).
+          ID di luar pola itu (mis. ADMIN-CONSOLE-01) ditolak server dengan 400
+          &quot;Device ID must start with &apos;STM32-&apos;...&quot; — sampai backend
+          diperbaiki (FAT-237). API tidak menyediakan field hostname — identitas
+          stasiun adalah Station ID-nya.
         </div>
         {submitError && (
           <div role="alert" className="p-2.5 rounded border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 text-xs text-red-800 dark:text-red-200">
@@ -106,7 +109,7 @@ export const StationRegisterModal: React.FC<StationRegisterModalProps> = ({
           label="Station / Device ID"
           value={deviceId}
           onChange={(e) => setDeviceId(e.target.value)}
-          placeholder="ADMIN-CONSOLE-01"
+          placeholder="STM32-CONSOLE-01"
           error={errors.deviceId}
           required
         />

@@ -353,11 +353,18 @@ export const demoIamRoles = {
     return { ...newPerm };
   },
 
-  async getIamUserRoles(signal?: AbortSignal): Promise<IamAssignment[]> {
+  async getIamUserRoles(
+    filters: { operatorId?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<IamAssignment[]> {
     checkAbort(signal);
     assertCapability('access_control.read', ['ADMIN']);
-    store.recordEndpoint('IAM_USER_ROLES_LIST', ADMIN_ENDPOINTS.IAM_USER_ROLES_LIST.buildPath());
-    return store.iamAssignments.map((a) => IamAssignmentSchema.parse({ ...a }));
+    const qs = filters.operatorId ? `?operatorId=${encodeURIComponent(filters.operatorId)}` : '';
+    store.recordEndpoint('IAM_USER_ROLES_LIST', `${ADMIN_ENDPOINTS.IAM_USER_ROLES_LIST.buildPath()}${qs}`);
+    const all = store.iamAssignments.map((a) => IamAssignmentSchema.parse({ ...a }));
+    // E28 Batch A (B17): filter server-side (paritas dengan HTTP) — bukan
+    // saring client-side di pemanggil.
+    return filters.operatorId ? all.filter((a) => a.operator_id === filters.operatorId) : all;
   },
 
   async assignIamUserRole(data: {

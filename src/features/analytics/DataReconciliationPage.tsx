@@ -10,6 +10,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatIsoWithOffset, formatJakartaDateTime } from '../../utils/historicalExport';
 import { HISTORY_DATA_STALE_TIME_MS } from '../shared/useHistoricalQueries';
+import { EmptyStateBlock } from '../shared/TableStateRow';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 
 export const DataReconciliationPage: React.FC = () => {
   const { reportForbidden } = useAuth();
@@ -190,6 +192,33 @@ export const DataReconciliationPage: React.FC = () => {
       )}
 
       {/* Scheduled CAGG Jobs */}
+      {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
+          (EmptyStateBlock — varian non-tabel TableStateRow); gagal muat
+          dibedakan dari kosong lewat LoadErrorBanner + retry. */}
+      {jobsQuery.isError && jobs.length === 0 && (
+        <LoadErrorBanner
+          title="Gagal memuat job rekonsiliasi"
+          message={
+            jobsQuery.error instanceof Error
+              ? jobsQuery.error.message
+              : 'Terjadi kesalahan saat memuat daftar job.'
+          }
+          onRetry={() => jobsQuery.refetch()}
+        />
+      )}
+      {jobsQuery.isLoading && jobs.length === 0 && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center text-xs text-slate-400">
+          Memuat job rekonsiliasi…
+        </div>
+      )}
+      {!jobsQuery.isLoading && !jobsQuery.isError && jobs.length === 0 && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
+          <EmptyStateBlock
+            emptyTitle="Belum ada job rekonsiliasi"
+            emptyDescription="Tidak ada job sinkronisasi bucket per jam/harian yang terdaftar. Job dibuat oleh backend; jalankan 'Perbarui Data Sekarang' di atas untuk memicu pembaruan ulang manual."
+          />
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {jobs.map((job) => (
           <div

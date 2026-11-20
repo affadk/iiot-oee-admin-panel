@@ -14,10 +14,13 @@ import { StationRevokeDialog } from './components/StationRevokeDialog';
 import { UnknownStationsPanel } from './components/UnknownStationsPanel';
 
 /**
- * E27 Spec 043 (FAT-232 T1 + FAT-234 T3): registry stasiun / terminal login
+ * E27 Spec 043 (FAT-232, T1): registry stasiun / terminal login
  * (kiosk). Stasiun = baris tabel `devices` yang sama dengan edge device —
  * daftar di sini memakai mapStation() (bukan mapDevice) karena ID stasiun
- * bebas pola STM32. TIDAK ADA kolom hostname: API tidak punya field itu.
+ * secara DESAIN bebas pola STM32. NAMUN server saat ini menolak ID non-STM32
+ * (400 "Device ID must start with 'STM32-'...", FAT-237) — sampai backend
+ * diperbaiki, yang bisa didaftarkan hanyalah ID berpola STM32- (lihat hint
+ * di StationRegisterModal). TIDAK ADA kolom hostname: API tidak punya field itu.
  */
 export const StationsPage: React.FC = () => {
   const { checkCapability } = useAuth();
@@ -68,8 +71,9 @@ export const StationsPage: React.FC = () => {
             Stations (Stasiun / Terminal Login)
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Daftar stasiun kiosk yang station_id-nya diterima saat login operator. Stasiun yang tidak terdaftar
-            di sini membuat login gagal (400 STATION_NOT_FOUND).
+            Daftar stasiun kiosk (login perangkat). Login admin panel tidak
+            memakai station_id (Spec 044) — stasiun di sini hanya untuk
+            perangkat kiosk, bukan untuk login admin.
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Catatan: API belum mendukung hostname — identitas stasiun adalah Station / Device ID-nya.

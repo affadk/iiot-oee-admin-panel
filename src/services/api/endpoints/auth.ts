@@ -7,11 +7,11 @@
 import type { EndpointDefinition } from './definition';
 
 export const AUTH_ENDPOINTS: Record<string, EndpointDefinition> = {
-AUTH_LOGIN: {
-    key: 'AUTH_LOGIN',
+AUTH_ADMIN_LOGIN: {
+    key: 'AUTH_ADMIN_LOGIN',
     method: 'POST',
-    template: '/api/v1/auth/login',
-    buildPath: () => '/api/v1/auth/login',
+    template: '/api/v1/auth/admin/login',
+    buildPath: () => '/api/v1/auth/admin/login',
   },
 
 AUTH_REFRESH: {

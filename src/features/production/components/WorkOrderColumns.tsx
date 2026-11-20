@@ -4,7 +4,7 @@ import { Eye, XCircle } from 'lucide-react';
 import { Machine } from '../../../types/assets';
 import { WorkOrder } from '../../../types/production';
 import { formatDeletedRelationLabel } from '../../../utils/oeeCalculations';
-import { resolveWorkOrderDeviceId } from '../../shared/historyFilters';
+import { resolveWorkOrderDeviceId, formatWorkOrderSubline } from '../../shared/historyFilters';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import type { useAuth } from '../../../context/AuthContext';
@@ -33,7 +33,7 @@ export function useWorkOrderColumns({
             <div className="font-tabular">
               <div className="font-semibold text-slate-900 dark:text-slate-100">{wo.wo_id}</div>
               <div className="text-[11px] text-slate-500">
-                {wo.order_number} · {wo.shift_name}
+                {formatWorkOrderSubline(wo)}
               </div>
             </div>
           );

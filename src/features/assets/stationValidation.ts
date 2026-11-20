@@ -5,6 +5,12 @@
  * ^STM32-... — yang berlaku hanya konvensi panel trim, 1..64 karakter
  * (sama dengan HistoryFiltersSchema.deviceId). TIDAK ADA field hostname
  * (API tidak punya field itu).
+ *
+ * E28 Batch A (FAT-232 adendum, FAT-237): validasi klien SENGAJA tetap
+ * longgar — server saat ini menolak ID non-STM32 dengan 400 yang JELAS
+ * ("Device ID must start with 'STM32-'...") dan pesan itu ditampilkan
+ * apa adanya di modal (submitError). Menambah pola STM32- di klien hanya
+ * akan menyembunyikan penolakan server + menutupi gap backend FAT-237.
  */
 import { isValidIpAddress } from '../../utils/capabilities/network';
 

@@ -56,7 +56,8 @@ export function useTelemetryHourlyColumns() {
         header: 'Delta Output / Reject',
         cell: ({ row }) => (
           <span className="font-tabular text-xs">
-            {row.original.parts_produced} pcs ·{' '}
+            {/* E28 Batch A (FAT-218 E2E-04): parts null → '—', bukan 0. */}
+            {row.original.parts_produced ?? '—'} pcs ·{' '}
             <span className="text-red-500">{row.original.defect_count} reject</span>
           </span>
         ),

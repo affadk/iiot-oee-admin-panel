@@ -9,6 +9,10 @@
  * terverifikasi vs spec live 141 operasi (141 − 5 excluded-by-design =
  * 136 HTTP + 1 WS, docs/API_DOCS_AUDIT.md §3).
  *
+ * E29 (FAT-240, Spec 044): AUTH_LOGIN dihapus, diganti AUTH_ADMIN_LOGIN
+ * (POST /api/v1/auth/admin/login); path lama masuk FORBIDDEN_ENDPOINT_PATTERNS
+ * di bawah. Hitungan registry tetap 137 (137 − 1 + 1).
+ *
  * Strictly EXCLUDES HMI-only flows:
  * - POST /api/v1/devices/:device_id/command (ADR-003 machine actuation)
  * - POST /api/v1/work-orders/validate-zone
@@ -65,6 +69,12 @@ export const FORBIDDEN_ENDPOINT_PATTERNS = [
   // kanonis POST /api/v1/devices/provision.
   '/mqtt/dynamic-security/clients/provision',
   '/auth/operator-pin',
+  // E29 (FAT-240, Spec 044): login lama /api/v1/auth/login HANYA untuk
+  // kiosk/perangkat di server — panel admin wajib pakai AUTH_ADMIN_LOGIN
+  // (POST /api/v1/auth/admin/login). Pola path LENGKAP: substring
+  // '/api/v1/auth/login' TIDAK cocok dengan '/api/v1/auth/admin/login'
+  // (dibuktikan contractAlignment + e29-batchA), jadi entri baru aman.
+  '/api/v1/auth/login',
   '/command',
   '/work-orders/validate-zone',
   '/work-orders/initiate-from-zones',
