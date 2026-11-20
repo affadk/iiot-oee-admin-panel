@@ -4,6 +4,7 @@ import { Station } from '../../../types/assets';
 import { CapabilityKey, CapabilityState } from '../../../utils/capabilities';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { classifyStationId, STATION_KIND_LABELS } from '../stationValidation';
 
 export interface StationTableProps {
   stations: Station[];
@@ -38,6 +39,7 @@ export const StationTable: React.FC<StationTableProps> = ({
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <th className="py-3 px-4">Station / Device ID</th>
+              <th className="py-3 px-4">Jenis</th>
               <th className="py-3 px-4">IP Address</th>
               <th className="py-3 px-4">Status</th>
               <th className="py-3 px-4">Terdaftar</th>
@@ -47,20 +49,21 @@ export const StationTable: React.FC<StationTableProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-400">
+                <td colSpan={6} className="py-8 text-center text-slate-400">
                   Memuat stasiun...
                 </td>
               </tr>
             ) : stations.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-400">
-                  Belum ada device terdaftar — kiosk tidak bisa login.
+                <td colSpan={6} className="py-8 text-center text-slate-400">
+                  Belum ada stasiun terdaftar — terminal HMI belum bisa mengirim data.
                 </td>
               </tr>
             ) : (
               stations.map((st) => {
                 const rowManageCap = checkCapability('device.manage', st.device_id);
                 const isRevoked = st.enrollmentState === 'REVOKED';
+                const kind = classifyStationId(st.device_id);
                 return (
                   <tr key={st.device_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="py-3 px-4">
@@ -71,6 +74,11 @@ export const StationTable: React.FC<StationTableProps> = ({
                       <div className="text-[11px] text-slate-500 pl-6">
                         {st.model ? `${st.model} · ` : ''}FW: {st.firmware_version ?? '—'}
                       </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge variant={kind === 'terminal' ? 'info' : 'neutral'}>
+                        {STATION_KIND_LABELS[kind]}
+                      </Badge>
                     </td>
                     <td className="py-3 px-4 font-tabular text-slate-700 dark:text-slate-300">
                       {st.ip_address ?? '—'}

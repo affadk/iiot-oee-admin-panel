@@ -1,8 +1,11 @@
 /**
- * Method HTTP — domain stations (stasiun / terminal login kiosk).
+ * Method HTTP — domain stations (stasiun / terminal HMI).
  *
  * E27 Spec 043 (FAT-232, T1 + FAT-234, T3): stasiun = baris tabel `devices`
  * yang sama dengan edge device — TIDAK ADA endpoint station di backend.
+ * E30 (FAT-254/255, P30.1/P30.2): stasiun = identitas terminal HMI yang
+ * terikat ke satu mesin; kelas ID terminal (STATION-/KIOSK-/ADMIN-) dan
+ * penerbitan kredensial perangkat menunggu backend (FAT-237 / B30.1).
  * Service ini memakai endpoint devices yang sama dengan httpDevices, tapi
  * memetakan respons lewat mapStation() (bukan mapDevice): EdgeDeviceSchema
  * menolak device_id non-STM32 (mis. ADMIN-CONSOLE-01) sehingga seluruh

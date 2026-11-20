@@ -13,8 +13,12 @@ export interface UnknownStationsPanelProps {
 }
 
 /**
- * E27 Spec 043 (FAT-234, T3): diagnostik login kiosk — stasiun yang pernah
- * gagal STATION_NOT_FOUND (event SECURITY_REJECTION, device_id null).
+ * E27 Spec 043 (FAT-234, T3): diagnostik terminal tak dikenal — stasiun yang
+ * pernah mencoba mengirim data tanpa terdaftar (event SECURITY_REJECTION,
+ * device_id null). E30 (FAT-256, P30.3): bingkai baru — yang diaudit BUKAN
+ * lagi "percobaan login" (HMI tidak lagi memakai login), melainkan terminal
+ * tak dikenal yang mencoba KIRIM DATA. Logika derivasi tidak berubah:
+ * event SECURITY_REJECTION + device_id null + station_label mentah.
  * `label` adalah data mentah UNTRUSTED dari klien: dirender sebagai teks
  * (React meng-escape), TIDAK dipakai sebagai key React, dan TIDAK dipakai
  * sebagai kunci lookup tanpa normalisasi.
@@ -28,18 +32,19 @@ export const UnknownStationsPanel: React.FC<UnknownStationsPanelProps> = ({
 }) => {
   return (
     <section
-      aria-label="Diagnostik login kiosk"
+      aria-label="Diagnostik terminal tak dikenal"
       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-4 space-y-3"
     >
       <div className="flex items-center gap-2">
         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Diagnostik Login Kiosk — Stasiun Tak Terdaftar
+          Diagnostik Terminal — Stasiun Tak Terdaftar
         </h2>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Percobaan login dari station yang tidak ada di registry (event SECURITY_REJECTION, STATION_NOT_FOUND).
-        Daftarkan stasiunnya agar kiosk tersebut bisa login.
+        Terminal HMI yang mencoba mengirim data tanpa terdaftar di registry
+        (event SECURITY_REJECTION, device_id null, station_label mentah).
+        Daftarkan stasiunnya agar terminal tersebut bisa mengirim data.
       </p>
 
       {isLoading ? (
@@ -50,7 +55,7 @@ export const UnknownStationsPanel: React.FC<UnknownStationsPanelProps> = ({
         </div>
       ) : unknownStations.length === 0 ? (
         <p className="text-xs text-slate-400 py-2">
-          Tidak ada percobaan login dari stasiun tak terdaftar.
+          Tidak ada terminal tak dikenal yang mencoba mengirim data.
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -61,7 +66,7 @@ export const UnknownStationsPanel: React.FC<UnknownStationsPanelProps> = ({
                   {st.label}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  {st.count} percobaan gagal
+                  {st.count} percobaan kirim data
                   {st.lastSeenAt ? ` · terakhir ${new Date(st.lastSeenAt).toLocaleString()}` : ''}
                 </div>
               </div>

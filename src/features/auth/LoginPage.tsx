@@ -59,7 +59,7 @@ export const LoginPage: React.FC = () => {
   // E29 (FAT-242, T3): field Station/Terminal ID DIHAPUS — login admin
   // (POST /auth/admin/login, Spec 044) tidak lagi memakai station_id;
   // body strict menolak field itu 400. Registry stasiun /admin/stations
-  // tetap ada, khusus login kiosk — bukan login admin panel.
+  // tetap ada, khusus identitas terminal HMI — bukan login admin panel.
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Hitung mundur throttle SERVER (header Retry-After respons 429, §L).

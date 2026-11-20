@@ -14,13 +14,17 @@ import { StationRevokeDialog } from './components/StationRevokeDialog';
 import { UnknownStationsPanel } from './components/UnknownStationsPanel';
 
 /**
- * E27 Spec 043 (FAT-232, T1): registry stasiun / terminal login
- * (kiosk). Stasiun = baris tabel `devices` yang sama dengan edge device —
+ * E27 Spec 043 (FAT-232, T1): registry stasiun / terminal HMI.
+ * E30 (FAT-248): stasiun = identitas terminal HMI yang terikat ke satu
+ * mesin — BUKAN lokasi login operator. HMI tidak memakai login operator;
+ * terminal mengautentikasi dengan kredensial perangkatnya sendiri.
+ * Stasiun = baris tabel `devices` yang sama dengan edge device —
  * daftar di sini memakai mapStation() (bukan mapDevice) karena ID stasiun
  * secara DESAIN bebas pola STM32. NAMUN server saat ini menolak ID non-STM32
  * (400 "Device ID must start with 'STM32-'...", FAT-237) — sampai backend
- * diperbaiki, yang bisa didaftarkan hanyalah ID berpola STM32- (lihat hint
- * di StationRegisterModal). TIDAK ADA kolom hostname: API tidak punya field itu.
+ * diperbaiki (B30.1), yang bisa didaftarkan hanyalah ID berpola STM32-,
+ * dan kredensial perangkat diterbitkan sekali saat provisioning (belum ada,
+ * B30.1). TIDAK ADA kolom hostname: API tidak punya field itu.
  */
 export const StationsPage: React.FC = () => {
   const { checkCapability } = useAuth();
@@ -68,12 +72,13 @@ export const StationsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Stations (Stasiun / Terminal Login)
+            Stations (Stasiun / Terminal HMI)
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Daftar stasiun kiosk (login perangkat). Login admin panel tidak
-            memakai station_id (Spec 044) — stasiun di sini hanya untuk
-            perangkat kiosk, bukan untuk login admin.
+            Daftar stasiun — identitas terminal HMI, masing-masing terikat ke
+            satu mesin (E30). HMI tidak memakai login operator; terminal
+            mengautentikasi dengan kredensial perangkatnya sendiri. Login admin
+            panel tidak memakai station_id (Spec 044).
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Catatan: API belum mendukung hostname — identitas stasiun adalah Station / Device ID-nya.
@@ -190,7 +195,7 @@ export const StationsPage: React.FC = () => {
         variant="destructive"
         description="Penghapusan permanen. Untuk stasiun yang sudah punya riwayat audit/telemetri, gunakan Nonaktifkan (revoke) — bukan hapus."
         impacts={[
-          'Stasiun yang dihapus tidak bisa dipakai login kiosk lagi.',
+          'Stasiun yang dihapus tidak bisa dipakai terminal HMI lagi (tidak bisa mengirim data).',
           'Bila stasiun punya histori, server dapat menolak penghapusan (409) — gunakan Nonaktifkan sebagai gantinya.',
           'Membutuhkan peran ADMIN melalui jaringan lokal pabrik.',
         ]}

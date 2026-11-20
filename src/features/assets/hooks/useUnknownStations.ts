@@ -17,6 +17,11 @@ export interface UnknownStation {
  * (snake_case atau camelCase) agar derivasi ini jalan di kedua keadaan.
  * Bila backend belum mengirim field-nya (Q2), hasilnya null dan panel
  * menampilkan empty state, bukan error.
+ *
+ * E30 (FAT-256, P30.3): bingkai baru — event yang sama (SECURITY_REJECTION,
+ * device_id null, station_label) kini berarti "terminal tak dikenal mencoba
+ * kirim data", bukan "percobaan login". Logika derivasi tidak berubah;
+ * penulisan audit baru menjadi tugas backend (B30.2).
  */
 export function readStationLabel(event: OperationalEvent): string | null {
   const raw = event as unknown as Record<string, unknown>;
@@ -77,7 +82,7 @@ export function useUnknownStations(registeredIds: string[]) {
       setTotalEvents(page.pagination?.total_count ?? null);
       setUnknownStations(deriveUnknownStations(page.data, registeredKey.split('\n').filter(Boolean)));
     } catch (err: any) {
-      setError(err?.message || 'Gagal memuat diagnostik login kiosk.');
+      setError(err?.message || 'Gagal memuat diagnostik terminal.');
     } finally {
       setIsLoading(false);
     }

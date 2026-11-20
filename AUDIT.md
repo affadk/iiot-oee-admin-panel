@@ -3346,3 +3346,84 @@ Dokumen: `AUDIT.md` §41 (file ini). Verdict Linear sudah diposting sebagai
 komentar di 13 issue (bukan perubahan status). Commit lokal Wave 1 — tanpa
 push; hash lihat `git log -1`.
 
+## 42. E30 — panel P30.1–P30.3 (HMI tanpa login, station = identitas terminal)
+
+Keputusan Fathur 20 Nov 2026 ~17:00 WIB: kerjakan bagian admin-panel dan HMI
+dulu; HMI cukup kode + tes (tanpa deployment). Epic E30 FAT-248 + 12 anak
+(FAT-249–260) dibuat 20 Nov 2026; 7 tiket kerja (P30.1–P30.3, H30.1–H30.4)
+dipindah ke In Progress. H30.5 (verifikasi manual kamera fisik) tetap Todo —
+milik pemilik repo. D30.1 (amandemen spec/ADR-0004) tetap Todo.
+
+### 42.1 Scope panel — apa yang BISA dibuat tanpa backend
+
+- **P30.1 (FAT-254):** klasifikasi kelas ID stasiun — `classifyStationId()`
+  baru di `stationValidation.ts` (STM32- = edge-device; STATION-/KIOSK-/ADMIN-
+  = terminal; sisanya unknown). TAMPILAN SAJA: validasi klien tetap longgar
+  (aturan E28), server yang memutuskan. `StationTable`: kolom baru "Jenis"
+  dengan badge (terminal = info). `StationRegisterModal`: catatan dua kelas ID.
+  **Batas:** pendaftaran ID kelas terminal BELUM BISA jalan live — server
+  masih menolak non-STM32 (400, FAT-237); butuh backend B30.1 (FAT-257).
+- **P30.2 (FAT-255):** commissioning — `StationRegisterModal` kini menampilkan
+  ringkasan commissioning setelah registrasi berhasil (ID + badge jenis +
+  langkah berikutnya), bukan langsung menutup. Kredensial perangkat
+  "diterbitkan sekali saat provisioning" masih menunggu backend B30.1;
+  sampai saat itu terminal belum bisa mengirim data. Pencabutan per station
+  sudah ada (Nonaktifkan/revoke di tabel, dari E27).
+- **P30.3 (FAT-256):** `UnknownStationsPanel` — logika derivasi TIDAK berubah
+  (sudah sesuai bingkai baru: SECURITY_REJECTION + device_id null +
+  station_label). Yang berubah: copy panel + hook + halaman Stations ke
+  bingkai baru — "terminal tak dikenal mencoba kirim data", bukan
+  "percobaan login". Panel tetap kosong live sampai backend menulis
+  SECURITY_REJECTION untuk terminal tak dikenal (B30.2, FAT-258).
+- Copy halaman Stations + `LoginPage` (komentar) + header `stations.ts`
+  disesuaikan ke bingkai baru (terminal HMI, bukan login kiosk).
+- HMI (H30.1–H30.4) dikerjakan subagent terpisah — kode + vitest saja,
+  tanpa deployment (lihat 42.3).
+
+### 42.2 Verifikasi panel (lokal, 20 Nov 2026)
+
+- tsc 0; tests **509/509** (506 sebelumnya + 3 tes baru `classifyStationId`
+  di `stations.test.ts` — satu ekspektasi awal salah: `kiosk-lantai-2`
+  memang berprefiks KIOSK- sehingga = terminal; tes diperbaiki, bukan kode);
+  build OK; checker 0 FAIL (335 file).
+- **Tidak di-push** (menunggu kata Fathur, sesuai aturan). Tiket P30.1–P30.3
+  tetap In Progress dengan komentar progres di Linear.
+
+### 42.3 HMI (H30.1–H30.4) — SELESAI lokal, terverifikasi, tidak di-deploy
+
+Dikerjakan subagent 20 Nov 2026, diverifikasi ulang oleh parent (tsc + lint:arch
++ vitest dijalankan sendiri — bukan hanya laporan subagent).
+
+- **Baru `src/application/stationMode.ts`** — kebijakan station-mode murni
+  (pure, tanpa IO): `resolveStationSession` (ada hanya bila useBackend +
+  token station env + stationId tervalidasi registry — fail-closed),
+  `resolveAttributionOperatorId` (sesi operator menang; mode station memakai
+  operator WO aktif dari `jobConfig.operatorId` — null jujur bila tanpa WO),
+  pesan penolakan aksi sensitif + pesan kredensial station invalid. KONFLIK
+  ADR-0004 tercatat di header file (amandemen tetap di D30.1, bukan repo ini).
+- **H30.1:** `useAuthSession` — `stationSession`/`isStationMode` baru;
+  `runProtected` tidak parkir di modal login dalam mode station; interval
+  refresh sliding HANYA untuk sesi operator; `hasAuthToken` true untuk token
+  station env. `Container`/`DashboardPage` mewariskan `stationTokenPresent`
+  (dari `env.apiToken`).
+- **H30.2:** `openAuthModal`/`notifyUnauthorized` tidak membuka modal PIN
+  dalam mode station; 401 boot → pesan re-commissioning, bukan login ulang.
+  `loginWithPassword`/`submitPasswordChange` tetap ada untuk surface Station
+  (spec 002 login-first).
+- **H30.3:** `getOperatorId` di `useOeeDashboard` — mode station memakai OID
+  badge WO aktif; fallback null (tidak mengarang).
+- **H30.4:** batalkan WO (`useWorkOrders`), ubah konfigurasi/bind/unbind
+  (`useDeviceRegistry`), apply job config manual (`useMachineActions`)
+  ditolak di application layer dengan arahan ke admin panel. Catatan penting:
+  alur QR `initiateFromZones` TIDAK memakai apply-job-config manual — jadi
+  penolakan ini tidak memutus logging QR. Tombol tidak dihapus (layout live
+  monitor BEKU). Supervisor badge/PIN tetap butuh backend (B30.1/B30.2).
+- **Verifikasi HMI (parent, 20 Nov 2026):** tsc 0; lint:arch OK; vitest
+  **215/215** (30 file; 199 sebelumnya + 16 tes baru `tests/station-mode.test.ts`).
+  Tidak di-commit, tidak di-push, tidak di-deploy (sesuai permintaan Fathur:
+  HMI cukup kode + tes).
+
+Dokumen: `AUDIT.md` §42 (file ini) + `docs/LINEAR.md` (§1.1 baris E30 +
+§8: 223 Done / 34 Todo / 2 In Progress / 1 Canceled, total 260) +
+`docs/linear-seed.json` v34 (`verified` 260/223/34/2; `issueMap` E30→FAT-248,
+E30-H30.1→FAT-249 … E30-D30.1→FAT-260). Belum di-push.

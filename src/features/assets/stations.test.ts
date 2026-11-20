@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateStationId, validateStationInput } from './stationValidation';
+import { validateStationId, validateStationInput, classifyStationId } from './stationValidation';
 import { mapStation, mapDevice } from '../../services/api/http/mappers/assets';
 import { deriveUnknownStations, readStationLabel } from './hooks/useUnknownStations';
 import { httpStations, resetDemoStationsForTest } from '../../services/api/http/stations';
@@ -49,6 +49,31 @@ test('validateStationInput (create) menerima input stasiun non-STM32 yang valid'
     isCreate: true,
   });
   assert.deepEqual(errs, {});
+});
+
+// ---------------------------------------------------------------------------
+// classifyStationId (E30, FAT-254, P30.1): tampilan saja, bukan validasi.
+// ---------------------------------------------------------------------------
+
+test('classifyStationId: STM32- = edge-device, STATION-/KIOSK-/ADMIN- = terminal', () => {
+  assert.equal(classifyStationId('STM32-OEE-01'), 'edge-device');
+  assert.equal(classifyStationId('STM32-CONSOLE-01'), 'edge-device');
+  assert.equal(classifyStationId('STATION-LINI-01'), 'terminal');
+  assert.equal(classifyStationId('KIOSK-01'), 'terminal');
+  assert.equal(classifyStationId('ADMIN-CONSOLE-01'), 'terminal');
+});
+
+test('classifyStationId: tanpa prefiks dikenal = unknown (bukan penolakan)', () => {
+  assert.equal(classifyStationId('lantai-2'), 'unknown');
+  assert.equal(classifyStationId('MESIN-01'), 'unknown');
+  assert.equal(classifyStationId(''), 'unknown');
+  assert.equal(classifyStationId('   '), 'unknown');
+});
+
+test('classifyStationId: case-insensitive dan mentoleransi trim', () => {
+  assert.equal(classifyStationId('  stm32-oee-01  '), 'edge-device');
+  assert.equal(classifyStationId('station-lini-01'), 'terminal');
+  assert.equal(classifyStationId('Kiosk-01'), 'terminal');
 });
 
 // ---------------------------------------------------------------------------

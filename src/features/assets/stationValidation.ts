@@ -11,8 +11,33 @@
  * ("Device ID must start with 'STM32-'...") dan pesan itu ditampilkan
  * apa adanya di modal (submitError). Menambah pola STM32- di klien hanya
  * akan menyembunyikan penolakan server + menutupi gap backend FAT-237.
+ *
+ * E30 (FAT-254, P30.1): klasifikasi kelas ID stasiun — TAMPILAN SAJA, bukan
+ * validasi. `terminal` = identitas terminal HMI (STATION-/KIOSK-/ADMIN-),
+ * `edge-device` = perangkat edge STM32-. Kelas terminal baru bisa
+ * didaftarkan setelah backend mendukungnya (FAT-237 / B30.1); sampai saat
+ * itu server tetap menolaknya 400 dan pesan server ditampilkan apa adanya.
+ * Klasifikasi TIDAK mengubah apa yang boleh di-submit — server yang
+ * memutuskan.
  */
 import { isValidIpAddress } from '../../utils/capabilities/network';
+
+/** Kelas ID stasiun (E30, P30.1) — tampilan saja. */
+export type StationKind = 'edge-device' | 'terminal' | 'unknown';
+
+/** Klasifikasikan ID stasiun berdasarkan prefiks (case-insensitive, trim). */
+export function classifyStationId(deviceId: string): StationKind {
+  const id = (deviceId ?? '').trim();
+  if (/^STM32-/i.test(id)) return 'edge-device';
+  if (/^(STATION|KIOSK|ADMIN)-/i.test(id)) return 'terminal';
+  return 'unknown';
+}
+
+export const STATION_KIND_LABELS: Record<StationKind, string> = {
+  'edge-device': 'Edge device',
+  terminal: 'Terminal',
+  unknown: 'Belum diklasifikasi',
+};
 
 /** Validasi satu ID stasiun: null = valid; string = pesan error. */
 export function validateStationId(deviceId: string): string | null {
