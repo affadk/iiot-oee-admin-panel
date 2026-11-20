@@ -20,6 +20,9 @@ export interface LoginResponse {
   success: boolean;
   token: string;
   expires_in: number;
+  /** FAT-289: refresh token terpisah (opsional — backend lama tidak mengirim). */
+  refresh_token?: string;
+  refresh_expires_in?: number;
   operator: {
     id: string;
     username: string;
@@ -34,6 +37,9 @@ export interface RefreshTokenResponse {
   success: boolean;
   token: string;
   expires_in: number;
+  /** FAT-289: refresh token hasil rotasi (opsional — backend lama tidak mengirim). */
+  refresh_token?: string;
+  refresh_expires_in?: number;
   /** Spec 043 (§L): authzVersion hasil baca ulang identitas dari database. */
   authzVersion?: number;
 }

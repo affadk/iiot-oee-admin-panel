@@ -161,6 +161,57 @@ export function clearStoredHttpToken(): void {
   }
 }
 
+export let httpRefreshToken: string | null = null;
+
+/**
+ * FAT-289 (follow-up FAT-280): kunci penyimpanan refresh token TERPISAH
+ * di sessionStorage — sama seperti access token: hidup selama tab
+ * terbuka, hilang saat tab ditutup. Refresh token inilah yang membuat
+ * silent restore tahan melewati kedaluwarsa access token (>900 dtk idle):
+ * POST /auth/refresh memakai refresh token, bukan JWT yang sudah mati.
+ * Opsional: backend lama tidak mengirim refresh_token → tidak ada yang
+ * disimpan, perilaku persis seperti hari ini.
+ */
+export const REFRESH_TOKEN_STORAGE_KEY = 'iiot-oee-refresh-token';
+
+/**
+ * Setter refresh token (write-through ke sessionStorage, seperti
+ * setHttpToken). `null` menghapus simpanan.
+ */
+export function setRefreshToken(token: string | null): void {
+  httpRefreshToken = token;
+  const storage = sessionStorageSafe();
+  if (!storage) return;
+  try {
+    if (token) storage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+    else storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  } catch {
+    // Abaikan — storage tidak tersedia; sesi memori tetap berjalan.
+  }
+}
+
+/** Baca refresh token tersimpan (dipakai silent restore + refreshSession). */
+export function getStoredRefreshToken(): string | null {
+  const storage = sessionStorageSafe();
+  if (!storage) return null;
+  try {
+    return storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Hapus refresh token tersimpan (logout / refresh 401, FAT-289). */
+export function clearStoredRefreshToken(): void {
+  const storage = sessionStorageSafe();
+  if (!storage) return;
+  try {
+    storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  } catch {
+    // Abaikan — storage tidak tersedia.
+  }
+}
+
 export let networkMode: NetworkAccessMode = 'LAN';
 
 export let tokenAuthzVersion = 0;
@@ -511,8 +562,10 @@ export const httpCore = {
 
   setSessionActive(active: boolean, token?: string | null) {
     if (!active) {
-      // Logout: bersihkan memori DAN simpanan sessionStorage (FAT-280).
+      // Logout: bersihkan memori DAN simpanan sessionStorage (FAT-280)
+      // — access token DAN refresh token terpisah (FAT-289).
       setHttpToken(null);
+      setRefreshToken(null);
       tokenAuthzVersion = 0;
     } else if (token !== undefined && token !== null) {
       setHttpToken(token);

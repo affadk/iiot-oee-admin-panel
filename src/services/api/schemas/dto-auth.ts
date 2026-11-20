@@ -107,6 +107,10 @@ export const LoginResponseSchema = z.object({
   success: z.boolean(),
   token: z.string().min(1),
   expires_in: NumericCoercionSchema,
+  // FAT-289 (follow-up FAT-280): refresh token TERPISAH — opsional agar
+  // kompatibel mundur dengan backend lama yang tidak mengirimnya.
+  refresh_token: z.string().min(1).optional(),
+  refresh_expires_in: NumericCoercionSchema.optional(),
   operator: z.object({
     id: z.string(),
     username: z.string(),
@@ -121,6 +125,10 @@ export const RefreshResponseSchema = z.object({
   success: z.boolean(),
   token: z.string().min(1),
   expires_in: NumericCoercionSchema,
+  // FAT-289: refresh token hasil rotasi — opsional (backend lama tidak
+  // mengirim; refresh token lama tetap berlaku bila tidak ada yang baru).
+  refresh_token: z.string().min(1).optional(),
+  refresh_expires_in: NumericCoercionSchema.optional(),
   // Spec 043 (§L): authzVersion hasil baca ulang identitas dari database.
   authzVersion: NumericCoercionSchema.optional(),
 });

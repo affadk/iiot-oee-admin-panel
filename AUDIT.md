@@ -3845,8 +3845,12 @@ effect restore berjalan. Perbaikan: `shouldRestoreAtBoot()` sebagai
 lazy initializer (mode Real + ada token tersimpan → restoring=true
 sejak render pertama) + LoginPage redirect bila sudah terautentikasi
 (hormati mustChangePassword → /force-change-password). AuthContext
-tidak diubah (293/300). Tes baru 4 (total 535). Cek live ulang
-menyusul setelah push #16 + redeploy.
+tidak diubah (293/300). Tes baru 4 (total 535). **TERVERIFIKASI LIVE
+2026-11-20 21:01–21:03 WIB (ADM-001, Push #16) — 5/5 langkah LULUS:**
+login → /admin; reload di /admin → "Memulihkan sesi…" lalu TETAP di
+/admin tanpa login ulang; buka /login saat sesi aktif → kembali ke
+/admin; logout → /login, reload tetap di /login; tab baru tetap minta
+login. → Done.
 
 **Verifikasi pusat (ronde 3 + FAT-280 + perbaikan):** tsc 0,
 tes 535/535, build OK, checker 0 FAIL / 32 WARN, 409 file.
@@ -3855,3 +3859,41 @@ Arah lanjutan dicatat sebagai E32 (lihat docs/LINEAR.md §8).
 
 Dokumen: `AUDIT.md` §49 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v38.
+
+## 50. FAT-289 — Panel konsumsi refresh token terpisah (follow-up FAT-280)
+
+Perintah Fathur 2026-11-20 21:17 WIB: target seperti Opsi B, backend
+dikerjakan di tempat lain, panel bagian Muse. Backend belum live saat
+implementasi (OpenAPI masih kontrak lama `{token}`; belum ada tiket
+backend refresh token di Linear) — implementasi panel dibuat kompatibel
+mundur.
+
+**Implementasi (subagent, selesai lokal ~21:22 WIB):** skema
+LoginResponse + RefreshResponse terima `refresh_token` opsional (+
+`refresh_expires_in`); transport.ts menyimpan refresh token di
+sessionStorage (kunci `iiot-oee-refresh-token`, write-through seperti
+FAT-280; 521→574, keras 600 aman); login() menangkap refresh_token
+bila ada (dan menghapus yang basi bila backend lama tidak mengirim);
+refreshSession() memakai refresh token bila ada, fallback access token
+— alur identik hari ini terhadap backend lama; rotasi disimpan; 401
+menghapus kedua token (tiga lapis, idempotent); shouldRestoreAtBoot()
+true bila salah satu token tersimpan; restore menghidrasi keduanya;
+AuthContext TIDAK diubah (292/300). Tes baru 11 (5 restore + 6 auth,
+port stub segar 3063–3070).
+**Koreksi parent (penting):** subagen mengirim refresh token dalam
+field BARU `{refresh_token}` — dikembalikan ke field `{token}` yang
+SAMA sesuai kontrak OpenAPI live (endpoint /auth/refresh hanya
+mengenal `{token}`; field tak dikenal bisa ditolak 400 bila body
+STRICT). Asumsi: server membedakan access vs refresh token dari
+nilainya. Bila backend ternyata memakai field `{refresh_token}`
+sendiri, satu baris di refreshSession() yang diubah — dicatat sebagai
+pertanyaan terbuka untuk agen backend. TIDAK ada credentials:include
+(varian cookie httpOnly = follow-up terpisah).
+
+**Verifikasi pusat:** tsc 0, tes 546/546, build OK, checker 0 FAIL /
+32 WARN, 410 file. **Verifikasi live MENUNGGU backend live** — sampai
+backend mengirim refresh_token, panel berperilaku persis seperti hari
+ini.
+
+Dokumen: `AUDIT.md` §50 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v39.

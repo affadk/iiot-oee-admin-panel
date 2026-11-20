@@ -7,10 +7,12 @@
  * TIDAK PERNAH melempar: semua kegagalan dikembalikan sebagai
  * `{ ok: false, reason }` agar pemanggil tidak perlu .catch.
  *
- * Batas yang diketahui (bukan bug): reload setelah JWT kedaluwarsa
- * (>900 dtk sejak refresh terakhir) tetap minta login ulang — backend
- * /auth/refresh hanya menerima JWT yang masih berlaku dan TIDAK ADA
- * refresh token terpisah (lihat ~/workspace/auth-bug-diagnosis.md §7).
+ * Batas yang diketahui (bukan bug): dengan backend LAMA (tidak mengirim
+ * refresh_token), reload setelah JWT kedaluwarsa (>900 dtk sejak refresh
+ * terakhir) tetap minta login ulang — /auth/refresh lama hanya menerima
+ * JWT yang masih berlaku (lihat ~/workspace/auth-bug-diagnosis.md §7).
+ * FAT-289: bila server mengirim refresh token terpisah, restore memakai
+ * refresh token itu dan TAHAN melewati kedaluwarsa access token.
  * Mode Demo TIDAK dipulihkan: state auth demo hidup di store in-memory
  * (`currentUserId`, `isAuthenticated`, token `mem_jwt_…`) — token palsu
  * yang disimpan tidak akan memulihkan state itu; demo juga alat dev
@@ -20,7 +22,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, AuthMeResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
 import { resolveApiMode, resolveAuthTtlFallbackSec } from '../services/api/mode';
-import { clearStoredHttpToken, getStoredHttpToken, setHttpToken } from '../services/api/http/transport';
+import { clearStoredHttpToken, clearStoredRefreshToken, getStoredHttpToken, getStoredRefreshToken, setHttpToken, setRefreshToken } from '../services/api/http/transport';
 
 export interface SessionUser {
   operator_id: string;
@@ -57,19 +59,27 @@ export async function restoreSessionFromStorage(client: SessionRestoreClient): P
 
 async function restoreSessionFromStorageInner(client: SessionRestoreClient): Promise<RestoreResult> {
   const stored = getStoredHttpToken();
-  if (!stored) return { ok: false, reason: 'no-token' };
-  // Isi memori dulu — refreshSession() mengirim JWT tersimpan ini.
-  setHttpToken(stored);
+  const storedRefresh = getStoredRefreshToken();
+  if (!stored && !storedRefresh) return { ok: false, reason: 'no-token' };
+  // Isi memori dulu — refreshSession() mengirim token tersimpan ini.
+  // FAT-289: refresh token juga dihidrasi; refreshSession memakai
+  // refresh token bila ada (tahan melewati kedaluwarsa access token),
+  // fallback ke access token bila tidak ada (backend lama).
+  if (stored) setHttpToken(stored);
+  if (storedRefresh) setRefreshToken(storedRefresh);
   let refreshed: { token: string; expires_in: number; authz_version: number };
   try {
     refreshed = await client.refreshSession();
   } catch (err) {
-    // 400/401 = token mati (kedaluwarsa/ditolak) → hapus simpanan.
-    // Galat lain (jaringan/timeout) = token mungkin masih valid → simpan
-    // tetap ada agar reload berikutnya bisa mencoba lagi.
+    // 400/401 = token mati (kedaluwarsa/ditolak) → hapus simpanan
+    // (KEDUA token, FAT-289). Galat lain (jaringan/timeout) = token
+    // mungkin masih valid → simpan tetap ada agar reload berikutnya
+    // bisa mencoba lagi.
     if (err instanceof ApiError && (err.httpStatus === 400 || err.httpStatus === 401)) {
       clearStoredHttpToken();
+      clearStoredRefreshToken();
       setHttpToken(null);
+      setRefreshToken(null);
     }
     return { ok: false, reason: 'refresh-failed' };
   }
@@ -114,9 +124,13 @@ async function restoreSessionFromStorageInner(client: SessionRestoreClient): Pro
  * initializer sinkron ini, bila ada token tersimpan (mode Real), render
  * pertama SUDAH menahan redirect (placeholder "Memulihkan sesi…").
  * Tanpa token / mode Demo → false (redirect langsung, benar).
+ *
+ * FAT-289: refresh token terpisah juga memicu restore — sesi bisa pulih
+ * meski access token tersimpan sudah kedaluwarsa (refresh memakai
+ * refresh token, bukan JWT mati).
  */
 export function shouldRestoreAtBoot(): boolean {
-  return resolveApiMode() === 'real' && getStoredHttpToken() !== null;
+  return resolveApiMode() === 'real' && (getStoredHttpToken() !== null || getStoredRefreshToken() !== null);
 }
 
 /**

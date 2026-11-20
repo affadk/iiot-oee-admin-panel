@@ -16,9 +16,12 @@ import { ApiError, type AuthMeResponse } from '../types/auth';
 import {
   assertAuthenticatedHttp,
   clearStoredHttpToken,
+  clearStoredRefreshToken,
   getStoredHttpToken,
+  getStoredRefreshToken,
   httpCore,
   setHttpToken,
+  setRefreshToken,
 } from '../services/api/http/transport';
 import { httpApiClient } from '../services/api/httpClient';
 import {
@@ -47,7 +50,9 @@ const storageStub = {
 
 function resetState(): void {
   setHttpToken(null);
+  setRefreshToken(null);
   clearStoredHttpToken();
+  clearStoredRefreshToken();
   storageMap.clear();
 }
 
@@ -155,6 +160,33 @@ test('FAT-280 race: shouldRestoreAtBoot false bila mode tidak diset (default dem
   });
 });
 
+// --- FAT-289: refresh token terpisah juga memicu restore --------------------
+test('FAT-289: shouldRestoreAtBoot true bila mode real + HANYA refresh token tersimpan', () => {
+  resetState();
+  setRefreshToken('rt-1');
+  withApiMode('real', () => {
+    assert.equal(shouldRestoreAtBoot(), true);
+  });
+});
+
+test('FAT-289: shouldRestoreAtBoot false bila mode demo + refresh token tersimpan', () => {
+  resetState();
+  setRefreshToken('rt-1');
+  withApiMode('demo', () => {
+    assert.equal(shouldRestoreAtBoot(), false);
+  });
+});
+
+test('FAT-289: restore HANYA dengan refresh token tersimpan → ok (tanpa access token)', async () => {
+  resetState();
+  setRefreshToken('rt-1');
+  const client = fakeClient();
+  const res = await restoreSessionFromStorage(client);
+  assert.equal(res.ok, true);
+  assert.equal(client.refreshCalls, 1);
+  assert.equal(client.meCalls, 1);
+});
+
 test('FAT-280: restore tanpa token tersimpan → no-token, refresh tidak dipanggil', async () => {
   resetState();
   const client = fakeClient();
@@ -240,6 +272,10 @@ test('FAT-280: restore TIDAK PERNAH melempar (respons refresh cacat)', async () 
 type StubMode = 'ok' | 'unauthorized';
 let stubMode: StubMode = 'ok';
 let lastRefreshBody: unknown = null;
+// FAT-289: bila true, stub /auth/refresh ikut mengembalikan refresh_token
+// hasil rotasi (seperti backend baru); bila false (default), respons
+// persis backend lama — tanpa refresh_token.
+let stubIssueRefreshToken = false;
 
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve) => {
@@ -270,7 +306,13 @@ async function withStubServer(fn: () => Promise<void>, port = 3061): Promise<voi
         sendJson(res, 401, { error: 'UNAUTHORIZED', message: 'Token kedaluwarsa.' });
         return;
       }
-      sendJson(res, 200, { success: true, token: 'new-token', expires_in: 900, authzVersion: 3 });
+      sendJson(res, 200, {
+        success: true,
+        token: 'new-token',
+        expires_in: 900,
+        authzVersion: 3,
+        ...(stubIssueRefreshToken ? { refresh_token: 'rt-rotated' } : {}),
+      });
       return;
     }
     if (req.method === 'GET' && req.url === '/api/v1/auth/me') {
@@ -289,6 +331,7 @@ async function withStubServer(fn: () => Promise<void>, port = 3061): Promise<voi
     await fn();
   } finally {
     httpApiClient.setSessionActive(false, null);
+    stubIssueRefreshToken = false;
     if (prevApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = prevApiUrl;
     await new Promise<void>((resolve) => {
@@ -327,4 +370,41 @@ test('FAT-280 (integrasi): refresh asli 401 → sesi tidak pulih + simpanan diha
     assert.deepEqual(res, { ok: false, reason: 'refresh-failed' });
     assert.equal(getStoredHttpToken(), null);
   }, 3062);
+});
+
+// --- FAT-289 (integrasi): refresh token terpisah ----------------------------
+// Port segar per tes (3063, 3064) — pelajaran FAT-280: reuse port →
+// galat NETWORK palsu dari koneksi keep-alive mati.
+test('FAT-289 (integrasi): refresh asli memakai refresh_token tersimpan + rotasi → sesi pulih', async () => {
+  await withStubServer(async () => {
+    resetState();
+    stubMode = 'ok';
+    stubIssueRefreshToken = true;
+    lastRefreshBody = null;
+    setHttpToken('expired-access');
+    setRefreshToken('rt-1');
+    const res = await restoreSessionFromStorage(httpApiClient);
+    assert.equal(res.ok, true);
+    if (!res.ok) return;
+    // Refresh memakai refresh token, BUKAN access token yang sudah mati.
+    assert.deepEqual(lastRefreshBody, { token: 'rt-1' });
+    assert.equal(getStoredHttpToken(), 'new-token');
+    assert.equal(getStoredRefreshToken(), 'rt-rotated');
+  }, 3063);
+});
+
+test('FAT-289 (integrasi): restore HANYA dengan refresh token tersimpan (tanpa access token) → ok', async () => {
+  await withStubServer(async () => {
+    resetState();
+    stubMode = 'ok';
+    stubIssueRefreshToken = true;
+    lastRefreshBody = null;
+    setRefreshToken('rt-only');
+    const res = await restoreSessionFromStorage(httpApiClient);
+    assert.equal(res.ok, true);
+    if (!res.ok) return;
+    assert.deepEqual(lastRefreshBody, { token: 'rt-only' });
+    assert.equal(getStoredHttpToken(), 'new-token');
+    assert.equal(getStoredRefreshToken(), 'rt-rotated');
+  }, 3064);
 });

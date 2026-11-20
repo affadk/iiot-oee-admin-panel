@@ -4,7 +4,7 @@
  * Dipisah dari file god-file pada refactoring R9 (kontrak docs/DIRECTORY_STRUCTURE.md).
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
-import { MUTATION_TIMEOUT_MS, httpToken, assertLanForMutation, assertAuthenticatedHttp, reqJson, checkAbortHttp, setHttpToken, setTokenAuthzVersion } from './transport';
+import { MUTATION_TIMEOUT_MS, httpToken, httpRefreshToken, assertLanForMutation, assertAuthenticatedHttp, reqJson, checkAbortHttp, setHttpToken, setRefreshToken, getStoredRefreshToken, setTokenAuthzVersion } from './transport';
 import { mapAuthMe } from './mappers';
 import { mustParse } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
@@ -32,6 +32,10 @@ export const httpAuth = {
       (raw) => LoginResponseSchema.parse(raw),
     );
     setHttpToken(parsed.token);
+    // FAT-289: refresh token terpisah — simpan bila server mengirimnya.
+    // `?? null` = backend lama (tanpa refresh_token) menghapus refresh
+    // token basi dari sesi sebelumnya; tanpa itu alur identik hari ini.
+    setRefreshToken(parsed.refresh_token ?? null);
     return parsed;
   },
 
@@ -41,19 +45,50 @@ export const httpAuth = {
   // kanal REMOTE_TUNNEL; 401 tetap berakhir logout via hook onUnauthorized.
   // changePassword di bawah TETAP digate (mutasi nyata).
   async refreshSession(): Promise<{ token: string; expires_in: number; authz_version: number }> {
-    if (!httpToken) throw new ApiError({ code: 'UNAUTHORIZED', message: 'Tidak ada sesi untuk di-refresh.', httpStatus: 401 });
-    const parsed = await reqJson(
-      {
-        method: 'POST',
-        path: ADMIN_ENDPOINTS.AUTH_REFRESH.buildPath(),
-        body: { token: httpToken },
-        timeoutMs: MUTATION_TIMEOUT_MS,
-        retry: false,
-        endpointKey: 'AUTH_REFRESH',
-      },
-      (raw) => RefreshResponseSchema.parse(raw),
-    );
+    // FAT-289: refresh memakai refresh token TERPISAH bila ada — dari
+    // memori dulu, lalu simpanan (sesudah reload, modul baru sehingga
+    // memori kosong; restore menghidrasi keduanya sebelum memanggil ini).
+    // Fallback ke access token (httpToken) bila tidak ada — alur persis
+    // seperti hari ini untuk backend lama yang tidak mengirim refresh_token.
+    const refreshToken = httpRefreshToken ?? getStoredRefreshToken();
+    if (!refreshToken && !httpToken) throw new ApiError({ code: 'UNAUTHORIZED', message: 'Tidak ada sesi untuk di-refresh.', httpStatus: 401 });
+    let parsed: { token: string; expires_in: number; authzVersion?: number; refresh_token?: string };
+    try {
+      parsed = await reqJson(
+        {
+          method: 'POST',
+          path: ADMIN_ENDPOINTS.AUTH_REFRESH.buildPath(),
+          // FAT-289: refresh token dikirim dalam field `{ token }` yang
+          // SAMA dengan kontrak lama — endpoint /auth/refresh hanya
+          // mengenal `{ token }` (OpenAPI live). Server membedakan
+          // access vs refresh token dari nilainya. ASUMSI (belum
+          // terverifikasi — backend masih dikerjakan): bila backend
+          // ternyata memakai field `{ refresh_token }` sendiri, satu
+          // baris ini yang diubah. Body STRICT seperti Spec 044: field
+          // tak dikenal bisa ditolak 400, jadi jangan kirim keduanya.
+          body: { token: refreshToken ?? httpToken },
+          timeoutMs: MUTATION_TIMEOUT_MS,
+          retry: false,
+          endpointKey: 'AUTH_REFRESH',
+        },
+        (raw) => RefreshResponseSchema.parse(raw),
+      );
+    } catch (err) {
+      // FAT-289: refresh 401 = kredensial mati — hapus KEDUA token di
+      // sini (sumber), agar jaminan ini tidak bergantung pada wiring
+      // hook onUnauthorized pemanggil (logout AuthContext juga
+      // membersihkan via setSessionActive(false) — idempotent).
+      if (err instanceof ApiError && err.httpStatus === 401) {
+        setHttpToken(null);
+        setRefreshToken(null);
+      }
+      throw err;
+    }
     setHttpToken(parsed.token);
+    // FAT-289: rotasi — server boleh mengirim refresh_token baru; simpan
+    // bila ada. Bila respons tidak membawa (backend lama), refresh token
+    // lama tetap berlaku — jangan hapus.
+    if (parsed.refresh_token) setRefreshToken(parsed.refresh_token);
     // §L: refresh mengembalikan `authzVersion` hasil baca ulang identitas
     // dari database (FR-037-10/11) — BUKAN variabel modul (dulu selalu 0).
     const authzVersion = parsed.authzVersion ?? 0;
