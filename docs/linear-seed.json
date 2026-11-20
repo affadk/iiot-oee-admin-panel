@@ -1526,7 +1526,7 @@
   "teamKey": "FAT"
  },
  "source": "docs/LINEAR.md + AUDIT.md + ADMIN_PANEL_BUILD_GUIDE.md + API_DOCUMENTATION.md",
- "version": 36,
+ "version": 37,
  "created": {
   "date": "2026-11-16",
   "project": {
@@ -1808,11 +1808,11 @@
    "E31.16": "FAT-279"
   },
   "verified": {
-   "total": 279,
-   "done": 228,
-   "todo": 39,
+   "total": 280,
+   "done": 233,
+   "todo": 34,
    "inProgress": 3,
-   "inReview": 8,
+   "inReview": 9,
    "canceled": 1,
    "parents": 35,
    "children": 240

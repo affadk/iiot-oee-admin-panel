@@ -7,8 +7,10 @@ import { useCapability } from '../../context/AuthContext';
 import { apiClient } from '../../services/api/client';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
 import { formatIsoWithOffset, triggerBrowserDownload, withExportAbortTimeout } from '../../utils/historicalExport';
+import { formatDateTime } from '../../utils/formatDate';
 import { useHistoryFilters } from '../shared/historyFilters';
 import { useMasterAssetsQuery, useSystemAuditQuery } from '../shared/useHistoricalQueries';
 
@@ -85,7 +87,7 @@ export const AuditTrailPage: React.FC = () => {
         header: 'Timestamp',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-500 whitespace-nowrap">
-            {row.original.recorded_at ? new Date(row.original.recorded_at).toLocaleString() : '—'}
+            {row.original.recorded_at ? formatDateTime(row.original.recorded_at) : '—'}
           </span>
         ),
       },
@@ -120,7 +122,7 @@ export const AuditTrailPage: React.FC = () => {
               </div>
               {item.acknowledged_at && (
                 <div className="text-slate-400 font-tabular">
-                  {new Date(item.acknowledged_at).toLocaleString()}
+                  {formatDateTime(item.acknowledged_at)}
                 </div>
               )}
               {item.ack_note && (
@@ -272,48 +274,26 @@ export const AuditTrailPage: React.FC = () => {
             Reset Waktu
           </Button>
         )}
-        <div>
-          <label htmlFor="audit-event-type" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-            Event Type
-          </label>
-          <select
-            id="audit-event-type"
-            value={eventTypeFilter}
-            onChange={(e) => {
+        <Select
+          id="audit-event-type"
+          label="Event Type"
+          value={eventTypeFilter}
+          onChange={(e) => {
               setCursorStack([undefined]);
               updateFilters({ eventType: e.target.value === 'ALL' ? undefined : e.target.value });
             }}
-            className="px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua Event Type</option>
-            {OPERATIONAL_EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="audit-machine" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-            Mesin
-          </label>
-          <select
-            id="audit-machine"
-            value={machineFilter}
-            onChange={(e) => {
+          options={[{ value: 'ALL', label: 'Semua Event Type' }, ...OPERATIONAL_EVENT_TYPES.map((t) => ({ value: t, label: t }))]}
+        />
+        <Select
+          id="audit-machine"
+          label="Mesin"
+          value={machineFilter}
+          onChange={(e) => {
               setCursorStack([undefined]);
               updateFilters({ machineId: e.target.value === 'ALL' ? undefined : e.target.value });
             }}
-            className="px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua Mesin</option>
-            {machines.map((m) => (
-              <option key={m.machine_id} value={m.machine_id}>
-                {m.machine_id}
-              </option>
-            ))}
-          </select>
-        </div>
+          options={[{ value: 'ALL', label: 'Semua Mesin' }, ...machines.map((m) => ({ value: m.machine_id, label: m.machine_id }))]}
+        />
       </div>
 
       <DataTable

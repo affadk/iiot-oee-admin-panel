@@ -200,6 +200,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
           >
             <span className="text-[11px] text-slate-400 hidden sm:inline">API:</span>
             {apiModeSwitchAllowed ? (
+              // E31.6 (FAT-269): BYPASS R2 — select ini memakai warna latar
+              // kondisional per mode (Real = emerald, Demo = amber) sebagai
+              // indikator visual mode aktif; ui/Select tidak mendukung
+              // className kondisional pada elemen select-nya.
               <select
                 value={apiMode}
                 onChange={(e) => handleApiModeChange(e.target.value as ApiMode)}
@@ -240,6 +244,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
           >
             <span className="text-[11px] text-slate-400 hidden sm:inline">Akses:</span>
             {accessModeSwitchAllowed ? (
+              // E31.6 (FAT-269): BYPASS R2 — alasan sama seperti select API
+              // Mode di atas (warna latar kondisional: Public = amber,
+              // Private = sky).
               <select
                 value={accessMode}
                 onChange={(e) => handleAccessModeChange(e.target.value as AccessMode)}

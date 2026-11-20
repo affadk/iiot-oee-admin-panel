@@ -6,6 +6,8 @@ import { Modal } from '../../../components/ui/Modal';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { MachineBindingInfo } from './MachineBindingInfo';
+import { LoadErrorBanner } from '../../shared/LoadErrorBanner';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface MachineDetailModalProps {
   machineId: string | null;
@@ -116,9 +118,7 @@ export const MachineDetailModal: React.FC<MachineDetailModalProps> = ({
       {isLoading ? (
         <div className="py-8 text-center text-xs text-slate-500">Memuat detail mesin...</div>
       ) : error ? (
-        <div role="alert" className="p-3 rounded border border-red-300 bg-red-50 text-xs text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-200">
-          {error}
-        </div>
+        <LoadErrorBanner title="Gagal memuat detail mesin" message={error} />
       ) : machine ? (
         <div className="space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -142,10 +142,10 @@ export const MachineDetailModal: React.FC<MachineDetailModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-tabular text-slate-500">
             <div className="p-2.5 rounded bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-              Dibuat: {new Date(machine.created_at).toLocaleString()}
+              Dibuat: {formatDateTime(machine.created_at)}
             </div>
             <div className="p-2.5 rounded bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-              Diperbarui: {new Date(machine.updated_at ?? machine.created_at).toLocaleString()}
+              Diperbarui: {formatDateTime(machine.updated_at ?? machine.created_at)}
             </div>
           </div>
 

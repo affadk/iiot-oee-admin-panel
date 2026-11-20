@@ -5,6 +5,7 @@ import type { UpdatePolicyPayload } from '../hooks/usePolicies';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface EditPolicyModalProps {
   target: IamPolicyRule | null;
@@ -77,17 +78,12 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         }}
         className="space-y-3"
       >
-        <div>
-          <label className="block text-xs font-semibold mb-1">Jenis Aturan</label>
-          <select
-            value={editPolEffect}
-            onChange={(e) => setEditPolEffect(e.target.value as 'ALLOW' | 'DENY')}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            <option value="ALLOW">ALLOW</option>
-            <option value="DENY">DENY</option>
-          </select>
-        </div>
+        <Select
+          label="Jenis Aturan"
+          value={editPolEffect}
+          onChange={(e) => setEditPolEffect(e.target.value as 'ALLOW' | 'DENY')}
+          options={[{ value: 'ALLOW', label: 'ALLOW' }, { value: 'DENY', label: 'DENY' }]}
+        />
         <Input label="Action (terikat permission — tidak bisa diubah)" value={target?.action ?? ''} disabled />
         <Input label="Resource Pattern" value={editPolResource} onChange={(e) => setEditPolResource(e.target.value)} required />
         <div>

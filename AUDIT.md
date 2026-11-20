@@ -3648,3 +3648,94 @@ build OK, checker 0 FAIL / 39 WARN (sebelumnya 45), 361 file
 
 Dokumen: `AUDIT.md` §46 (file ini), `docs/UI_STRUCTURE_RULES.md`
 (prinsip 0 + R8), `docs/LINEAR.md` §8, `docs/linear-seed.json` v36.
+
+## 47. E31 ronde 2 (P1 fondasi reusable) + FAT-280 Opsi B sessionStorage
+
+Perintah Fathur 2026-11-20 19:54 WIB ("lanjutkan") — ronde 2 = P1
+dulu sebagai fondasi (komponen hasil ekstraksi ronde 3 harus langsung
+memakai komponen shared yang benar), lalu ronde 3 paralel. Paralel
+dengan ronde 2: diagnosis + implementasi bug auth FAT-280.
+
+**P1 — E31.6–E31.10 (FAT-269–273, Done).** Satu agen, lima tiket:
+- E31.6: `<select>` mentah 55 blok di 31 file → 0. `ui/Select`
+  diperluas prop `wrapperClassName`. Bypass terdokumentasi: 2 select
+  Topbar (warna background kondisional mode tidak bisa diekspresikan
+  ui/Select) — komentar R2-bypass di baris 207 & 250.
+- E31.7: 9 konversi ke `LoadErrorBanner` (5) + `EmptyStateBlock` /
+  `TableStateRow` (4). Yang sengaja TIDAK dikonversi (bukan bypass):
+  banner feedback dismiss/success, validation-issues terstruktur,
+  banner amber filter-invalid, chip DENY, tampilan data, error submit
+  modal, strip inline kompak, empty state sukses berikon, fallback
+  nilai sel, props empty DataTable, error aksi rekonsiliasi.
+- E31.8: `utils/formatDate.ts` baru (facade atas
+  `utils/historicalExport/timezone.ts`, Asia/Jakarta) + 42 penggantian
+  di 20 file; `toLocaleString()` tanggal mentah → 0 (sisa hanya format
+  angka + counter detik live yang sengaja dibiarkan).
+- E31.9: `FilterBar` generik baru (`components/industrial/FilterBar.tsx`
+  + `FilterSearchField` + `FilterResetButton`); digabung 4 FilterBar
+  (WorkOrder, Telemetry, OperationalEvents, Shift). Bypass: MachineFilterBar
+  (toggle tersegmentasi + penghitung) + OperatorsToolbar parsial.
+- E31.10: 13 tabel dimigrasi ke `DataTable` (Device, Machines, Station,
+  Operators + 4 CRUD produksi + BrokerVersions, DynSecClients,
+  Assignments, Policies, Audit); pemakai DataTable 8 → 21 file; tabel
+  hand-rolled 18 → 5 (4 bypass terdokumentasi: OeeHourlyTable,
+  OeeRollupTable, OverviewPage — kartu ganda; BrokerDiffModal — bukan
+  tabel data).
+- Delta visual kecil (bukan perubahan perilaku, tapi perlu cek visual):
+  5 tabel yang dulu tanpa empty state kini menampilkan teks empty baru
+  ("Belum ada versi konfigurasi", dst.); loading teks "Memuat …"
+  menjadi skeleton DataTable; header kolom "Aksi" kini rata kiri (isi
+  tetap rata kanan); border kartu `rounded-md` → `rounded-lg`.
+- WARN checker naik 39 → 41: 2 WARN baru dari migrasi DataTable
+  (DeviceTable 220, OperatorsTable 203 — ColumnDef + useMemo). Catatan:
+  `useBrokerConfig` terhitung 250/250 oleh checker (wc -l: 249 —
+  checker menghitung baris 1 lebih banyak); tetap WARN, E31.2 di ronde 3
+  makin mendesak.
+
+**FAT-280 — Opsi B sessionStorage + silent restore (In Review).**
+Keputusan Fathur 2026-11-20 20:01 WIB. Diagnosis (§47a): BUKAN bug
+kode — konsekuensi desain D5 (token hanya di memori; AuthProvider
+start `isAuthenticated=false`; AdminLayout redirect ke `/login`).
+TEMUAN PENTING (dicatat atas permintaan Fathur): TIDAK ADA refresh
+token di mana pun — panel: grep `refreshToken|refresh_token` = 0;
+backend live OpenAPI: POST `/auth/refresh` hanya menerima JWT yang
+masih berlaku ("Refresh an unexpired operator JWT"), respons
+`{success, token, expires_in, authzVersion}`. Silent refresh setelah
+reload mustahil tanpa menyimpan token itu sendiri atau mengubah backend.
+Opsi jangka panjang (refresh token terpisah / cookie httpOnly) butuh
+tiket backend — follow-up, belum dibuatkan tiket.
+Implementasi (5 file): `transport.ts` 460→521 (`setHttpToken` menulis
+tembus ke sessionStorage key `iiot-oee-access-token`; `getStored` /
+`clearStored` + guard `sessionStorageSafe()`; logout menghapus
+simpanan; komentar D5 diperbarui); `context/authSessionRestore.ts`
+baru (118) + `authSessionRestore.test.ts` baru (273, 10 tes);
+`AuthContext.tsx` 282→293 (state `isRestoringSession`, `applySession`
+dipakai login + restore); `AdminLayout.tsx` 49→58 (placeholder
+"Memulihkan sesi…" selama restore). Restore hanya mode Real; mode Demo
+dilewati (state auth demo in-memory, token `mem_jwt_…` palsu).
+Alur: token tersimpan → `refreshSession()` (validasi + rotasi) →
+`getAuthMe()` → pulihkan sesi. 400/401 → simpanan dihapus; galat
+jaringan → simpanan dipertahankan (backend sering restart).
+Batas: reload setelah JWT kedaluwarsa (>900 dtk) tetap login ulang.
+Edge (di luar tiket): reload di halaman `/login` yang restore-nya
+berhasil tetap di `/login` (LoginPage tidak redirect saat
+terauntentikasi).
+TIGA TES GAGAL saat verifikasi pusat, diperbaiki parent (bukan agen):
+(1) Token hasil rotasi tidak pernah disimpan helper restore — hanya
+diandalkan efek samping `refreshSession()` klien asli; 2 tes fake-client
+gagal. Perbaikan: `setHttpToken(refreshed.token)` setelah refresh
+sukses di `authSessionRestore.ts`. (2) Tes integrasi 401 gagal palsu:
+memakai ulang port 3061 membuat request pertama menabrak koneksi
+keep-alive mati dari server stub sebelumnya → galat NETWORK
+(httpStatus 0), bukan 401 — simpanan dipertahankan. Perbaikan: tes
+401 memakai port 3062. Setelah perbaikan: 10/10 tes auth hijau.
+
+**Verifikasi pusat (ronde 2 + FAT-280):** tsc 0, tes 531/531
+(521 + 10 baru), build OK, checker 0 FAIL / 41 WARN, 365 file.
+**Belum:** verifikasi live FAT-280 di browser (login ADM-001 →
+reload → tetap di `/admin`; logout → reload tetap di `/login`; tab
+baru → tetap minta login) + cek visual delta E31.10 — menyusul setelah
+push + redeploy Vercel.
+
+Dokumen: `AUDIT.md` §47 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v37.

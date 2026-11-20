@@ -4,6 +4,7 @@ import { validateOperatorInput } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { CreateOperatorInput } from '../hooks/useOperatorCrud';
 
 export interface OperatorCreateModalProps {
@@ -125,23 +126,13 @@ export const OperatorCreateModal: React.FC<OperatorCreateModalProps> = ({
           required
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="create-operator-role" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Peran Awal
-            </label>
-            <select
-              id="create-operator-role"
-              value={newOpRole}
-              onChange={(e) => setNewOpRole(e.target.value as UserRole)}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-            >
-              {['UNASSIGNED', ...assignableRoles.filter((r) => r !== 'UNASSIGNED')].map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            id="create-operator-role"
+            label="Peran Awal"
+            value={newOpRole}
+            onChange={(e) => setNewOpRole(e.target.value as UserRole)}
+            options={['UNASSIGNED', ...assignableRoles.filter((r) => r !== 'UNASSIGNED')].map((r) => ({ value: r, label: r }))}
+          />
           <Input
             label="Line ID"
             value={newOpLineId}

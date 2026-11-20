@@ -251,22 +251,22 @@ export const ShiftSchedulesPage: React.FC = () => {
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Select
-          label="Lini Produksi"
-          value={filterLineId}
-          onChange={(e) => setFilterLineId(e.target.value)}
-          options={[{ value: '', label: 'Semua Lini' }, ...lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))]}
+        label="Lini Produksi"
+        value={filterLineId}
+        onChange={(e) => setFilterLineId(e.target.value)}
+        options={[{ value: '', label: 'Semua Lini' }, ...lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))]}
         />
         <Select
-          label="Shift"
-          value={filterShiftId}
-          onChange={(e) => setFilterShiftId(e.target.value)}
-          options={[{ value: '', label: 'Semua Shift' }, ...shifts.map((s) => ({ value: s.shiftId, label: `${s.shiftId} — ${s.shiftName}` }))]}
+        label="Shift"
+        value={filterShiftId}
+        onChange={(e) => setFilterShiftId(e.target.value)}
+        options={[{ value: '', label: 'Semua Shift' }, ...shifts.map((s) => ({ value: s.shiftId, label: `${s.shiftId} — ${s.shiftName}` }))]}
         />
         <Select
-          label="Hari"
-          value={filterDay}
-          onChange={(e) => setFilterDay(e.target.value)}
-          options={[{ value: '', label: 'Semua Hari' }, ...DAY_NAMES.map((d, i) => ({ value: String(i + 1), label: d }))]}
+        label="Hari"
+        value={filterDay}
+        onChange={(e) => setFilterDay(e.target.value)}
+        options={[{ value: '', label: 'Semua Hari' }, ...DAY_NAMES.map((d, i) => ({ value: String(i + 1), label: d }))]}
         />
       </div>
 

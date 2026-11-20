@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { OperationalEventMachineCell } from '../components/OperationalEventMachineCell';
+import { formatDateTime } from '../../../utils/formatDate';
 
 export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void) {
   const { checkCapability } = useAuth();
@@ -17,7 +18,7 @@ export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void
         header: 'Timestamp',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-500 whitespace-nowrap">
-            {row.original.recorded_at ? new Date(row.original.recorded_at).toLocaleString() : '—'}
+            {row.original.recorded_at ? formatDateTime(row.original.recorded_at) : '—'}
           </span>
         ),
       },
@@ -63,7 +64,7 @@ export function useOperationalEventColumns(onAck: (ev: OperationalEvent) => void
               </div>
               {ev.acknowledged_at && (
                 <div className="text-slate-400 font-tabular">
-                  {new Date(ev.acknowledged_at).toLocaleString()}
+                  {formatDateTime(ev.acknowledged_at)}
                 </div>
               )}
               {ev.ack_note && (

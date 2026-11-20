@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Cpu, Wifi, WifiOff, Eye, Activity, Edit3, Trash2 } from 'lucide-react';
+import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { EdgeDevice } from '../../../types/assets';
 import { CapabilityKey, CapabilityState } from '../../../utils/capabilities';
+import { formatDate, formatDateTime } from '../../../utils/formatDate';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { DataTable } from '../../../components/industrial/DataTable';
 
 export interface DeviceTableProps {
   devices: EdgeDevice[];
@@ -18,6 +21,10 @@ export interface DeviceTableProps {
   onDelete: (device: EdgeDevice) => void;
 }
 
+// E31.10 (FAT-273): tabel hand-rolled → DataTable (aturan R1). Semua
+// render kustom per kolom (ikon, badge, sub-baris) + aksi per baris
+// dipindahkan ke ColumnDef.cell — tampilan akhir sama (sel dibungkus
+// text-xs seperti sebelumnya; DataTable sendiri text-sm).
 export const DeviceTable: React.FC<DeviceTableProps> = ({
   devices,
   isLoading,
@@ -27,158 +34,186 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const columns = useMemo<ColumnDef<EdgeDevice, unknown>[]>(
+    () => [
+      {
+        id: 'device',
+        header: 'Device ID & Hardware',
+        cell: ({ row }) => {
+          const dev = row.original;
+          return (
+            <div className="text-xs">
+              <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100 font-tabular">
+                <Cpu className="w-4 h-4 text-sky-500 shrink-0" />
+                <span>{dev.device_id}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 pl-6">
+                {dev.model || 'STM32H743'}
+                {/* E28 Batch B (FAT-224, E2E-10): device live tak
+                    punya serial — "SN:" kosong disembunyikan. */}
+                {dev.serial_number ? ` · SN: ${dev.serial_number}` : ''}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'network',
+        header: 'MAC / IP Address',
+        cell: ({ row }) => {
+          const dev = row.original;
+          return (
+            <div className="text-xs font-tabular text-slate-700 dark:text-slate-300">
+              <div>{dev.mac_address}</div>
+              <div className="text-[11px] text-slate-500">{dev.ip_address ?? '—'}</div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'firmware',
+        header: 'Firmware',
+        cell: ({ row }) => (
+          <div className="text-xs font-tabular text-slate-700 dark:text-slate-300">
+            {row.original.firmware_version ?? '—'}
+          </div>
+        ),
+      },
+      {
+        id: 'connectivity',
+        header: 'Konektivitas',
+        cell: ({ row }) => {
+          const dev = row.original;
+          return (
+            <div className="text-xs">
+              <div className="flex items-center gap-1.5">
+                <Badge variant={dev.online ? 'success' : 'danger'}>
+                  {dev.online ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Wifi className="w-3 h-3" /> ONLINE
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      <WifiOff className="w-3 h-3" /> OFFLINE
+                    </span>
+                  )}
+                </Badge>
+              </div>
+              <div className="text-[11px] font-tabular text-slate-400 mt-1">
+                {dev.last_seen ? formatDateTime(dev.last_seen) : 'Belum ada data'}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'enrollment',
+        header: 'Enrollment',
+        cell: ({ row }) => {
+          const dev = row.original;
+          return (
+            <div className="text-xs">
+              <Badge
+                variant={
+                  dev.enrollmentState === 'REVOKED'
+                    ? 'danger'
+                    : dev.enrollmentState === 'PROVISIONED'
+                      ? 'warning'
+                      : 'success'
+                }
+              >
+                {dev.enrollmentState ?? 'ACTIVE'}
+              </Badge>
+              <div className="text-[11px] font-tabular text-slate-400 mt-1">
+                {dev.provisionedAt ? `Prov: ${formatDate(dev.provisionedAt)}` : '—'}
+              </div>
+              {dev.credentialRotatedAt ? (
+                <div className="text-[11px] font-tabular text-slate-400">
+                  Rot: {formatDate(dev.credentialRotatedAt)}
+                </div>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'boundMachine',
+        header: 'Bound Machine',
+        cell: ({ row }) => {
+          const dev = row.original;
+          return dev.bound_machine_id ? (
+            <div className="text-xs">
+              <div className="font-semibold text-slate-900 dark:text-slate-100">
+                {dev.boundMachine?.name || dev.bound_machine_name || dev.bound_machine_id}
+              </div>
+              <div className="text-[11px] font-tabular text-slate-400">{dev.bound_machine_id}</div>
+            </div>
+          ) : (
+            <Badge variant="neutral">Unbound</Badge>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Aksi',
+        cell: ({ row }) => {
+          const dev = row.original;
+          const rowManageCap = checkCapability('device.manage', dev.device_id);
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Detail perangkat ${dev.device_id}`}
+                onClick={() => onDetail(dev.device_id)}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Detail</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Health perangkat ${dev.device_id}`}
+                onClick={() => onHealth(dev)}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Health</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!rowManageCap.canInteract}
+                aria-label={`Edit perangkat ${dev.device_id}`}
+                title={!rowManageCap.canInteract ? rowManageCap.reason : 'Ubah IP / Firmware'}
+                onClick={() => onEdit(dev)}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={!rowManageCap.canInteract}
+                aria-label={`Hapus perangkat ${dev.device_id}`}
+                title={!rowManageCap.canInteract ? rowManageCap.reason : 'Hapus perangkat'}
+                onClick={() => onDelete(dev)}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [checkCapability, onDetail, onHealth, onEdit, onDelete],
+  );
+
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              <th className="py-3 px-4">Device ID &amp; Hardware</th>
-              <th className="py-3 px-4">MAC / IP Address</th>
-              <th className="py-3 px-4">Firmware</th>
-              <th className="py-3 px-4">Konektivitas</th>
-              <th className="py-3 px-4">Enrollment</th>
-              <th className="py-3 px-4">Bound Machine</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-            {isLoading ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
-                  Memuat perangkat edge...
-                </td>
-              </tr>
-            ) : devices.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
-                  Tidak ada perangkat edge pada filter ini.
-                </td>
-              </tr>
-            ) : (
-              devices.map((dev) => {
-                const rowManageCap = checkCapability('device.manage', dev.device_id);
-                return (
-                  <tr key={dev.device_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100 font-tabular">
-                        <Cpu className="w-4 h-4 text-sky-500 shrink-0" />
-                        <span>{dev.device_id}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 pl-6">
-                        {dev.model || 'STM32H743'}
-                        {/* E28 Batch B (FAT-224, E2E-10): device live tak
-                            punya serial — "SN:" kosong disembunyikan. */}
-                        {dev.serial_number ? ` · SN: ${dev.serial_number}` : ''}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-tabular text-slate-700 dark:text-slate-300">
-                      <div>{dev.mac_address}</div>
-                      <div className="text-[11px] text-slate-500">{dev.ip_address ?? '—'}</div>
-                    </td>
-                    <td className="py-3 px-4 font-tabular text-slate-700 dark:text-slate-300">
-                      {dev.firmware_version ?? '—'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant={dev.online ? 'success' : 'danger'}>
-                          {dev.online ? (
-                            <span className="inline-flex items-center gap-1">
-                              <Wifi className="w-3 h-3" /> ONLINE
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <WifiOff className="w-3 h-3" /> OFFLINE
-                            </span>
-                          )}
-                        </Badge>
-                      </div>
-                      <div className="text-[11px] font-tabular text-slate-400 mt-1">
-                        {dev.last_seen ? new Date(dev.last_seen).toLocaleString() : 'Belum ada data'}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge
-                        variant={
-                          dev.enrollmentState === 'REVOKED'
-                            ? 'danger'
-                            : dev.enrollmentState === 'PROVISIONED'
-                              ? 'warning'
-                              : 'success'
-                        }
-                      >
-                        {dev.enrollmentState ?? 'ACTIVE'}
-                      </Badge>
-                      <div className="text-[11px] font-tabular text-slate-400 mt-1">
-                        {dev.provisionedAt ? `Prov: ${new Date(dev.provisionedAt).toLocaleDateString()}` : '—'}
-                      </div>
-                      {dev.credentialRotatedAt ? (
-                        <div className="text-[11px] font-tabular text-slate-400">
-                          Rot: {new Date(dev.credentialRotatedAt).toLocaleDateString()}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="py-3 px-4">
-                      {dev.bound_machine_id ? (
-                        <div>
-                          <div className="font-semibold text-slate-900 dark:text-slate-100">
-                            {dev.boundMachine?.name || dev.bound_machine_name || dev.bound_machine_id}
-                          </div>
-                          <div className="text-[11px] font-tabular text-slate-400">{dev.bound_machine_id}</div>
-                        </div>
-                      ) : (
-                        <Badge variant="neutral">Unbound</Badge>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Detail perangkat ${dev.device_id}`}
-                          onClick={() => onDetail(dev.device_id)}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Detail</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Health perangkat ${dev.device_id}`}
-                          onClick={() => onHealth(dev)}
-                        >
-                          <Activity className="w-3.5 h-3.5" />
-                          <span>Health</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!rowManageCap.canInteract}
-                          aria-label={`Edit perangkat ${dev.device_id}`}
-                          title={!rowManageCap.canInteract ? rowManageCap.reason : 'Ubah IP / Firmware'}
-                          onClick={() => onEdit(dev)}
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          disabled={!rowManageCap.canInteract}
-                          aria-label={`Hapus perangkat ${dev.device_id}`}
-                          title={!rowManageCap.canInteract ? rowManageCap.reason : 'Hapus perangkat'}
-                          onClick={() => onDelete(dev)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      data={devices}
+      columns={columns}
+      getRowId={(dev) => dev.device_id}
+      isLoading={isLoading}
+      emptyTitle="Tidak ada perangkat edge pada filter ini."
+    />
   );
 };

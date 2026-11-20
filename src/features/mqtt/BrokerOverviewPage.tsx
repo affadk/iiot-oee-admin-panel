@@ -7,6 +7,8 @@ import { ApiError } from '../../types/auth';
 import { useAuth, useCapability } from '../../context/AuthContext';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
+import { formatDateTime } from '../../utils/formatDate';
 
 export const BrokerOverviewPage: React.FC = () => {
   const { reportForbidden } = useAuth();
@@ -73,9 +75,7 @@ export const BrokerOverviewPage: React.FC = () => {
       </div>
 
       {errorMsg && (
-        <div role="alert" className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-300 text-xs text-red-800 dark:text-red-200">
-          {errorMsg}
-        </div>
+        <LoadErrorBanner title="Gagal memuat ringkasan broker" message={errorMsg} onRetry={loadOverview} />
       )}
 
       {overview && (
@@ -132,7 +132,7 @@ export const BrokerOverviewPage: React.FC = () => {
             )}
             {overview.dynamicSecurity.measuredAt && (
               <p className="text-[11px] text-slate-400">
-                Diukur: {new Date(overview.dynamicSecurity.measuredAt).toLocaleString()}
+                Diukur: {formatDateTime(overview.dynamicSecurity.measuredAt)}
               </p>
             )}
 
@@ -168,7 +168,7 @@ export const BrokerOverviewPage: React.FC = () => {
                 <span className="text-slate-500">Last Applied At</span>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
                   {overview.configuration.lastAppliedAt
-                    ? new Date(overview.configuration.lastAppliedAt).toLocaleString()
+                    ? formatDateTime(overview.configuration.lastAppliedAt)
                     : '—'}
                 </span>
               </div>
@@ -194,7 +194,7 @@ export const BrokerOverviewPage: React.FC = () => {
                 <div className="flex justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-slate-500">Diukur</span>
                   <span className="font-semibold text-slate-900 dark:text-slate-100">
-                    {new Date(overview.configuration.measuredAt).toLocaleString()}
+                    {formatDateTime(overview.configuration.measuredAt)}
                   </span>
                 </div>
               )}

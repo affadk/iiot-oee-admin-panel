@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DowntimeCategory, DowntimeEvent, DowntimeReasonResult } from '../../types/monitoring';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { apiClient } from '../../services/api/client';
 import { ApiError } from '../../types/auth';
 import { useAuth, useCapability } from '../../context/AuthContext';
@@ -176,23 +177,13 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
           </div>
         )}
 
-        <div className="space-y-1">
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Kategori Six Big Losses
-          </label>
-          <select
-            value={restoreUnlabeled ? RESTORE_UNLABELED_CATEGORY : category}
-            disabled={restoreUnlabeled}
-            onChange={(e) => setCategory(e.target.value as DowntimeCategory)}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-60"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Kategori Six Big Losses"
+          value={restoreUnlabeled ? RESTORE_UNLABELED_CATEGORY : category}
+          onChange={(e) => setCategory(e.target.value as DowntimeCategory)}
+          disabled={restoreUnlabeled}
+          options={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+        />
 
         {/* E28 Batch B (FAT-230, MUT-04): opsi kembalikan ke "Belum
             dikategorikan" — hanya saat overwrite. Mengirim kategori

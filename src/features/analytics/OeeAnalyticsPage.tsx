@@ -2,6 +2,7 @@ import React from 'react';
 import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { TelemetryRollupGroupBy } from '../../types/analytics';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { useOeeAnalytics, TimelineBucket } from './hooks/useOeeAnalytics';
 import { OeeSummaryCards } from './components/OeeSummaryCards';
 import { PeriodRangePicker } from './components/PeriodRangePicker';
@@ -97,27 +98,20 @@ export const OeeAnalyticsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 shrink-0">
-          <select
+          <Select
             aria-label="Pilih Mesin"
+            wrapperClassName="shrink-0"
             value={selectedMachine}
             onChange={(e) => {
               setSelectedSegmentIdx(null);
               updateFilters({ machineId: e.target.value });
             }}
-            className="max-w-[260px] px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
-          >
-            {machines.length === 0 ? (
-              <option value={selectedMachine}>{selectedMachine}</option>
-            ) : (
-              machines.map((m) => (
-                <option key={m.machine_id} value={m.machine_id}>
-                  {m.machine_id} · {m.name}
-                </option>
-              ))
-            )}
-          </select>
-          <select
+            className="max-w-[260px]"
+            options={machines.length === 0 ? [{ value: selectedMachine, label: selectedMachine }] : machines.map((m) => ({ value: m.machine_id, label: `${m.machine_id} · ${m.name}` }))}
+          />
+          <Select
             aria-label="Bucket Timeline"
+            wrapperClassName="shrink-0"
             value={timelineBucket}
             onChange={(e) => {
               // E12 T12.17 (F-13 / FAT-69): ganti bucket me-refetch timeline
@@ -130,13 +124,8 @@ export const OeeAnalyticsPage: React.FC = () => {
               setSelectedSegmentIdx(null);
               setTimelineBucket(e.target.value as TimelineBucket);
             }}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
-          >
-            <option value="1m">Bucket 1m (&le; 6 jam)</option>
-            <option value="5m">Bucket 5m</option>
-            <option value="15m">Bucket 15m</option>
-            <option value="1h">Bucket 1h</option>
-          </select>
+            options={[{ value: '1m', label: 'Bucket 1m (≤ 6 jam)' }, { value: '5m', label: 'Bucket 5m' }, { value: '15m', label: 'Bucket 15m' }, { value: '1h', label: 'Bucket 1h' }]}
+          />
           <Button
             size="sm"
             variant="secondary"

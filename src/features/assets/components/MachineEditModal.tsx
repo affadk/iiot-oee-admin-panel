@@ -5,6 +5,7 @@ import { validateMachineInput } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { UpdateMachineInput } from '../hooks/useMachineCrud';
 import { mapApiIssuesToErrors } from '../utils/apiErrors';
 
@@ -131,29 +132,14 @@ export const MachineEditModal: React.FC<MachineEditModalProps> = ({
           error={errors.modbusSlaveId}
           required
         />
-        <div>
-          <label
-            htmlFor="edit-line-select"
-            className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
-          >
-            Lini Produksi
-          </label>
-          <select
-            id="edit-line-select"
-            value={lineId}
-            onChange={(e) => setLineId(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            {lineOptions.map((l) => (
-              <option key={l.lineId} value={l.lineId}>
-                {l.lineId} — {l.lineName}
-              </option>
-            ))}
-          </select>
-          {errors.lineId && (
-            <p className="text-xs text-red-600 mt-1">{errors.lineId}</p>
-          )}
-        </div>
+        <Select
+          id="edit-line-select"
+          label="Lini Produksi"
+          value={lineId}
+          onChange={(e) => setLineId(e.target.value)}
+          options={lineOptions.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))}
+          error={errors.lineId}
+        />
       </form>
     </Modal>
   );

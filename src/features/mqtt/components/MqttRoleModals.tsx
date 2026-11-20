@@ -3,6 +3,7 @@ import type { MqttAclType, MqttRole } from '../../../types/mqtt';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import type { NewMqttAcl } from '../hooks/useMqttRoleMutations';
 
 interface CreateRoleModalProps {
@@ -90,21 +91,12 @@ export const AddAclModal: React.FC<AddAclModalProps> = ({ targetRole, onClose, o
         }}
         className="space-y-3"
       >
-        <div>
-          <label className="block text-xs font-semibold mb-1">ACL Type</label>
-          <select
-            value={aclType}
-            onChange={(e) => setAclType(e.target.value as MqttAclType)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            <option value="publishClientSend">publishClientSend</option>
-            <option value="publishClientReceive">publishClientReceive</option>
-            <option value="subscribeLiteral">subscribeLiteral</option>
-            <option value="subscribePattern">subscribePattern</option>
-            <option value="unsubscribeLiteral">unsubscribeLiteral</option>
-            <option value="unsubscribePattern">unsubscribePattern</option>
-          </select>
-        </div>
+        <Select
+          label="ACL Type"
+          value={aclType}
+          onChange={(e) => setAclType(e.target.value as MqttAclType)}
+          options={[{ value: 'publishClientSend', label: 'publishClientSend' }, { value: 'publishClientReceive', label: 'publishClientReceive' }, { value: 'subscribeLiteral', label: 'subscribeLiteral' }, { value: 'subscribePattern', label: 'subscribePattern' }, { value: 'unsubscribeLiteral', label: 'unsubscribeLiteral' }, { value: 'unsubscribePattern', label: 'unsubscribePattern' }]}
+        />
         <Input label="Topic Pattern" value={aclTopic} onChange={(e) => setAclTopic(e.target.value)} required />
         <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input type="checkbox" checked={aclAllow} onChange={(e) => setAclAllow(e.target.checked)} />

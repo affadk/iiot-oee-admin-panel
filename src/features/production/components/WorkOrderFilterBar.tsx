@@ -1,9 +1,9 @@
 import React from 'react';
-import { Search } from 'lucide-react';
 import { Machine } from '../../../types/assets';
 import { HistoryFilters } from '../../../types/historical';
 import { WorkOrder } from '../../../types/production';
-import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
+import { FilterBar, FilterResetButton, FilterSearchField } from '../../../components/industrial/FilterBar';
 
 interface WorkOrderFilterBarProps {
   filters: HistoryFilters;
@@ -21,75 +21,50 @@ export const WorkOrderFilterBar: React.FC<WorkOrderFilterBarProps> = ({
   onResetFilters,
 }) => {
   return (
-    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-        <input
-          type="text"
-          aria-label="Cari Work Order ID"
-          value={filters.woId ?? ''}
-          onChange={(e) => onFilterChange({ woId: e.target.value || undefined })}
-          placeholder="Filter WO ID (mis. WO-2026-101)"
-          className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-        />
-      </div>
+    <FilterBar layout="grid" columns={5}>
+      <FilterSearchField
+        ariaLabel="Cari Work Order ID"
+        value={filters.woId ?? ''}
+        onChange={(v) => onFilterChange({ woId: v || undefined })}
+        placeholder="Filter WO ID (mis. WO-2026-101)"
+      />
 
-      <select
+      <Select
         aria-label="Filter Status"
+        wrapperClassName="shrink-0"
         value={filters.status ?? 'ALL'}
         onChange={(e) =>
           onFilterChange({
             status: e.target.value === 'ALL' ? undefined : (e.target.value as WorkOrder['status']),
-          })
-        }
-        className="px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-      >
-        <option value="ALL">Semua Status</option>
-        <option value="PENDING">PENDING</option>
-        <option value="ACTIVE">ACTIVE</option>
-        <option value="PENDING_CLOSE">PENDING_CLOSE</option>
-        <option value="COMPLETED">COMPLETED</option>
-        <option value="ABORTED">ABORTED</option>
-      </select>
+          })}
+        options={[{ value: 'ALL', label: 'Semua Status' }, { value: 'PENDING', label: 'PENDING' }, { value: 'ACTIVE', label: 'ACTIVE' }, { value: 'PENDING_CLOSE', label: 'PENDING_CLOSE' }, { value: 'COMPLETED', label: 'COMPLETED' }, { value: 'ABORTED', label: 'ABORTED' }]}
+      />
 
-      <select
+      <Select
         aria-label="Filter Mesin"
+        wrapperClassName="shrink-0"
         value={filters.machineId ?? 'ALL'}
         onChange={(e) =>
           onFilterChange({
             machineId: e.target.value === 'ALL' ? undefined : e.target.value,
-          })
-        }
-        className="px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-      >
-        <option value="ALL">Semua Mesin</option>
-        {machines.map((m) => (
-          <option key={m.machine_id} value={m.machine_id}>
-            {m.machine_id} · {m.name}
-          </option>
-        ))}
-      </select>
+          })}
+        options={[{ value: 'ALL', label: 'Semua Mesin' }, ...machines.map((m) => ({ value: m.machine_id, label: `${m.machine_id} · ${m.name}` }))]}
+      />
 
-      <select
+      <Select
         aria-label="Limit Baris"
+        wrapperClassName="shrink-0"
         value={String(filters.limit)}
         onChange={(e) => onFilterChange({ limit: Number(e.target.value) || 20 })}
-        className="px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 font-tabular"
-      >
-        <option value="10">10 baris / halaman</option>
-        <option value="20">20 baris / halaman</option>
-        <option value="50">50 baris / halaman</option>
-        <option value="100">100 baris / halaman</option>
-      </select>
+        options={[{ value: '10', label: '10 baris / halaman' }, { value: '20', label: '20 baris / halaman' }, { value: '50', label: '50 baris / halaman' }, { value: '100', label: '100 baris / halaman' }]}
+      />
 
       <div className="flex items-center justify-end gap-2">
         <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
           {operatorsCount > 0 ? `${operatorsCount} operator aktif` : 'Mode ringkas'}
         </span>
-        <Button size="sm" variant="ghost" onClick={onResetFilters}>
-          Reset
-        </Button>
+        <FilterResetButton onReset={onResetFilters} />
       </div>
-    </div>
+    </FilterBar>
   );
 };

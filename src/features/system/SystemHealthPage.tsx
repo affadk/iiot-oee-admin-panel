@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration } from '../../utils/oeeCalculations';
+import { formatDateTime } from '../../utils/formatDate';
 
 export const SystemHealthPage: React.FC = () => {
   const [health, setHealth] = useState<SystemHealth | null>(null);
@@ -176,7 +177,7 @@ export const SystemHealthPage: React.FC = () => {
                     Uptime: {detail.application.uptimeSeconds !== null ? formatDuration(detail.application.uptimeSeconds) : '—'}
                   </div>
                   <div className="text-slate-400">
-                    Diukur: {detail.application.measuredAt ? new Date(detail.application.measuredAt).toLocaleString() : '—'}
+                    Diukur: {detail.application.measuredAt ? formatDateTime(detail.application.measuredAt) : '—'}
                   </div>
                 </div>
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
@@ -187,7 +188,7 @@ export const SystemHealthPage: React.FC = () => {
                     Latensi SELECT 1: {detail.database.latencyMs !== null ? `${detail.database.latencyMs} ms` : '—'}
                   </div>
                   <div className="text-slate-400">
-                    Diukur: {detail.database.measuredAt ? new Date(detail.database.measuredAt).toLocaleString() : '—'}
+                    Diukur: {detail.database.measuredAt ? formatDateTime(detail.database.measuredAt) : '—'}
                   </div>
                 </div>
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
@@ -209,7 +210,7 @@ export const SystemHealthPage: React.FC = () => {
                     {detail.mqtt.adminConnection?.lastError ? ` · Galat terakhir: ${detail.mqtt.adminConnection.lastError}` : ''}
                   </div>
                   <div className="text-slate-400">
-                    Diukur: {detail.mqtt.measuredAt ? new Date(detail.mqtt.measuredAt).toLocaleString() : '—'}
+                    Diukur: {detail.mqtt.measuredAt ? formatDateTime(detail.mqtt.measuredAt) : '—'}
                   </div>
                 </div>
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
@@ -218,7 +219,7 @@ export const SystemHealthPage: React.FC = () => {
                   </div>
                   <div className="text-slate-500">Klien: {detail.websocket.clients ?? '—'}</div>
                   <div className="text-slate-400">
-                    Diukur: {detail.websocket.measuredAt ? new Date(detail.websocket.measuredAt).toLocaleString() : '—'}
+                    Diukur: {detail.websocket.measuredAt ? formatDateTime(detail.websocket.measuredAt) : '—'}
                   </div>
                 </div>
               </div>
@@ -263,7 +264,7 @@ export const SystemHealthPage: React.FC = () => {
                   <span className="text-slate-400 block">Terakhir Diterima</span>
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                     {health.metrics.lastIngestedAt
-                      ? new Date(health.metrics.lastIngestedAt).toLocaleString()
+                      ? formatDateTime(health.metrics.lastIngestedAt)
                       : 'Belum ada'}
                   </span>
                 </div>

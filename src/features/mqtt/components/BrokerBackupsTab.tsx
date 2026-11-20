@@ -1,5 +1,6 @@
 import { HardDrive } from 'lucide-react';
 import type { BrokerBackup } from '../../../types/mqtt';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface BrokerBackupsTabProps {
   backups: BrokerBackup[];
@@ -22,7 +23,7 @@ export const BrokerBackupsTab: React.FC<BrokerBackupsTabProps> = ({ backups }) =
               </div>
             </div>
           </div>
-          <span className="text-slate-400 font-tabular">{new Date(b.created_at).toLocaleString()}</span>
+          <span className="text-slate-400 font-tabular">{formatDateTime(b.created_at)}</span>
         </div>
       ))}
     </div>

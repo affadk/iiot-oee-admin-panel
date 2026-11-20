@@ -3,6 +3,7 @@ import { Machine, EdgeDevice } from '../../../types/assets';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { ConfirmationDialog } from '../../../components/ui/ConfirmationDialog';
+import { Select } from '../../../components/ui/Select';
 
 export interface MachineBindModalProps {
   machine: Machine | null;
@@ -59,30 +60,13 @@ export const MachineBindModal: React.FC<MachineBindModalProps> = ({
               {bindSubmitError}
             </div>
           )}
-          <div>
-            <label
-              htmlFor="bind-device-select"
-              className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1"
-            >
-              Pilih STM32 Edge Controller (Unbound)
-            </label>
-            <select
-              id="bind-device-select"
-              value={selectedDeviceId}
-              onChange={(e) => onSelectDevice(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-            >
-              {unboundDevices.length === 0 ? (
-                <option value="">-- Tidak ada perangkat unbound tersedia --</option>
-              ) : (
-                unboundDevices.map((d) => (
-                  <option key={d.device_id} value={d.device_id}>
-                    {d.device_id} ({d.model || 'STM32'} · {d.mac_address})
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
+          <Select
+            id="bind-device-select"
+            label="Pilih STM32 Edge Controller (Unbound)"
+            value={selectedDeviceId}
+            onChange={(e) => onSelectDevice(e.target.value)}
+            options={unboundDevices.length === 0 ? [{ value: '', label: '-- Tidak ada perangkat unbound tersedia --' }] : unboundDevices.map((d) => ({ value: d.device_id, label: `${d.device_id} (${d.model || 'STM32'} · ${d.mac_address})` }))}
+          />
         </form>
       </Modal>
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Select } from '../../../components/ui/Select';
 import { BarChart3, Clock, Database, Layers } from 'lucide-react';
 import { HistoryFilters } from '../../../types/historical';
 import { TelemetryRollupGroupBy } from '../../../types/analytics';
@@ -60,49 +61,31 @@ export const TelemetryTabs: React.FC<TelemetryTabsProps> = ({
 
     {activeTab === 'rollup' && (
       <div className="flex flex-wrap items-center gap-2">
-        <select
+        <Select
           aria-label="Rollup Grouping"
+          wrapperClassName="shrink-0"
           value={groupBy}
           onChange={(e) =>
-            onFilterChange({ groupBy: e.target.value as TelemetryRollupGroupBy })
-          }
-          className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="machine">Group by: Mesin</option>
-          <option value="line">Group by: Lini</option>
-          <option value="day">Group by: Harian</option>
-          <option value="month">Group by: Bulanan</option>
-        </select>
-        <select
+            onFilterChange({ groupBy: e.target.value as TelemetryRollupGroupBy })}
+          options={[{ value: 'machine', label: 'Group by: Mesin' }, { value: 'line', label: 'Group by: Lini' }, { value: 'day', label: 'Group by: Harian' }, { value: 'month', label: 'Group by: Bulanan' }]}
+        />
+        <Select
           aria-label="Filter Mesin Rollup"
+          wrapperClassName="shrink-0"
           value={machineIdFilter ?? 'ALL'}
           onChange={(e) =>
             onFilterChange({
               machineId: e.target.value === 'ALL' ? undefined : e.target.value,
-            })
-          }
-          className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="ALL">Semua Mesin</option>
-          {machines.map((m) => (
-            <option key={m.machine_id} value={m.machine_id}>
-              {m.machine_id}
-            </option>
-          ))}
-        </select>
-        <select
+            })}
+          options={[{ value: 'ALL', label: 'Semua Mesin' }, ...machines.map((m) => ({ value: m.machine_id, label: m.machine_id }))]}
+        />
+        <Select
           aria-label="Filter Device Rollup"
+          wrapperClassName="shrink-0"
           value={rollupDeviceFilter}
           onChange={(e) => onRollupDeviceFilterChange(e.target.value)}
-          className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="ALL">Semua Perangkat</option>
-          {devices.map((d) => (
-            <option key={d.device_id} value={d.device_id}>
-              {d.device_id}
-            </option>
-          ))}
-        </select>
+          options={[{ value: 'ALL', label: 'Semua Perangkat' }, ...devices.map((d) => ({ value: d.device_id, label: d.device_id }))]}
+        />
       </div>
     )}
   </div>

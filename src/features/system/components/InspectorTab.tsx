@@ -3,6 +3,7 @@ import type { IamEffectivePermissions } from '../../../types/iam';
 import type { Operator } from '../../../types/production';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
 
 interface InspectorTabProps {
   operators: Operator[];
@@ -39,22 +40,12 @@ export const InspectorTab: React.FC<InspectorTabProps> = ({
         </p>
       </div>
       <form onSubmit={onInspect} className="flex flex-wrap items-end gap-3">
-        <div className="w-64">
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Pilih Operator / Subjek
-          </label>
-          <select
-            value={inspectOperatorId}
-            onChange={(e) => onOperatorChange(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            {operators.map((op) => (
-              <option key={op.operator_id} value={op.operator_id}>
-                {op.operator_id} · {op.name} ({op.role})
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Pilih Operator / Subjek"
+          value={inspectOperatorId}
+          onChange={(e) => onOperatorChange(e.target.value)}
+          options={operators.map((op) => ({ value: op.operator_id, label: `${op.operator_id} · ${op.name} (${op.role})` }))}
+        />
         <Button type="submit" size="sm" isLoading={isInspecting}>
           <Search className="w-3.5 h-3.5" />
           <span>Periksa Izin Akun</span>

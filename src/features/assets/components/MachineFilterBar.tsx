@@ -10,6 +10,11 @@ export interface MachineFilterBarProps {
   unboundDevicesCount: number;
 }
 
+// E31.9 (FAT-272) BYPASS: filter ini BUKAN pola FilterBar generik
+// (label + select + search + reset). Ia adalah toggle tersegmentasi
+// (ALL/BOUND/UNBOUND) + penghitung — tidak ada select, tidak ada search,
+// tidak ada kartu. Memaksakan FilterBar akan mengubah tampilan dan
+// menghilangkan semantik tombol segmen. Tetap komponen sendiri.
 export const MachineFilterBar: React.FC<MachineFilterBarProps> = ({
   bindingFilter,
   onBindingFilterChange,

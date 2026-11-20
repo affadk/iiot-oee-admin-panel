@@ -6,6 +6,7 @@ import { mapWsHealthEventToDeviceHealth } from '../../../services/api/http/mappe
 import { DeviceHealth, EdgeDevice } from '../../../types/assets';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface DeviceHealthDrawerProps {
   device: EdgeDevice | null;
@@ -112,7 +113,7 @@ export const DeviceHealthDrawer: React.FC<DeviceHealthDrawerProps> = ({ device, 
             <div className="text-right font-tabular">
               <div className="text-slate-400 text-[11px]">Last Seen</div>
               <div className="font-medium text-slate-800 dark:text-slate-200 mt-1">
-                {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Belum pernah terlihat'}
+                {device.last_seen ? formatDateTime(device.last_seen) : 'Belum pernah terlihat'}
               </div>
             </div>
           </div>

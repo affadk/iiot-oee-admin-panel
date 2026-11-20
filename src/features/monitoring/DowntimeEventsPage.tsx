@@ -10,6 +10,7 @@ import { ApiError } from '../../types/auth';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
 import { DowntimeReasonModal } from './DowntimeReasonModal';
 import { HistoricalExportToolbar } from '../../components/industrial/HistoricalExportToolbar';
@@ -21,6 +22,7 @@ import {
   withExportAbortTimeout,
 } from '../../utils/historicalExport';
 import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
+import { formatDateTime } from '../../utils/formatDate';
 import { useHistoryFilters } from '../shared/historyFilters';
 import {
   HISTORY_DATA_STALE_TIME_MS,
@@ -243,7 +245,7 @@ export const DowntimeEventsPage: React.FC = () => {
                 {ev.durationFormatted || formatDuration(ev.duration_seconds)}
               </div>
               <div className="text-[11px] text-slate-400">
-                {new Date(ev.started_at).toLocaleString()}
+                {formatDateTime(ev.started_at)}
                 {ev.ended_at === null && ' (Ongoing)'}
               </div>
             </div>
@@ -386,27 +388,13 @@ export const DowntimeEventsPage: React.FC = () => {
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label
-                  htmlFor="downtime-device-select"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1"
-                >
-                  Target Edge Device (Per-Device)
-                </label>
-                <select
-                  id="downtime-device-select"
-                  value={selectedDeviceId}
-                  onChange={(e) => handleFilterChange({ deviceId: e.target.value })}
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-                >
-                  {deviceOptions.map((d) => (
-                    <option key={d.device_id} value={d.device_id}>
-                      {d.device_id} {d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}
-                    </option>
-                  ))}
-                  <option value="STM32-OEE-90-DEL">STM32-OEE-90-DEL — [dihapus] (Histori)</option>
-                </select>
-              </div>
+              <Select
+                id="downtime-device-select"
+                label="Target Edge Device (Per-Device)"
+                value={selectedDeviceId}
+                onChange={(e) => handleFilterChange({ deviceId: e.target.value })}
+                options={[...deviceOptions.map((d) => ({ value: d.device_id, label: `${d.device_id} ${d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}` })), { value: 'STM32-OEE-90-DEL', label: 'STM32-OEE-90-DEL — [dihapus] (Histori)' }]}
+              />
 
               <div>
                 <label
@@ -438,30 +426,16 @@ export const DowntimeEventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label
-                  htmlFor="downtime-category-select"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1"
-                >
-                  Kategori Downtime
-                </label>
-                <select
-                  id="downtime-category-select"
-                  value={filters.category ?? 'ALL'}
-                  onChange={(e) =>
+              <Select
+                id="downtime-category-select"
+                label="Kategori Downtime"
+                value={filters.category ?? 'ALL'}
+                onChange={(e) =>
                     handleFilterChange({
                       category: e.target.value === 'ALL' ? undefined : e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-                >
-                  {DOWNTIME_CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    })}
+                options={DOWNTIME_CATEGORY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+              />
 
               <div className="flex flex-col justify-end gap-1.5 pb-0.5">
                 <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">

@@ -4,6 +4,7 @@ import { Activity, ExternalLink } from 'lucide-react';
 import { WorkOrder } from '../../../types/production';
 import { CorrelatedWorkOrderSummary } from '../../shared/historyFilters';
 import { formatDuration } from '../../../utils/oeeCalculations';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface WorkOrderCorrelationPanelProps {
   displayedWo: WorkOrder;
@@ -64,8 +65,8 @@ export const WorkOrderCorrelationPanel: React.FC<WorkOrderCorrelationPanelProps>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
             <strong>Catatan Metrik:</strong> <code className="font-mono">live-state</code>{' '}
             menampilkan angka kumulatif lifetime perangkat, sedangkan ringkasan sesi ini hanya mengorelasikan data dalam jendela WO (
-            {new Date(corrSummary.window.from).toLocaleString()} –{' '}
-            {new Date(corrSummary.window.to).toLocaleString()}).
+            {formatDateTime(corrSummary.window.from)} –{' '}
+            {formatDateTime(corrSummary.window.to)}).
             {corrSummary.provisionalHourlyCount > 0 &&
               ` Terdapat ${corrSummary.provisionalHourlyCount} bucket per jam yang masih berstatus provisional.`}
           </p>

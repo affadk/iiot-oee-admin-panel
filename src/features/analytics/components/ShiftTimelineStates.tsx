@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from '../../../components/ui/Button';
+import { EmptyStateBlock } from '../../shared/TableStateRow';
 
 export interface ShiftTimelineStatesProps {
   /** Sedang memuat dan belum ada segmen — tampilkan skeleton. */
@@ -64,12 +65,10 @@ export const ShiftTimelineStates: React.FC<ShiftTimelineStatesProps> = ({
   if (isEmpty) {
     return (
       <div className="w-full rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 text-center space-y-0.5">
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-          Tidak ada data timeline pada rentang ini
-        </p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Belum ada segmen status mesin untuk mesin dan periode yang dipilih.
-        </p>
+        <EmptyStateBlock
+          emptyTitle="Tidak ada data timeline pada rentang ini"
+          emptyDescription="Belum ada segmen status mesin untuk mesin dan periode yang dipilih."
+        />
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Select } from '../../components/ui/Select';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -65,16 +66,14 @@ export const CursorPaginationBar: React.FC<CursorPaginationBarProps> = ({
           >
             Per halaman:
           </label>
-          <select
+          <Select
             id="cursor-page-limit"
+            aria-label="Per halaman"
+            wrapperClassName="shrink-0"
             value={pageLimit}
             onChange={(e) => onPageLimitChange(Number(e.target.value))}
-            className="px-2 py-1 text-xs font-tabular bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-sky-500 focus:outline-none"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
+            options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]}
+          />
         </div>
 
         {hasActiveCursor && (

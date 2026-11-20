@@ -5,6 +5,7 @@ import { isReservedPermission } from '../../../utils/capabilities';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface BindPermissionModalProps {
   isOpen: boolean;
@@ -83,66 +84,31 @@ export const BindPermissionModal: React.FC<BindPermissionModalProps> = ({
       }
     >
       <form onSubmit={onSubmit} className="space-y-3">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Target Role
-          </label>
-          <select
-            value={bindRoleId}
-            disabled={bindLockedMode === 'role'}
-            onChange={(e) => onRoleIdChange(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 disabled:opacity-60"
-          >
-            {roles.map((r) => {
-              const blocked =
-                selectedPerm && !r.is_system && isReservedPermission(selectedPerm.action, selectedPerm.resourceType);
-              return (
-                <option key={r.id} value={r.id} disabled={Boolean(blocked)}>
-                  {r.name} {blocked ? '(DIBLOKIR - RESERVED)' : ''}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+        <Select
+          label="Target Role"
+          value={bindRoleId}
+          onChange={(e) => onRoleIdChange(e.target.value)}
+          disabled={bindLockedMode === 'role'}
+          options={roles.map((r) => { const blocked =
+                selectedPerm && !r.is_system && isReservedPermission(selectedPerm.action, selectedPerm.resourceType);  return ({ value: r.id, label: `${r.name} ${blocked ? '(DIBLOKIR - RESERVED)' : ''}`, disabled: Boolean(blocked) }); })}
+        />
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Permission Sistem (Fixed Catalog)
-          </label>
-          <select
-            value={selectedPermId}
-            disabled={bindLockedMode === 'permission'}
-            onChange={(e) => onPermIdChange(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 disabled:opacity-60"
-          >
-            {permissions.map((p) => {
-              const blocked =
-                selectedRole && !selectedRole.is_system && isReservedPermission(p.action, p.resourceType);
-              return (
-                <option key={p.id} value={p.id} disabled={Boolean(blocked)}>
-                  {p.action}:{p.resourceType} {blocked ? '(RESERVED - BLOCKED)' : `— ${p.description}`}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+        <Select
+          label="Permission Sistem (Fixed Catalog)"
+          value={selectedPermId}
+          onChange={(e) => onPermIdChange(e.target.value)}
+          disabled={bindLockedMode === 'permission'}
+          options={permissions.map((p) => { const blocked =
+                selectedRole && !selectedRole.is_system && isReservedPermission(p.action, p.resourceType);  return ({ value: p.id, label: `${p.action}:${p.resourceType} ${blocked ? '(RESERVED - BLOCKED)' : `— ${p.description}`}`, disabled: Boolean(blocked) }); })}
+        />
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Effect
-            </label>
-            <select
-              value={bindEffect}
-              onChange={(e) => onEffectChange(e.target.value as 'ALLOW' | 'DENY')}
-              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-            >
-              <option value="ALLOW">ALLOW</option>
-              <option value="DENY" disabled={isAdminRole}>
-                DENY {isAdminRole ? '(Diblokir untuk ADMIN)' : ''}
-              </option>
-            </select>
-          </div>
+          <Select
+            label="Effect"
+            value={bindEffect}
+            onChange={(e) => onEffectChange(e.target.value as 'ALLOW' | 'DENY')}
+            options={[{ value: 'ALLOW', label: 'ALLOW' }, { value: 'DENY', label: `DENY ${isAdminRole ? '(Diblokir untuk ADMIN)' : ''}`, disabled: isAdminRole }]}
+          />
           <Input
             label="Resource Pattern"
             value={bindResourcePattern}

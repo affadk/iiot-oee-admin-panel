@@ -1,4 +1,5 @@
 import React from 'react';
+import { Select } from '../../../components/ui/Select';
 import { TelemetryRollupGroupBy, TelemetryRollupItem } from '../../../types/analytics';
 import { RollupScope } from '../hooks/oeeQueryKeys';
 import { formatRollupPerformance } from '../../shared/historyFilters';
@@ -62,28 +63,29 @@ export const OeeRollupTable: React.FC<OeeRollupTableProps> = ({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-        <select
+        <Select
           aria-label="Scope Rollup"
+          wrapperClassName="shrink-0"
           value={rollupScope}
           onChange={(e) => onScopeChange(e.target.value as RollupScope)}
-          className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="MACHINE">Mesin ini</option>
-          <option value="ALL">Semua mesin</option>
-        </select>
-        <select
+          options={[{ value: 'MACHINE', label: 'Mesin ini' }, { value: 'ALL', label: 'Semua mesin' }]}
+        />
+        <Select
           aria-label="Grouping Rollup Analitik"
+          wrapperClassName="shrink-0"
           value={rollupGroupBy}
           onChange={(e) => onGroupByChange(e.target.value as TelemetryRollupGroupBy)}
-          className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="machine">Per Mesin</option>
-          <option value="line">Per Lini</option>
-          <option value="day">Per Hari</option>
-          <option value="month">Per Bulan</option>
-        </select>
+          options={[{ value: 'machine', label: 'Per Mesin' }, { value: 'line', label: 'Per Lini' }, { value: 'day', label: 'Per Hari' }, { value: 'month', label: 'Per Bulan' }]}
+        />
         </div>
       </div>
+      {/* E31.10 (FAT-273) BYPASS: tabel ini TIDAK dimigrasi ke DataTable.
+          Tabel berada di dalam kartu yang sudah punya header sendiri (judul
+          scope + 2 Select kontrol scope/groupBy); DataTable membawa kartu
+          sendiri (border + rounded) sehingga migrasi akan menumpuk dua
+          kartu. Memindahkan header keluar kartu akan mengubah tampilan.
+          Isi tabel sendiri sebenarnya didukung ColumnDef — bila DataTable
+          kelak mendukung mode tanpa-kartu, migrasi ini bisa dilakukan. */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>

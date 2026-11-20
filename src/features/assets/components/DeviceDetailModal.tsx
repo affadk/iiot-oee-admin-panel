@@ -8,6 +8,8 @@ import { Button } from '../../../components/ui/Button';
 import { useCapability } from '../../../context/AuthContext';
 import { DeviceBindingInfo } from './DeviceBindingInfo';
 import { DeviceCredentialActions } from './DeviceCredentialActions';
+import { LoadErrorBanner } from '../../shared/LoadErrorBanner';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface DeviceDetailModalProps {
   deviceId: string | null;
@@ -89,9 +91,7 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({
       {isLoading ? (
         <div className="py-8 text-center text-xs text-slate-500">Memuat detail perangkat...</div>
       ) : error ? (
-        <div role="alert" className="p-3 rounded border border-red-300 bg-red-50 text-xs text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-200">
-          {error}
-        </div>
+        <LoadErrorBanner title="Gagal memuat detail perangkat" message={error} />
       ) : device ? (
         <div className="space-y-4 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
@@ -149,10 +149,10 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({
             <div className="p-3 rounded border border-slate-200 dark:border-slate-800">
               <div className="text-[11px] text-slate-400">Last Seen / Terdaftar</div>
               <div className="font-tabular text-slate-800 dark:text-slate-200 mt-1">
-                {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Belum pernah terlihat'}
+                {device.last_seen ? formatDateTime(device.last_seen) : 'Belum pernah terlihat'}
               </div>
               <div className="text-[11px] text-slate-400 font-tabular mt-0.5">
-                Terdaftar: {new Date(device.created_at).toLocaleString()}
+                Terdaftar: {formatDateTime(device.created_at)}
               </div>
             </div>
           </div>
@@ -174,10 +174,10 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({
                 {device.enrollmentState ?? 'ACTIVE'}
               </Badge>
               <span className="text-slate-500">
-                Provisioned: {device.provisionedAt ? new Date(device.provisionedAt).toLocaleString() : '—'}
+                Provisioned: {device.provisionedAt ? formatDateTime(device.provisionedAt) : '—'}
               </span>
               <span className="text-slate-500">
-                Rotasi terakhir: {device.credentialRotatedAt ? new Date(device.credentialRotatedAt).toLocaleString() : '—'}
+                Rotasi terakhir: {device.credentialRotatedAt ? formatDateTime(device.credentialRotatedAt) : '—'}
               </span>
             </div>
             <p className="text-[11px] text-slate-500">

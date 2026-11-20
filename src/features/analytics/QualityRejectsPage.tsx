@@ -5,6 +5,7 @@ import { RejectParetoItem } from '../../types/analytics';
 import { displayRejectReason } from './rejectReasonLabel';
 import { EdgeDevice } from '../../types/assets';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 
 export const QualityRejectsPage: React.FC = () => {
@@ -63,19 +64,13 @@ export const QualityRejectsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <select
+          <Select
             aria-label="Pilih Perangkat Pareto"
+            wrapperClassName="shrink-0"
             value={selectedDeviceId}
             onChange={(e) => setSelectedDeviceId(e.target.value)}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
-          >
-            <option value="ALL">Global Pareto (Semua Perangkat)</option>
-            {devices.map((d) => (
-              <option key={d.device_id} value={d.device_id}>
-                {d.device_id} {d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}
-              </option>
-            ))}
-          </select>
+            options={[{ value: 'ALL', label: 'Global Pareto (Semua Perangkat)' }, ...devices.map((d) => ({ value: d.device_id, label: `${d.device_id} ${d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}` }))]}
+          />
           <Button size="sm" variant="secondary" onClick={loadPareto} isLoading={isLoading}>
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>

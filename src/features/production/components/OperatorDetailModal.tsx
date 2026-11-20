@@ -3,10 +3,12 @@ import { Search, Users } from 'lucide-react';
 import { Operator } from '../../../types/production';
 import { IamAssignment, IamRole, ScopeLevel } from '../../../types/iam';
 import { isProtectedOperator } from '../../../utils/capabilities';
+import { formatDateTime } from '../../../utils/formatDate';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { AssignRoleInput } from '../hooks/useOperatorRoleAssignment';
 
 export interface OperatorDetailModalProps {
@@ -127,7 +129,7 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({
           </div>
           <div className="col-span-2">
             <span className="text-slate-500">Dibuat:</span>{' '}
-            <span>{new Date(operator.created_at).toLocaleString()}</span>
+            <span>{formatDateTime(operator.created_at)}</span>
             {isProtectedRoot && (
               <span className="ml-2">
                 <Badge variant="warning">Akun Root Dilindungi</Badge>
@@ -197,41 +199,20 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                <div className="sm:col-span-7">
-                  <label htmlFor="quick-assign-role" className="block text-[11px] font-semibold mb-1">
-                    Role
-                  </label>
-                  <select
-                    id="quick-assign-role"
-                    value={quickAssignRoleName}
-                    onChange={(e) => setQuickAssignRoleName(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-                  >
-                    {iamRoles.map((r) => (
-                      <option key={r.id} value={r.name}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="sm:col-span-5">
-                  <label htmlFor="quick-assign-scope" className="block text-[11px] font-semibold mb-1">
-                    Scope
-                  </label>
-                  <select
-                    id="quick-assign-scope"
-                    value={quickAssignScopeType}
-                    onChange={(e) => setQuickAssignScopeType(e.target.value as ScopeLevel)}
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-                  >
-                    <option value="ORGANIZATION">ORGANIZATION (Efektif)</option>
-                    <option value="SITE">SITE</option>
-                    <option value="AREA">AREA</option>
-                    <option value="LINE">LINE</option>
-                    <option value="MACHINE">MACHINE</option>
-                    <option value="DEVICE">DEVICE</option>
-                  </select>
-                </div>
+                <Select
+                  id="quick-assign-role"
+                  label="Role"
+                  value={quickAssignRoleName}
+                  onChange={(e) => setQuickAssignRoleName(e.target.value)}
+                  options={iamRoles.map((r) => ({ value: r.name, label: r.name }))}
+                />
+                <Select
+                  id="quick-assign-scope"
+                  label="Scope"
+                  value={quickAssignScopeType}
+                  onChange={(e) => setQuickAssignScopeType(e.target.value as ScopeLevel)}
+                  options={[{ value: 'ORGANIZATION', label: 'ORGANIZATION (Efektif)' }, { value: 'SITE', label: 'SITE' }, { value: 'AREA', label: 'AREA' }, { value: 'LINE', label: 'LINE' }, { value: 'MACHINE', label: 'MACHINE' }, { value: 'DEVICE', label: 'DEVICE' }]}
+                />
               </div>
               {quickAssignScopeType !== 'ORGANIZATION' && (
                 <Input

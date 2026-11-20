@@ -3,6 +3,7 @@ import type { MqttClient, MqttGroup, MqttRole } from '../../../types/mqtt';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface CreateGroupModalProps {
   open: boolean;
@@ -87,20 +88,12 @@ export const ManageGroupMembersModal: React.FC<ManageGroupMembersModalProps> = (
       {targetGroup && (
         <div className="space-y-4 text-xs">
           <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="block font-semibold mb-1">Tambah Client ke Group</label>
-              <select
-                value={groupAddUsername}
-                onChange={(e) => setGroupAddUsername(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-              >
-                {clients.map((c) => (
-                  <option key={c.username} value={c.username}>
-                    {c.username}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Tambah Client ke Group"
+              value={groupAddUsername}
+              onChange={(e) => setGroupAddUsername(e.target.value)}
+              options={clients.map((c) => ({ value: c.username, label: c.username }))}
+            />
             <Button
               size="sm"
               onClick={async () => {
@@ -112,20 +105,12 @@ export const ManageGroupMembersModal: React.FC<ManageGroupMembersModalProps> = (
             </Button>
           </div>
           <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="block font-semibold mb-1">Tambah Role ke Group</label>
-              <select
-                value={groupAddRolename}
-                onChange={(e) => setGroupAddRolename(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-              >
-                {roles.map((r) => (
-                  <option key={r.rolename} value={r.rolename}>
-                    {r.rolename}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Tambah Role ke Group"
+              value={groupAddRolename}
+              onChange={(e) => setGroupAddRolename(e.target.value)}
+              options={roles.map((r) => ({ value: r.rolename, label: r.rolename }))}
+            />
             <Button
               size="sm"
               onClick={async () => {

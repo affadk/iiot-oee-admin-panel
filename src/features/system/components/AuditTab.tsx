@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { IamAuditDecision, IamAuditFilters } from '../../../types/iam';
+import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { DataTable } from '../../../components/industrial/DataTable';
+import { Select } from '../../../components/ui/Select';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface AuditTabProps {
   decisions: IamAuditDecision[];
@@ -52,6 +56,68 @@ export const AuditTab: React.FC<AuditTabProps> = ({ decisions, onApplyFilters })
     }
   };
 
+  // E31.10 (FAT-273): tabel hand-rolled → DataTable (aturan R1). Render
+  // kustom per kolom dipindahkan ke ColumnDef.cell. Catatan: tabel lama
+  // tidak punya empty state (daftar kosong = header saja); DataTable
+  // menampilkan empty state standar — teks netral di bawah.
+  const columns = useMemo<ColumnDef<IamAuditDecision, unknown>[]>(
+    () => [
+      {
+        id: 'timestamp',
+        header: 'Waktu',
+        cell: ({ row }) => (
+          <div className="text-xs font-tabular text-slate-500">
+            {formatDateTime(row.original.timestamp)}
+          </div>
+        ),
+      },
+      {
+        id: 'subject',
+        header: 'Subjek',
+        cell: ({ row }) => (
+          <div className="text-xs font-tabular font-semibold text-slate-900 dark:text-slate-100">
+            {row.original.subject}
+          </div>
+        ),
+      },
+      {
+        id: 'decision',
+        header: 'Keputusan',
+        cell: ({ row }) => {
+          const d = row.original;
+          return (
+            <Badge variant={d.decision === 'ALLOW' ? 'success' : 'danger'}>
+              {d.decision} ({d.mode})
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'action',
+        header: 'Action & Resource',
+        cell: ({ row }) => {
+          const d = row.original;
+          return (
+            <div className="text-xs font-mono text-[11px]">
+              <div>{d.action}</div>
+              <div className="text-slate-500">{d.resource}</div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'reason',
+        header: 'Alasan',
+        cell: ({ row }) => (
+          <div className="text-xs text-slate-600 dark:text-slate-300">
+            {row.original.reason || '-'}
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="space-y-3">
       <form
@@ -72,32 +138,18 @@ export const AuditTab: React.FC<AuditTabProps> = ({ decisions, onApplyFilters })
             className="w-44 px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
           />
         </div>
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Keputusan</label>
-          <select
-            aria-label="Filter keputusan"
-            value={decision}
-            onChange={(e) => setDecision(e.target.value as 'ALL' | 'ALLOW' | 'DENY')}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua</option>
-            <option value="ALLOW">ALLOW</option>
-            <option value="DENY">DENY</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Mode</label>
-          <select
-            aria-label="Filter mode"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as 'ALL' | 'shadow' | 'enforce')}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua</option>
-            <option value="shadow">shadow</option>
-            <option value="enforce">enforce</option>
-          </select>
-        </div>
+        <Select
+          label="Keputusan"
+          value={decision}
+          onChange={(e) => setDecision(e.target.value as 'ALL' | 'ALLOW' | 'DENY')}
+          options={[{ value: 'ALL', label: 'Semua' }, { value: 'ALLOW', label: 'ALLOW' }, { value: 'DENY', label: 'DENY' }]}
+        />
+        <Select
+          label="Mode"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as 'ALL' | 'shadow' | 'enforce')}
+          options={[{ value: 'ALL', label: 'Semua' }, { value: 'shadow', label: 'shadow' }, { value: 'enforce', label: 'enforce' }]}
+        />
         <div>
           <label className="block text-[11px] font-semibold text-slate-500 mb-1">Dari</label>
           <input
@@ -128,41 +180,13 @@ export const AuditTab: React.FC<AuditTabProps> = ({ decisions, onApplyFilters })
           Menampilkan {decisions.length} keputusan
         </span>
       </form>
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase text-slate-500">
-              <th className="py-2.5 px-4">Waktu</th>
-              <th className="py-2.5 px-4">Subjek</th>
-              <th className="py-2.5 px-4">Keputusan</th>
-              <th className="py-2.5 px-4">Action &amp; Resource</th>
-              <th className="py-2.5 px-4">Alasan</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {decisions.map((d) => (
-              <tr key={d.id}>
-                <td className="py-2.5 px-4 font-tabular text-slate-500">
-                  {new Date(d.timestamp).toLocaleString()}
-                </td>
-                <td className="py-2.5 px-4 font-tabular font-semibold text-slate-900 dark:text-slate-100">
-                  {d.subject}
-                </td>
-                <td className="py-2.5 px-4">
-                  <Badge variant={d.decision === 'ALLOW' ? 'success' : 'danger'}>
-                    {d.decision} ({d.mode})
-                  </Badge>
-                </td>
-                <td className="py-2.5 px-4 font-mono text-[11px]">
-                  <div>{d.action}</div>
-                  <div className="text-slate-500">{d.resource}</div>
-                </td>
-                <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300">{d.reason || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={decisions}
+        columns={columns}
+        getRowId={(d) => d.id}
+        emptyTitle="Belum ada keputusan audit"
+        emptyDescription="Tidak ada keputusan otorisasi yang cocok dengan filter."
+      />
     </div>
   );
 };

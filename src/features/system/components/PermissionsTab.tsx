@@ -4,6 +4,7 @@ import type { IamPermission, IamPolicyRule } from '../../../types/iam';
 import { isReservedPermission } from '../../../utils/capabilities';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
 
 interface PermissionsTabProps {
   permissions: IamPermission[];
@@ -55,19 +56,13 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             aria-label="Filter domain permission"
+            wrapperClassName="shrink-0"
             value={permDomainFilter}
             onChange={(e) => setPermDomainFilter(e.target.value)}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua Domain ({permissions.length})</option>
-            {domainTypes.map((dt) => (
-              <option key={dt} value={dt}>
-                {dt}
-              </option>
-            ))}
-          </select>
+            options={[{ value: 'ALL', label: `Semua Domain (${permissions.length})` }, ...domainTypes.map((dt) => ({ value: dt, label: dt }))]}
+          />
           <input
             type="search"
             aria-label="Cari permission"

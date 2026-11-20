@@ -5,6 +5,7 @@ import type { AssignUserRolePayload } from '../hooks/useAssignments';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface AssignUserRoleModalProps {
   isOpen: boolean;
@@ -74,49 +75,24 @@ export const AssignUserRoleModal: React.FC<AssignUserRoleModalProps> = ({
         }}
         className="space-y-4"
       >
-        <div>
-          <label className="block text-xs font-semibold mb-1">Operator</label>
-          <select
-            value={assignOperatorId}
-            onChange={(e) => setAssignOperatorId(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            {operators.map((op) => (
-              <option key={op.operator_id} value={op.operator_id}>
-                {op.operator_id} · {op.name} ({op.role})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Role</label>
-          <select
-            value={assignRoleName}
-            onChange={(e) => setAssignRoleName(e.target.value)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            {roles.map((r) => (
-              <option key={r.id} value={r.name}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Scope Type</label>
-          <select
-            value={assignScopeType}
-            onChange={(e) => setAssignScopeType(e.target.value as ScopeLevel)}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            <option value="ORGANIZATION">ORGANIZATION (Global — Efektif di Admin Panel)</option>
-            <option value="SITE">SITE (Persiapan)</option>
-            <option value="AREA">AREA (Persiapan)</option>
-            <option value="LINE">LINE (Persiapan)</option>
-            <option value="MACHINE">MACHINE (Persiapan)</option>
-            <option value="DEVICE">DEVICE (Persiapan)</option>
-          </select>
-        </div>
+        <Select
+          label="Operator"
+          value={assignOperatorId}
+          onChange={(e) => setAssignOperatorId(e.target.value)}
+          options={operators.map((op) => ({ value: op.operator_id, label: `${op.operator_id} · ${op.name} (${op.role})` }))}
+        />
+        <Select
+          label="Role"
+          value={assignRoleName}
+          onChange={(e) => setAssignRoleName(e.target.value)}
+          options={roles.map((r) => ({ value: r.name, label: r.name }))}
+        />
+        <Select
+          label="Scope Type"
+          value={assignScopeType}
+          onChange={(e) => setAssignScopeType(e.target.value as ScopeLevel)}
+          options={[{ value: 'ORGANIZATION', label: 'ORGANIZATION (Global — Efektif di Admin Panel)' }, { value: 'SITE', label: 'SITE (Persiapan)' }, { value: 'AREA', label: 'AREA (Persiapan)' }, { value: 'LINE', label: 'LINE (Persiapan)' }, { value: 'MACHINE', label: 'MACHINE (Persiapan)' }, { value: 'DEVICE', label: 'DEVICE (Persiapan)' }]}
+        />
         {assignScopeType !== 'ORGANIZATION' && (
           <Input
             label="Scope ID"

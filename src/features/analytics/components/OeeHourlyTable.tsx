@@ -60,6 +60,14 @@ export const OeeHourlyTable: React.FC<OeeHourlyTableProps> = ({
           Lihat di Telemetry History →
         </Link>
       </div>
+      {/* E31.10 (FAT-273) BYPASS: tabel ini TIDAK dimigrasi ke DataTable.
+          Tabel berada di dalam kartu yang sudah punya header sendiri (judul
+          + catatan scope + link "Lihat di Telemetry History"); DataTable
+          membawa kartu sendiri (border + rounded) sehingga migrasi akan
+          menumpuk dua kartu. Memindahkan header keluar kartu akan mengubah
+          tampilan. Isi tabel sendiri sebenarnya didukung ColumnDef — bila
+          DataTable kelak mendukung mode tanpa-kartu, migrasi ini bisa
+          dilakukan. */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>

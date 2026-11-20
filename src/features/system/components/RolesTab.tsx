@@ -3,6 +3,7 @@ import { Edit3, Eye, Key, Lock, Plus, Trash2, X } from 'lucide-react';
 import type { IamAssignment, IamPermission, IamPolicyRule, IamRole } from '../../../types/iam';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
 
 interface RolesTabProps {
   roles: IamRole[];
@@ -47,16 +48,13 @@ export const RolesTab: React.FC<RolesTabProps> = ({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             aria-label="Filter tipe role"
+            wrapperClassName="shrink-0"
             value={roleTypeFilter}
             onChange={(e) => setRoleTypeFilter(e.target.value as 'ALL' | 'SYSTEM' | 'CUSTOM')}
-            className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-          >
-            <option value="ALL">Semua Tipe ({roles.length})</option>
-            <option value="SYSTEM">Role Sistem ({roles.filter((r) => r.is_system).length})</option>
-            <option value="CUSTOM">Custom Role ({roles.filter((r) => !r.is_system).length})</option>
-          </select>
+            options={[{ value: 'ALL', label: `Semua Tipe (${roles.length})` }, { value: 'SYSTEM', label: `Role Sistem (${roles.filter((r) => r.is_system).length})` }, { value: 'CUSTOM', label: `Custom Role (${roles.filter((r) => !r.is_system).length})` }]}
+          />
           <input
             type="search"
             aria-label="Cari role"

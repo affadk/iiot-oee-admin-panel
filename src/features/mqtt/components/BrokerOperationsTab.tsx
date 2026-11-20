@@ -1,6 +1,7 @@
 import { History } from 'lucide-react';
 import type { BrokerOperation } from '../../../types/mqtt';
 import { Badge } from '../../../components/ui/Badge';
+import { formatDateTime } from '../../../utils/formatDate';
 
 interface BrokerOperationsTabProps {
   operations: BrokerOperation[];
@@ -33,8 +34,8 @@ export const BrokerOperationsTab: React.FC<BrokerOperationsTabProps> = ({ operat
               {[
                 op.actorName ? `Aktor: ${op.actorName}` : null,
                 op.phase ? `Fase: ${op.phase}` : null,
-                op.startedAt ? `Mulai: ${new Date(op.startedAt).toLocaleString()}` : null,
-                op.finishedAt ? `Selesai: ${new Date(op.finishedAt).toLocaleString()}` : null,
+                op.startedAt ? `Mulai: ${formatDateTime(op.startedAt)}` : null,
+                op.finishedAt ? `Selesai: ${formatDateTime(op.finishedAt)}` : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}

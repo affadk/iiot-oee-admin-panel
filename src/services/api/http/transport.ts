@@ -14,7 +14,9 @@
  * Kontrak yang dipenuhi (Guide §4.2):
  * - Base URL: `VITE_API_URL` atau `origin + /api/v1`; `/health` tanpa prefix.
  * - Header `Authorization: Bearer <token>` disisipkan per panggilan; token
- *   HANYA di memori (D5) — tidak pernah ke localStorage/cookie/log.
+ *   di memori + sessionStorage (FAT-280 Opsi B — hidup selama tab
+ *   terbuka, hilang saat tab ditutup; D5 diperbarui: tidak pernah ke
+ *   localStorage/cookie/log).
  * - Timeout: baca 10 s, mutasi 15 s, ekspor 120 s (env §4.1).
  * - Retry HANYA untuk GET yang gagal jaringan / 502/503/504, maks 3x,
  *   backoff eksponensial + jitter. TIDAK retry 400/401/403/404/409/422/429
@@ -116,6 +118,48 @@ export function mapWorkOrder(raw: unknown): WorkOrder {
 }
 
 export let httpToken: string | null = null;
+
+/**
+ * FAT-280 Opsi B: kunci penyimpanan access token di sessionStorage.
+ * Konvensi nama mengikuti mode.ts (`iiot-oee-api-mode`,
+ * `iiot-oee-access-mode`). sessionStorage — BUKAN localStorage: token
+ * hidup selama tab terbuka dan hilang saat tab ditutup.
+ */
+export const HTTP_TOKEN_STORAGE_KEY = 'iiot-oee-access-token';
+
+/** Akses sessionStorage yang aman — null di Node/tes atau bila storage dimatikan. */
+function sessionStorageSafe(): Storage | null {
+  try {
+    // globalThis.sessionStorage ada di browser (window === globalThis) dan
+    // bisa di-stub di tes Node; jangan pakai `window` langsung.
+    const storage = (globalThis as { sessionStorage?: Storage }).sessionStorage;
+    return storage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Baca token tersimpan (dipakai silent restore saat boot, FAT-280). */
+export function getStoredHttpToken(): string | null {
+  const storage = sessionStorageSafe();
+  if (!storage) return null;
+  try {
+    return storage.getItem(HTTP_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Hapus token tersimpan (logout / token kedaluwarsa, FAT-280). */
+export function clearStoredHttpToken(): void {
+  const storage = sessionStorageSafe();
+  if (!storage) return;
+  try {
+    storage.removeItem(HTTP_TOKEN_STORAGE_KEY);
+  } catch {
+    // Abaikan — storage tidak tersedia.
+  }
+}
 
 export let networkMode: NetworkAccessMode = 'LAN';
 
@@ -402,9 +446,21 @@ export function checkAbortHttp(signal?: AbortSignal): void {
   if (signal?.aborted) throw new ApiError({ code: 'NETWORK', message: 'Permintaan dibatalkan.', httpStatus: 0 });
 }
 
-/** Setter token HTTP (dipakai login/refresh di http/auth.ts). */
+/**
+ * Setter token HTTP (dipakai login/refresh di http/auth.ts).
+ * FAT-280 Opsi B: menulis tembus ke sessionStorage — token hidup selama
+ * tab terbuka (silent restore saat reload); `null` menghapus simpanan.
+ */
 export function setHttpToken(token: string | null): void {
   httpToken = token;
+  const storage = sessionStorageSafe();
+  if (!storage) return;
+  try {
+    if (token) storage.setItem(HTTP_TOKEN_STORAGE_KEY, token);
+    else storage.removeItem(HTTP_TOKEN_STORAGE_KEY);
+  } catch {
+    // Abaikan — storage tidak tersedia; sesi memori tetap berjalan.
+  }
 }
 
 /** Setter authzVersion token — diisi dari `authzVersion` respons refresh (§L). */
@@ -454,7 +510,12 @@ export const httpCore = {
   },
 
   setSessionActive(active: boolean, token?: string | null) {
-    httpToken = active ? (token ?? httpToken) : null;
-    if (!active) tokenAuthzVersion = 0;
+    if (!active) {
+      // Logout: bersihkan memori DAN simpanan sessionStorage (FAT-280).
+      setHttpToken(null);
+      tokenAuthzVersion = 0;
+    } else if (token !== undefined && token !== null) {
+      setHttpToken(token);
+    }
   }
 };

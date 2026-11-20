@@ -31,6 +31,12 @@ export const BrokerDiffModal: React.FC<BrokerDiffModalProps> = ({ diffResult, on
             <p className="text-slate-500 py-2">Tidak ada perbedaan baris.</p>
           ) : (
             <div className="overflow-x-auto rounded border border-slate-200 dark:border-slate-800">
+              {/* E31.10 (FAT-273) BYPASS: ini BUKAN tabel data — ini tampilan
+                  diff baris-per-baris (nomor baris lama/baru + penanda
+                  +/− + pewarnaan add/remove per baris, tanpa thead).
+                  DataTable (ColumnDef + header + paginasi + empty state)
+                  tidak mendukung render diff seperti ini. Tetap tabel
+                  mentah. */}
               <table className="w-full border-collapse font-mono text-[11px] leading-relaxed">
                 <tbody>
                   {diffResult.lines.map((line, idx) => (

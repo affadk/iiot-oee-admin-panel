@@ -11,6 +11,12 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options: SelectOption[];
   error?: string;
   hint?: string;
+  /**
+   * E31.9 (FAT-269): kelas wrapper pembungkus. Default `w-full` (form).
+   * Untuk select di toolbar/baris flex, isi mis. `shrink-0` supaya
+   * wrapper tidak mengambil seluruh lebar baris.
+   */
+  wrapperClassName?: string;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -18,6 +24,7 @@ export const Select: React.FC<SelectProps> = ({
   options,
   error,
   hint,
+  wrapperClassName = 'w-full',
   className = '',
   id,
   ...props
@@ -25,7 +32,7 @@ export const Select: React.FC<SelectProps> = ({
   const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
   return (
-    <div className="w-full space-y-1">
+    <div className={`${wrapperClassName} space-y-1`}>
       {label && (
         <label htmlFor={selectId} className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
           {label}

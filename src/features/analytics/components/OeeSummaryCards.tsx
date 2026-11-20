@@ -2,7 +2,8 @@ import React from 'react';
 import { BarChart3, Clock, Layers, TrendingUp } from 'lucide-react';
 import { ShiftSummary } from '../../../types/analytics';
 import { MetricCard } from '../../../components/industrial/MetricCard';
-import { Button } from '../../../components/ui/Button';
+import { LoadErrorBanner } from '../../shared/LoadErrorBanner';
+import { EmptyStateBlock } from '../../shared/TableStateRow';
 import { formatSummaryScopeLabel } from '../scopeLabels';
 
 // E28 Batch A (FAT-213 N-43): nilai pct null → '—' (bukan 0%); angka
@@ -104,32 +105,17 @@ export const OeeSummaryCards: React.FC<OeeSummaryCardsProps> = ({
           <span className="sr-only">Memuat ringkasan OEE…</span>
         </div>
       ) : isError ? (
-        <div
-          role="alert"
-          className="p-4 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-        >
-          <div className="space-y-0.5">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-              Gagal memuat ringkasan OEE
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Terjadi kesalahan saat memuat ringkasan shift. Coba lagi atau periksa koneksi.
-            </p>
-          </div>
-          {onRetry && (
-            <Button size="sm" variant="secondary" onClick={onRetry} className="shrink-0">
-              Coba lagi
-            </Button>
-          )}
-        </div>
+        <LoadErrorBanner
+          title="Gagal memuat ringkasan OEE"
+          message="Terjadi kesalahan saat memuat ringkasan shift. Coba lagi atau periksa koneksi."
+          onRetry={onRetry}
+        />
       ) : (
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-1">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            Tidak ada data ringkasan pada rentang ini
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Belum ada ringkasan shift untuk mesin dan periode yang dipilih.
-          </p>
+          <EmptyStateBlock
+            emptyTitle="Tidak ada data ringkasan pada rentang ini"
+            emptyDescription="Belum ada ringkasan shift untuk mesin dan periode yang dipilih."
+          />
         </div>
       )}
     </div>

@@ -1,7 +1,9 @@
 import React from 'react';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { LoadErrorBanner } from '../../shared/LoadErrorBanner';
 import { UnknownStation } from '../hooks/useUnknownStations';
+import { formatDateTime } from '../../../utils/formatDate';
 
 export interface UnknownStationsPanelProps {
   unknownStations: UnknownStation[];
@@ -50,9 +52,7 @@ export const UnknownStationsPanel: React.FC<UnknownStationsPanelProps> = ({
       {isLoading ? (
         <p className="text-xs text-slate-400 py-2">Memuat diagnostik...</p>
       ) : error ? (
-        <div role="alert" className="p-2.5 rounded border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 text-xs text-red-800 dark:text-red-200">
-          {error}
-        </div>
+        <LoadErrorBanner title="Gagal memuat diagnostik stasiun" message={error} />
       ) : unknownStations.length === 0 ? (
         <p className="text-xs text-slate-400 py-2">
           Tidak ada terminal tak dikenal yang mencoba mengirim data.
@@ -67,7 +67,7 @@ export const UnknownStationsPanel: React.FC<UnknownStationsPanelProps> = ({
                 </div>
                 <div className="text-[11px] text-slate-500">
                   {st.count} percobaan kirim data
-                  {st.lastSeenAt ? ` · terakhir ${new Date(st.lastSeenAt).toLocaleString()}` : ''}
+                  {st.lastSeenAt ? ` · terakhir ${formatDateTime(st.lastSeenAt)}` : ''}
                 </div>
               </div>
               <Button size="sm" variant="outline" onClick={() => onRegister(st.label)}>

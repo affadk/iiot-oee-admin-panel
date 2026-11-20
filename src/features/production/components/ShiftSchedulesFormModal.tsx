@@ -67,13 +67,13 @@ export const ShiftSchedulesFormModal: React.FC<ShiftSchedulesFormModalProps> = (
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <Select
-          label="Lini Produksi"
-          value={formLineId}
-          onChange={(e) => onFormLineIdChange(e.target.value)}
-          options={lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))}
-          error={formErrors.lineId}
+        label="Lini Produksi"
+        value={formLineId}
+        onChange={(e) => onFormLineIdChange(e.target.value)}
+        options={lines.map((l) => ({ value: l.lineId, label: `${l.lineId} — ${l.lineName}` }))}
+        error={formErrors.lineId}
           required
-          disabled={Boolean(editingSchedule)}
+        disabled={Boolean(editingSchedule)}
         />
         {editingSchedule && (
           <p className="text-[11px] text-slate-500 -mt-2">
@@ -82,20 +82,20 @@ export const ShiftSchedulesFormModal: React.FC<ShiftSchedulesFormModalProps> = (
         )}
 
         <Select
-          label="Shift"
-          value={formShiftId}
-          onChange={(e) => onFormShiftIdChange(e.target.value)}
-          options={shifts.map((s) => ({ value: s.shiftId, label: `${s.shiftName} (${s.shiftCode} ${s.startTime}–${s.endTime})` }))}
-          error={formErrors.shiftId}
+        label="Shift"
+        value={formShiftId}
+        onChange={(e) => onFormShiftIdChange(e.target.value)}
+        options={shifts.map((s) => ({ value: s.shiftId, label: `${s.shiftName} (${s.shiftCode} ${s.startTime}–${s.endTime})` }))}
+        error={formErrors.shiftId}
           required
         />
 
         <Select
-          label="Hari"
-          value={String(formDayOfWeek)}
-          onChange={(e) => onFormDayOfWeekChange(Number(e.target.value))}
-          options={dayNames.map((d, i) => ({ value: String(i + 1), label: `${d} (hari ke-${i + 1})` }))}
-          error={formErrors.dayOfWeek}
+        label="Hari"
+        value={String(formDayOfWeek)}
+        onChange={(e) => onFormDayOfWeekChange(Number(e.target.value))}
+        options={dayNames.map((d, i) => ({ value: String(i + 1), label: `${d} (hari ke-${i + 1})` }))}
+        error={formErrors.dayOfWeek}
           required
         />
 

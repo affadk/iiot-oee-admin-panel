@@ -6,6 +6,7 @@ import { LiveStateRecord, MachineFsmState } from '../../types/monitoring';
 import { MachineStateBadge } from '../../components/industrial/MachineStateBadge';
 import { Button } from '../../components/ui/Button';
 import { LoadErrorBanner } from '../shared/LoadErrorBanner';
+import { EmptyStateBlock } from '../shared/TableStateRow';
 import { formatDuration } from '../../utils/oeeCalculations';
 
 const FSM_FILTER_STATES: Array<'ALL' | MachineFsmState> = [
@@ -173,14 +174,14 @@ export const LiveStatePage: React.FC = () => {
         </div>
       ) : filteredRecords.length === 0 ? (
         <div className="p-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center space-y-2">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {records.length === 0 ? 'Belum ada data live-state' : 'Tidak ada mesin pada filter ini'}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {records.length === 0
-              ? 'Tidak ada mesin yang melaporkan status saat ini.'
-              : 'Coba pilih filter status FSM lain.'}
-          </p>
+          <EmptyStateBlock
+            emptyTitle={records.length === 0 ? 'Belum ada data live-state' : 'Tidak ada mesin pada filter ini'}
+            emptyDescription={
+              records.length === 0
+                ? 'Tidak ada mesin yang melaporkan status saat ini.'
+                : 'Coba pilih filter status FSM lain.'
+            }
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

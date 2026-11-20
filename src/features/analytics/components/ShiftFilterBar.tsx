@@ -3,6 +3,8 @@ import { HistoryFilters } from '../../../types/historical';
 import { Shift } from '../../../types/production';
 import { isCrossMidnightShift } from '../../../utils/historicalExport';
 import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
+import { FilterBar } from '../../../components/industrial/FilterBar';
 import {
   buildClearShiftFilterPatch,
   buildShiftFilterPatch,
@@ -89,7 +91,7 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
   const unavailable = !shiftsLoading && noActiveShifts;
 
   return (
-    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex flex-col sm:flex-row sm:items-end gap-3">
+    <FilterBar layout="flex">
       <div>
         <label htmlFor="shift-date-input" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
           Tanggal Shift
@@ -104,25 +106,14 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
         />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <label htmlFor="shift-select" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-          Shift
-        </label>
-        <select
-          id="shift-select"
-          value={selectedShift ? selectedShift.shiftId : ''}
-          disabled={unavailable}
-          onChange={(e) => handleShiftChange(e.target.value)}
-          className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="">Semua periode (7 hari terakhir)</option>
-          {activeShifts.map((s) => (
-            <option key={s.shiftId} value={s.shiftId}>
-              {s.shiftName} ({s.startTime}–{s.endTime})
-            </option>
-          ))}
-        </select>
-      </div>
+      <Select
+        id="shift-select"
+        label="Shift"
+        value={selectedShift ? selectedShift.shiftId : ''}
+        onChange={(e) => handleShiftChange(e.target.value)}
+        disabled={unavailable}
+        options={[{ value: '', label: 'Semua periode (7 hari terakhir)' }, ...activeShifts.map((s) => ({ value: s.shiftId, label: `${s.shiftName} (${s.startTime}–${s.endTime})` }))]}
+      />
 
       <div className="flex flex-wrap gap-2 shrink-0">
         <Button
@@ -162,6 +153,6 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
           {isCrossMidnightShift(selectedShift) ? ' (+1 hari)' : ''} pada {shiftDate}.
         </p>
       )}
-    </div>
+    </FilterBar>
   );
 };

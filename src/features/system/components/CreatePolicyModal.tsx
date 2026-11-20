@@ -5,6 +5,7 @@ import type { CreatePolicyPayload } from '../hooks/usePolicies';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface CreatePolicyModalProps {
   isOpen: boolean;
@@ -92,12 +93,10 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         className="space-y-3"
       >
         <div>
-          <label className="block text-xs font-semibold mb-1">
-            Permission (Katalog)
-          </label>
-          <select
-            value={polPermId}
-            onChange={(e) => {
+          <Select
+          label="Permission (Katalog)"
+          value={polPermId}
+          onChange={(e) => {
               const pid = e.target.value;
               setPolPermId(pid);
               const found = permissions.find((p) => p.id === pid);
@@ -105,14 +104,8 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
                 setPolResourcePattern(`${found.resourceType}:*`);
               }
             }}
-            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-          >
-            {permissions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.action}:{p.resourceType} — {p.description}
-              </option>
-            ))}
-          </select>
+          options={permissions.map((p) => ({ value: p.id, label: `${p.action}:${p.resourceType} — ${p.description}` }))}
+        />
           {selectedPerm && (
             <p className="text-[11px] text-slate-500 mt-1">
               Action terikat: <code className="font-mono">{selectedPerm.action}</code> (tidak bisa diubah — ikatan permission).
@@ -120,38 +113,23 @@ export const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           )}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold mb-1">Role</label>
-            <select
-              value={polRoleId}
-              onChange={(e) => {
+          <Select
+            label="Role"
+            value={polRoleId}
+            onChange={(e) => {
                 const nextRoleId = e.target.value;
                 setPolRoleId(nextRoleId);
                 const nextRole = roles.find((r) => r.id === nextRoleId);
                 if (nextRole?.name === 'ADMIN') setPolEffect('ALLOW');
               }}
-              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1">Jenis Aturan</label>
-            <select
-              value={polEffect}
-              onChange={(e) => setPolEffect(e.target.value as 'ALLOW' | 'DENY')}
-              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-            >
-              <option value="ALLOW">ALLOW</option>
-              <option value="DENY" disabled={selectedRole?.name === 'ADMIN'}>
-                DENY {selectedRole?.name === 'ADMIN' ? '(Diblokir untuk ADMIN)' : ''}
-              </option>
-            </select>
-          </div>
+            options={roles.map((r) => ({ value: r.id, label: r.name }))}
+          />
+          <Select
+            label="Jenis Aturan"
+            value={polEffect}
+            onChange={(e) => setPolEffect(e.target.value as 'ALLOW' | 'DENY')}
+            options={[{ value: 'ALLOW', label: 'ALLOW' }, { value: 'DENY', label: `DENY ${selectedRole?.name === 'ADMIN' ? '(Diblokir untuk ADMIN)' : ''}`, disabled: selectedRole?.name === 'ADMIN' }]}
+          />
         </div>
         <Input label="Resource Pattern" value={polResourcePattern} onChange={(e) => setPolResourcePattern(e.target.value)} required />
         <div>

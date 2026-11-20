@@ -3,6 +3,7 @@ import { AlertTriangle, Clock, Cpu, User } from 'lucide-react';
 import { WorkOrder, WorkOrderResolveResult } from '../../../types/production';
 import { CorrelatedWorkOrderSummary } from '../../shared/historyFilters';
 import { formatDeletedRelationLabel } from '../../../utils/oeeCalculations';
+import { formatDateTime } from '../../../utils/formatDate';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { WorkOrderCorrelationPanel } from './WorkOrderCorrelationPanel';
@@ -103,13 +104,13 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
               <span className="text-slate-400 block">Dispatched</span>
               <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {displayedWo.dispatched_at ? new Date(displayedWo.dispatched_at).toLocaleString() : '—'}
+                {displayedWo.dispatched_at ? formatDateTime(displayedWo.dispatched_at) : '—'}
               </span>
             </div>
             <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
               <span className="text-slate-400 block">Acked</span>
               <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {displayedWo.acked_at ? new Date(displayedWo.acked_at).toLocaleString() : '—'}
+                {displayedWo.acked_at ? formatDateTime(displayedWo.acked_at) : '—'}
               </span>
             </div>
           </div>
@@ -198,9 +199,9 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <span>
               {/* E20 P20.5 (FAT-157): `planned_start` null bila tak ada
                   (tanpa fallback) — tampil '—'; `actual_end_at` kanonis. */}
-              Planned Start: {displayedWo.planned_start ? new Date(displayedWo.planned_start).toLocaleString() : '—'}
+              Planned Start: {displayedWo.planned_start ? formatDateTime(displayedWo.planned_start) : '—'}
               {displayedWo.actual_end_at
-                ? ` · Ended: ${new Date(displayedWo.actual_end_at).toLocaleString()}`
+                ? ` · Ended: ${formatDateTime(displayedWo.actual_end_at)}`
                 : ''}
             </span>
           </div>

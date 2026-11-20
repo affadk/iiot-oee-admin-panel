@@ -8,6 +8,7 @@ import {
 import { AlertCircle, Clock, Database, RefreshCw } from 'lucide-react';
 import { ApiError } from '../../types/auth';
 import { Button } from '../ui/Button';
+import { formatTimeWithSeconds } from '../../utils/formatDate';
 
 interface DataTableProps<TData extends RowData> {
   data: TData[];
@@ -92,7 +93,7 @@ function getErrorDisplay(error: unknown): {
     if (error.httpStatus >= 500) {
       return {
         title: `Kesalahan Server (${error.httpStatus})`,
-        message: `${error.message} (Waktu: ${new Date().toLocaleTimeString()})`,
+        message: `${error.message} (Waktu: ${formatTimeWithSeconds(new Date())})`,
         canRetry: true,
         isRetention: false,
       };
@@ -177,7 +178,7 @@ export function DataTable<TData extends RowData>({
           <div className="flex items-center gap-2 font-tabular">
             <Clock className="w-3.5 h-3.5 shrink-0" />
             {dataUpdatedAt && dataUpdatedAt > 0 ? (
-              <span>Diperbarui: {new Date(dataUpdatedAt).toLocaleTimeString()}</span>
+              <span>Diperbarui: {formatTimeWithSeconds(dataUpdatedAt)}</span>
             ) : (
               <span>Memuat data...</span>
             )}

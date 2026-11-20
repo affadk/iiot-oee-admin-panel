@@ -23,7 +23,9 @@ import { MachineStateBadge } from '../../components/industrial/MachineStateBadge
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { LoadErrorBanner } from '../shared/LoadErrorBanner';
+import { TableStateRow } from '../shared/TableStateRow';
 import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
+import { formatTimeWithSeconds } from '../../utils/formatDate';
 
 export const OverviewPage: React.FC = () => {
   const [liveStates, setLiveStates] = useState<LiveStateRecord[]>([]);
@@ -150,7 +152,7 @@ export const OverviewPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-tabular">
             <Clock className="w-3.5 h-3.5" />
-            <span>Diperbarui: {lastUpdated.toLocaleTimeString()}</span>
+            <span>Diperbarui: {formatTimeWithSeconds(lastUpdated)}</span>
           </div>
           <Button size="sm" variant="secondary" onClick={loadData} isLoading={isLoading}>
             <RefreshCw className="w-3.5 h-3.5" />
@@ -227,6 +229,15 @@ export const OverviewPage: React.FC = () => {
             </Link>
           </div>
 
+          {/* E31.10 (FAT-273) BYPASS: tabel ringkasan live-state ini TIDAK
+              dimigrasi ke DataTable. Tabel berada di dalam kartu seksi
+              dashboard yang sudah punya header sendiri (judul + link "Buka
+              Monitor Detail"); DataTable membawa kartu sendiri (border +
+              rounded) sehingga migrasi akan menumpuk dua kartu. Loading
+              skeleton kustom (3 baris pulse + sr-only) juga terikat pada
+              kartu seksi ini. Isi tabel sendiri sebenarnya didukung
+              ColumnDef — bila DataTable kelak mendukung mode tanpa-kartu,
+              migrasi ini bisa dilakukan. */}
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -251,16 +262,13 @@ export const OverviewPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : liveStates.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 px-4 text-center">
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                        Belum ada data live-state
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Tidak ada mesin yang melaporkan status saat ini.
-                      </p>
-                    </td>
-                  </tr>
+                  <TableStateRow
+                    isLoading={false}
+                    isError={false}
+                    colSpan={5}
+                    emptyTitle="Belum ada data live-state"
+                    emptyDescription="Tidak ada mesin yang melaporkan status saat ini."
+                  />
                 ) : (
                   liveStates.map((st) => (
                   <tr key={st.device_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -435,7 +443,7 @@ export const OverviewPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-tabular text-slate-400 shrink-0">
                   <span>{ev.acknowledged ? 'Ack' : 'Pending Ack'}</span>
-                  <span>{ev.recorded_at ? new Date(ev.recorded_at).toLocaleTimeString() : '—'}</span>
+                  <span>{ev.recorded_at ? formatTimeWithSeconds(ev.recorded_at) : '—'}</span>
                 </div>
               </div>
             );

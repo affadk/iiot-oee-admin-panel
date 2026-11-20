@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AuthMeResponse, LoginResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
 import { resolveAuthTtlFallbackSec } from '../services/api/mode';
+import { useSessionRestore, type SessionUser } from './authSessionRestore';
 import {
   CapabilityKey,
   CapabilityState,
@@ -18,6 +19,8 @@ interface AuthContextType {
     line_id?: string;
   };
   isAuthenticated: boolean;
+  /** FAT-280 Opsi B: true selama silent restore dari sessionStorage berjalan. */
+  isRestoringSession: boolean;
   sessionTtlRemaining: number;
   sessionExpiredReason: string | null;
   clearSessionExpiredReason: () => void;
@@ -74,6 +77,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [, setDenialRevision] = useState<number>(0);
 
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+
+  // Terapkan sesi yang sudah terautentikasi (dipakai login + silent restore).
+  const applySession = useCallback((user: SessionUser, ttl: number, mustChange: boolean) => {
+    setCurrentUser(user);
+    setMustChangePassword(mustChange);
+    setSessionTtlTotal(ttl);
+    setSessionTtlRemaining(ttl);
+    setIsAuthenticated(true);
+  }, []);
+
+  const isRestoringSession = useSessionRestore(applySession);
 
   // Re-render consumers whenever dynamic 403 denials change
   useEffect(() => {
@@ -160,18 +174,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     capabilityDenialStore.clearAll();
     const res = await apiClient.login(operator_id, password);
     setSessionExpiredReason(null);
-    setCurrentUser({
-      operator_id: res.operator.id,
-      name: res.operator.username,
-      role: res.operator.role,
-      line_id: res.operator.line_id,
-    });
-    setIsAuthenticated(true);
     const ttl = res.expires_in || DEFAULT_FALLBACK_TTL;
-    setSessionTtlTotal(ttl);
-    setSessionTtlRemaining(ttl);
     // Spec 043: flag gerbang dari respons login 200 (operator.must_change_password).
-    setMustChangePassword(res.operator.must_change_password === true);
+    applySession(
+      { operator_id: res.operator.id, name: res.operator.username, role: res.operator.role, line_id: res.operator.line_id },
+      ttl,
+      res.operator.must_change_password === true,
+    );
     try {
       const me = await apiClient.getAuthMe();
       setAuthMe(me);
@@ -183,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignored if auth/me unavailable immediately
     }
     return res;
-  }, []);
+  }, [applySession]);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const result = await apiClient.changePassword(currentPassword, newPassword);
@@ -250,6 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         currentUser,
         isAuthenticated,
+        isRestoringSession,
         sessionTtlRemaining,
         sessionExpiredReason,
         clearSessionExpiredReason,

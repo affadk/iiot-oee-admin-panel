@@ -5,6 +5,7 @@ import { isProtectedOperator, validateOperatorInput } from '../../../utils/capab
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { UpdateOperatorInput } from '../hooks/useOperatorCrud';
 
 export interface OperatorEditModalProps {
@@ -96,26 +97,16 @@ export const OperatorEditModal: React.FC<OperatorEditModalProps> = ({ operator, 
           required
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="edit-operator-role" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Peran Sistem (Primary Role)
-            </label>
-            <select
-              id="edit-operator-role"
-              value={editRole}
-              disabled={Boolean(operator && isProtectedOperator(operator))}
-              onChange={(e) => setEditRole(e.target.value as UserRole)}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 disabled:opacity-60"
-            >
-              {Array.from(
+          <Select
+            id="edit-operator-role"
+            label="Peran Sistem (Primary Role)"
+            value={editRole}
+            onChange={(e) => setEditRole(e.target.value as UserRole)}
+            disabled={Boolean(operator && isProtectedOperator(operator))}
+            options={Array.from(
                 new Set(['UNASSIGNED', ...assignableRoles, operator?.role].filter(Boolean) as UserRole[]),
-              ).map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+              ).map((r) => ({ value: r, label: r }))}
+          />
           <Input
             label="Line ID"
             value={editLineId}

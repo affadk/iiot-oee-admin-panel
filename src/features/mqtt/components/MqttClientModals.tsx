@@ -3,6 +3,7 @@ import type { MqttClient, MqttRole } from '../../../types/mqtt';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 
 interface RotatePasswordModalProps {
   client: MqttClient | null;
@@ -99,17 +100,13 @@ export const AttachRoleModal: React.FC<AttachRoleModalProps> = ({ client, roles,
           void submit();
         }}
       >
-        <select
+        <Select
+          wrapperClassName="shrink-0"
           value={attachRoleName}
           onChange={(e) => setAttachRoleName(e.target.value)}
-          className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
-        >
-          {roles.map((r) => (
-            <option key={r.rolename} value={r.rolename}>
-              {r.rolename}
-            </option>
-          ))}
-        </select>
+          className="w-full"
+          options={roles.map((r) => ({ value: r.rolename, label: r.rolename }))}
+        />
       </form>
     </Modal>
   );

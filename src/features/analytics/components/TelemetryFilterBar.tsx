@@ -1,6 +1,8 @@
 import React from 'react';
 import { HistoryFilters } from '../../../types/historical';
 import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
+import { FilterBar } from '../../../components/industrial/FilterBar';
 import { AggBucket } from '../hooks/useTelemetryQueries';
 
 export interface TelemetryFilterBarProps {
@@ -42,25 +44,14 @@ export const TelemetryFilterBar: React.FC<TelemetryFilterBarProps> = ({
     )}
 
     {/* Selectors */}
-    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div>
-        <label htmlFor="tel-device-select" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-          Edge Device (Aktif / Historis)
-        </label>
-        <select
-          id="tel-device-select"
-          value={selectedDevice}
-          onChange={(e) => onFilterChange({ deviceId: e.target.value })}
-          className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          {deviceOptions.map((d) => (
-            <option key={d.device_id} value={d.device_id}>
-              {d.device_id} {d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}
-            </option>
-          ))}
-          <option value="STM32-OEE-90-DEL">STM32-OEE-90-DEL — [dihapus] (Histori)</option>
-        </select>
-      </div>
+    <FilterBar layout="grid" columns={4}>
+      <Select
+        id="tel-device-select"
+        label="Edge Device (Aktif / Historis)"
+        value={selectedDevice}
+        onChange={(e) => onFilterChange({ deviceId: e.target.value })}
+        options={[...deviceOptions.map((d) => ({ value: d.device_id, label: `${d.device_id} ${d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}` })), { value: 'STM32-OEE-90-DEL', label: 'STM32-OEE-90-DEL — [dihapus] (Histori)' }]}
+      />
 
       <div>
         <label htmlFor="tel-custom-device" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
@@ -89,44 +80,25 @@ export const TelemetryFilterBar: React.FC<TelemetryFilterBarProps> = ({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="tel-buffered-select" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-          Sumber Data Rekaman
-        </label>
-        <select
-          id="tel-buffered-select"
-          value={isBuffered === undefined ? 'ALL' : isBuffered ? 'true' : 'false'}
-          onChange={(e) =>
+      <Select
+        id="tel-buffered-select"
+        label="Sumber Data Rekaman"
+        value={isBuffered === undefined ? 'ALL' : isBuffered ? 'true' : 'false'}
+        onChange={(e) =>
             onFilterChange({
               isBuffered:
                 e.target.value === 'ALL' ? undefined : e.target.value === 'true',
-            })
-          }
-          className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="ALL">Semua (Langsung &amp; Buffer SD)</option>
-          <option value="false">Hanya Pengiriman Langsung</option>
-          <option value="true">Hanya Data Susulan (Buffered)</option>
-        </select>
-      </div>
+            })}
+        options={[{ value: 'ALL', label: 'Semua (Langsung & Buffer SD)' }, { value: 'false', label: 'Hanya Pengiriman Langsung' }, { value: 'true', label: 'Hanya Data Susulan (Buffered)' }]}
+      />
 
-      <div>
-        <label htmlFor="tel-bucket-select" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-          Interval Downsampling
-        </label>
-        <select
-          id="tel-bucket-select"
-          value={aggBucket}
-          onChange={(e) => onFilterChange({ bucket: e.target.value as AggBucket })}
-          className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-        >
-          <option value="1m">1 Menit (1m)</option>
-          <option value="5m">5 Menit (5m)</option>
-          <option value="15m">15 Menit (15m)</option>
-          <option value="1h">1 Jam (1h)</option>
-          <option value="1d">1 Hari (1d)</option>
-        </select>
-      </div>
-    </div>
+      <Select
+        id="tel-bucket-select"
+        label="Interval Downsampling"
+        value={aggBucket}
+        onChange={(e) => onFilterChange({ bucket: e.target.value as AggBucket })}
+        options={[{ value: '1m', label: '1 Menit (1m)' }, { value: '5m', label: '5 Menit (5m)' }, { value: '15m', label: '15 Menit (15m)' }, { value: '1h', label: '1 Jam (1h)' }, { value: '1d', label: '1 Hari (1d)' }]}
+      />
+    </FilterBar>
   </>
 );
