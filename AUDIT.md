@@ -3971,3 +3971,77 @@ akibat pemindahan 3 entri seed — diterima, bukan FAIL. Verifikasi live
 
 Dokumen: `AUDIT.md` §52 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v41.
+
+## 53. E33 — Verifikasi visual live P33.1–P33.3 (FAT-291–293) — SEMUA LOLOS
+
+Verifikasi visual live 2026-11-21 09:55–10:01 WIB (ADM-001, deploy 690ff55,
+Push #18). Tidak ada data diubah (tidak ada ack, tidak ada submit; filter
+sementara direset).
+
+**P33.1 (FAT-291) — LOLOS semua:** subjudul baru tampil persis
+("System Audit — alias feed operasional (ADMIN + LAN)..."); kolom
+Acknowledgment TIDAK ada (kolom: Timestamp, Event & Perangkat, Trigger &
+WO, Detail); tautan "Lihat Operational Events" → /admin/audit berfungsi.
+Tidak ada cacat visual di halaman ini.
+
+**P33.2 (FAT-292) — LOLOS semua:** subjudul baru tampil persis (tanpa
+kata "audit"); tautan "Lihat Audit Trail →" berfungsi; badge "Belum Ack"
+(amber) tampil. **Badge "Clear — belum di-ack" (netral) TERBUKTI tampil:**
+pasangan OFFLINE 20 Nov 16.53 → ONLINE 16.54 (STM32-OEE-SIM, halaman 3,
+tampilan TANPA filter) menampilkan badge Clear; pasangan lain di halaman
+yang sama juga Clear (OFFLINE 16.08 → ONLINE 16.52/16.53/16.54; OFFLINE
+14.21 → ONLINE 14.42). Kontrol: OFFLINE 17.21 tetap "Belum Ack" karena
+ONLINE lebih barunya ada di halaman 1 — konsisten dengan aturan strict
+"ONLINE lebih baru" + derivasi best-effort dalam halaman yang dimuat.
+
+**Catatan penting (bukan bug, sudah didokumentasikan):** pada putaran
+pertama, tampilan TERFILTER (Event Type = DEVICE_OFFLINE saja) menunjukkan
+semua OFFLINE sebagai "Belum Ack" — wajar, karena filter server-side
+menghilangkan event ONLINE dari daftar yang dimuat, jadi derivasi tidak
+punya pasangan. State rtn-unacknowledged yang eksak lintas halaman/filter
+butuh backend B33.4 (FAT-298).
+
+**P33.3 (FAT-293):** verifikasi visual live TIDAK BERLAKU — deploy live
+berjalan mode Real, sedangkan P33.3 mengubah store demo (tidak ada
+permukaan demo di live). Bukti: tsc 0, tes 556/556 (termasuk tes dedup
+bind/unbind), build OK, checker 0 FAIL.
+
+**Cacat visual baru (di luar E33, belum diperbaiki):** di satu-satunya
+baris yang sudah di-ack (SECURITY_REJECTION 19 Nov 16.20), catatan ack
+miring menumpuk dengan isi JSON panjang di kolom Pesan — kolom Pesan
+menampilkan JSON mentah tanpa pembungkusan kata (`break-words`), jadi teks
+panjang tanpa spasi meluber ke kolom Acknowledgment. Perbaikan: tambah
+`break-words` (dan pertimbangkan pemotongan) pada sel Pesan di
+`useOperationalEventColumns.tsx` — menunggu perintah Fathur.
+
+**Status tiket:** FAT-291/292/293 → Done (komentar bukti di Linear).
+Sisa E33: P33.4 (FAT-294, Todo — tunggu backend B33.1/B33.2) + backend
+FAT-295–298 + D33.1 FAT-299.
+
+Dokumen: `AUDIT.md` §53 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v42.
+
+## 54. Perbaikan overlap kolom Pesan — Operational Events (follow-up verifikasi E33)
+
+Temuan verifikasi visual live 2026-11-21 (§53): di baris yang sudah
+di-ack, catatan ack miring menumpuk dengan isi JSON panjang di kolom
+Pesan — kolom Pesan menampilkan JSON mentah tanpa pembungkusan kata, jadi
+teks panjang tanpa spasi meluber ke kolom Acknowledgment.
+
+**Perbaikan (satu baris, CSS saja):** `break-words` pada sel Pesan di
+`src/features/monitoring/hooks/useOperationalEventColumns.tsx` — JSON
+panjang kini membungkus dalam lebar kolom (`max-w-md`), tidak lagi
+meluber. Tidak ada perubahan data, logika, atau kolom lain.
+
+**Verifikasi pusat:** tsc 0, tes 556/556, build OK, checker 0 FAIL /
+33 WARN, 412 file. Verifikasi visual live menyusul setelah deploy.
+
+**Catatan arah (pengingat Fathur 2026-11-21 10:05 WIB):** target
+pengembangan tetap **Opsi 3 — Arsitektur (jangka panjang, sesuai
+industri)**. Yang Done baru irisan panel (P33.1–P33.3); epic E33
+(FAT-290) tetap terbuka sampai arsitektur 3 store utuh: P33.4 (FAT-294,
+panel konsumsi kontrak baru — tunggu backend B33.1/B33.2) + backend
+B33.1–B33.4 (FAT-295–298) + D33.1 ADR (FAT-299). Perbaikan kecil ini
+tidak mengubah arah itu.
+
+Dokumen: `AUDIT.md` §54 (file ini).

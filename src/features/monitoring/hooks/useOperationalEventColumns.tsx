@@ -59,7 +59,7 @@ export function useOperationalEventColumns(
           id: 'message',
           header: 'Pesan',
           cell: ({ row }) => (
-            <span className="text-xs text-slate-700 dark:text-slate-300 block max-w-md">
+            <span className="text-xs text-slate-700 dark:text-slate-300 block max-w-md break-words">
               {row.original.description}
             </span>
           ),
