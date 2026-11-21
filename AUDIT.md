@@ -4168,3 +4168,37 @@ Urutan disarankan: §5 dulu (cacat live) → §1 → §2 → §3 → §4.
 
 Dokumen: `AUDIT.md` §57 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v45.
+
+## 58. E33 — P33.8: filter Event Type per halaman mengikuti keluarga Opsi 3 (FAT-304)
+
+Temuan Fathur 2026-11-21 10:44 WIB setelah P33.5–P33.7 Done: filter
+"Event Type" masih menampilkan daftar yang SAMA PERSIS di halaman Alarm
+& Event dan di halaman Audit Trail — keduanya memakai daftar penuh 32
+nilai `OPERATIONAL_EVENT_TYPES`. Padahal tiap halaman adalah satu store
+(Opsi 3) dan analisis halaman sudah menuliskan arahnya (filter
+event_type di halaman Audit hanya menampilkan keluarga sistem).
+
+Perbaikan (panel saja, tanpa backend — pemetaan statis dari enum):
+- Baru `eventCategory.ts` + `eventCategory.test.ts` (5 tes): pemetaan
+  tiap `event_type` ke `'operational' | 'system'`, SAMA PERSIS dengan
+  tabel §1 `docs/BACKEND_REQUIREMENTS_E33_PAGES.md` — operasional 14
+  eksplisit + pola `DEVICE_EVENT_<n>`; sistem 18 eksplisit (termasuk
+  `OPERATIONAL_EVENT_ACKNOWLEDGED` + `SECURITY_REJECTION`) + pola
+  `COMMAND_*_DISPATCHED` + `MQTT_ADMIN_*`. Nilai tak dikenal jatuh ke
+  `system` (lebih aman tampil di arsip audit).
+- Alarm & Event: dropdown Event Type hanya menawarkan keluarga
+  operasional (14 nilai + 'Semua').
+- Audit Trail: dropdown Event Type hanya menawarkan keluarga sistem
+  (18 nilai + 'Semua').
+- Opsi 'Semua' tetap ada di kedua halaman — feed hari ini masih
+  tercampur sampai B33.1 live; dropdown hanya membatasi pilihan filter,
+  bukan isi daftar. Halaman History gabungan tidak diubah (bukan salah
+  satu dari 3 store); pemisahan data server-side tetap tugas backend
+  B33.1 (FAT-295).
+
+**Verifikasi pusat:** tsc 0, tes 580/580 (575 + 5 baru), build OK,
+checker 0 FAIL / 35 WARN, 422 file. Verifikasi visual live menyusul
+setelah push.
+
+Dokumen: `AUDIT.md` §58 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v46.

@@ -3,7 +3,7 @@ import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
 import { Download, ExternalLink, History, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AuditLogItem } from '../../types/system';
-import { OPERATIONAL_EVENT_TYPES } from '../../types/monitoring';
+import { eventTypeOptionsForCategory } from '../monitoring/eventCategory';
 import { useCapability } from '../../context/AuthContext';
 import { apiClient } from '../../services/api/client';
 import { Button } from '../../components/ui/Button';
@@ -277,7 +277,11 @@ export const AuditTrailPage: React.FC = () => {
               setCursorStack([undefined]);
               updateFilters({ eventType: e.target.value === 'ALL' ? undefined : e.target.value });
             }}
-          options={[{ value: 'ALL', label: 'Semua Event Type' }, ...OPERATIONAL_EVENT_TYPES.map((t) => ({ value: t, label: t }))]}
+          // FAT-304 (P33.8): dropdown Event Type halaman Audit Trail hanya
+          // menawarkan keluarga SISTEM (18 nilai) — tipe operasional ada di
+          // halaman Alarm & Event. Daftarnya sama dengan tabel §1
+          // docs/BACKEND_REQUIREMENTS_E33_PAGES.md.
+          options={[{ value: 'ALL', label: 'Semua Event Type' }, ...eventTypeOptionsForCategory('system').map((t) => ({ value: t, label: t }))]}
         />
         <Select
           id="audit-machine"

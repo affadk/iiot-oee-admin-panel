@@ -1,9 +1,10 @@
 import React from 'react';
-import { OPERATIONAL_EVENT_TYPES, OperationalEvent } from '../../../types/monitoring';
+import { OperationalEvent } from '../../../types/monitoring';
 import { HistoryFilters } from '../../../types/historical';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
 import { FilterBar } from '../../../components/industrial/FilterBar';
+import { eventTypeOptionsForCategory } from '../eventCategory';
 import {
   EVENT_STATE_FILTER_LABELS,
   stateFilterOptionsForView,
@@ -15,13 +16,15 @@ import {
 // (API doc §I). Nilai tebakan lama (ALARM, STATE_CHANGE, COMMAND_EXECUTED,
 // DISCONNECT, HEARTBEAT_TIMEOUT, MQTT_ADMIN_ACTION, IAM_POLICY_CHANGED)
 // dihapus. Keluarga pola (COMMAND_<cmd>_DISPATCHED, MQTT_ADMIN_<op>,
-// DEVICE_EVENT_<n>) tidak dienumerasi di dropdown — difilter lewat
-// event_type bebas bila perlu. Filter `severity` dihapus (tidak didukung
-// dokumen); filter mesin dihapus — `machine_id` hanya untuk /system/audit
-// (D-12), bukan endpoint global ini.
+// FAT-304 (P33.8): dropdown Event Type halaman Alarm & Event hanya
+// menawarkan keluarga OPERASIONAL (14 nilai) — tipe sistem/admin ada di
+// halaman Audit Trail. Pola (COMMAND_*, MQTT_ADMIN_*, DEVICE_EVENT_<n>)
+// tidak dienumerasi di dropdown — difilter lewat event_type bebas bila perlu.
+// Filter `severity` dihapus (tidak didukung dokumen); filter mesin dihapus
+// — `machine_id` hanya untuk /system/audit (D-12), bukan endpoint global ini.
 const EVENT_TYPE_OPTIONS: Array<'ALL' | OperationalEvent['event_type']> = [
   'ALL',
-  ...OPERATIONAL_EVENT_TYPES,
+  ...eventTypeOptionsForCategory('operational'),
 ];
 
 export interface DeviceOption {

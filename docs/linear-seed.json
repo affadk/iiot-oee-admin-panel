@@ -1829,14 +1829,14 @@
   "note": "E9/E10 + anak dibuat 2026-11-16 ~14:20 WIB (FAT-33 s.d. FAT-42). Milestone tidak diterapkan (tidak ada tool milestone di konektor Linear)."
  },
  "verified": {
-  "total": 303,
+  "total": 304,
   "done": 265,
   "todo": 31,
   "inProgress": 1,
-  "inReview": 4,
+  "inReview": 5,
   "canceled": 1,
   "parents": 37,
-  "children": 260
+  "children": 261
  },
  "mapping": {
   "E33": "FAT-290",
