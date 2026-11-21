@@ -3897,3 +3897,77 @@ ini.
 
 Dokumen: `AUDIT.md` §50 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v39.
+
+## 51. E33 — Pisahkan Audit Trail dari Operational Events (Opsi 3, arsitektur 3 store)
+
+Keputusan Fathur 2026-11-21: Opsi 3 dari analisis
+`~/workspace/audit-vs-operational-events-analysis.md` (audit vs
+operational events: satu tipe `AuditLogItem = OperationalEvent`, satu
+enum 32 nilai, `/system/audit` = alias feed operasional, kolom ack
+memutasi baris audit, demo dua store vs live satu tabel).
+
+**Tiket (Linear, dibuat 2026-11-21, semua Todo):** epic E33 FAT-290 +
+P33.1 FAT-291, P33.2 FAT-292, P33.3 FAT-293, P33.4 FAT-294 (panel);
+B33.1 FAT-295, B33.2 FAT-296, B33.3 FAT-297, B33.4 FAT-298 (backend,
+agen lain); D33.1 FAT-299 (ADR + kriteria selesai). P33.4 bergantung
+pada B33.1/B33.2. R-18/R-19 (terbuka sejak 18 Nov) dijawab di B33.1.
+
+**Target (ISA-18.2 + 21 CFR Part 11 §11.10(e)):** (1) Alarm & Event
+journal stateful + ack + rtn-unacknowledged; (2) Audit trail
+append-only who/what/when/why + old→new, tanpa jalur update/delete;
+(3) IAM audit sudah terpisah — biarkan.
+
+**Verifikasi hitungan Linear 2026-11-21** (list 232 + 57 get_issue
+susulan — list_issues melewatkan FAT-7, FAT-27–31, FAT-71–121): total
+289 = 258 Done / 21 Todo / 1 In Progress (hanya FAT-28) / 8 In Review /
+1 Canceled. Koreksi: FAT-34 (E10) + FAT-40 ternyata sudah Done.
+Pasca-E33: total 299 (258 Done / 31 Todo / 1 In Progress / 8 In Review /
+1 Canceled). Seed v40.
+
+Dokumen: `AUDIT.md` §51 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v40.
+
+## 52. E33 — Implementasi panel P33.1–P33.3 (FAT-291–293)
+
+Perintah Fathur 2026-11-21 07:50 WIB: mulai kerjakan bagian admin-panel
+E33. P33.4 (FAT-294) TIDAK dikerjakan — menunggu backend B33.1/B33.2 live.
+
+**P33.1 (FAT-291) — AuditTrailPage arsip murni** (1 file):
+`AuditTrailPage.tsx` 327→315. Kolom Acknowledgment DIHAPUS (keputusan
+parent, dicatat di komentar tiket: ack sudah tercatat sebagai entri
+`OPERATIONAL_EVENT_ACKNOWLEDGED` di feed yang sama; state ack yang bisa
+berubah di halaman arsip bertentangan dengan append-only). Subjudul jujur:
+"System Audit — alias feed operasional (ADMIN + LAN)... Audit trail
+terpisah sedang dibangun (E33)." Tautan silang "Lihat Operational Events"
+→ /admin/audit. Export/filter/pagination/gerbang tidak berubah. Bonus
+kecil: sel Timestamp kini pakai `formatDateTime` (dulu `toLocaleString`).
+
+**P33.2 (FAT-292) — OperationalEventsPage daftar kerja + rtn-unacknowledged**
+(4 file): helper baru `eventAckState.ts` + 10 tes (`getEventAckState`:
+acked / active-unack / rtn-unack — rtn-unack hanya untuk `DEVICE_OFFLINE`
+yang sudah diikuti `DEVICE_ONLINE` device sama dengan recorded_at lebih
+baru); kolom Ack: "Belum Ack" (warning) vs "Clear — belum di-ack" (neutral);
+subjudul tanpa kata "audit"; tautan silang ke /admin/system-audit. Derivasi
+best-effort dalam jendela halaman yang dimuat; state server-side eksak
+butuh B33.4 (FAT-298). Catatan: badge lama berbunyi "Pending Ack" —
+diselaraskan jadi "Belum Ack".
+
+**P33.3 (FAT-293) — Demo satu store** (7 file + perbaikan parent):
+`INITIAL_AUDIT_LOGS` (aud-001/002/003) pindah verbatim ke
+`INITIAL_OPERATIONAL_EVENTS`; `store.auditLogs` dihapus; `addAudit()`
+(signature sama, ~20 pemanggil tak berubah) kini unshift ke
+`operationalEvents`; `getSystemAuditPage`/`getAuditLogs`/export demo
+membaca store yang sama; snapshot/restore diperbarui. **Perbaikan parent
+(dedup):** bind/unbind di demo/machines.ts sempat menulis DUA entri
+(addAudit + addOperationalEvent, tipe sama) ke satu store — addAudit di
+kedua situs itu dihapus, tinggal addOperationalEvent (SATU entri per aksi,
+seperti live); addAudit CREATE_MACHINE dipertahankan (satu-satunya catatan
+pembuatan mesin); tes bind +2 → +1.
+
+**Verifikasi pusat:** tsc 0, tes 556/556, build OK, checker 0 FAIL /
+33 WARN, 412 file. WARN baru (+1): `seeds/monitoring.ts` 526/500 (lunak)
+akibat pemindahan 3 entri seed — diterima, bukan FAIL. Verifikasi live
+(cek visual kedua halaman) menyusul.
+
+Dokumen: `AUDIT.md` §52 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v41.

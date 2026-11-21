@@ -5,7 +5,7 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { AuthClientHooks } from './helpers';
-import { INITIAL_MACHINES, INITIAL_DEVICES, INITIAL_DEVICE_HEALTH_OVERRIDES, INITIAL_PRODUCTS, INITIAL_OPERATORS, INITIAL_WORK_ORDERS, INITIAL_LIVE_STATES, INITIAL_DOWNTIME_EVENTS, INITIAL_OPERATIONAL_EVENTS, INITIAL_MQTT_CLIENTS, INITIAL_MQTT_ROLES, INITIAL_MQTT_GROUPS, INITIAL_BROKER_CONFIG, INITIAL_CONFIG_VERSIONS, INITIAL_BROKER_OPERATIONS, INITIAL_BROKER_BACKUPS, INITIAL_SYSTEM_HEALTH, INITIAL_HEALTH_DETAIL, INITIAL_AUDIT_LOGS, INITIAL_IAM_ROLES, INITIAL_IAM_PERMISSIONS, INITIAL_IAM_ASSIGNMENTS, INITIAL_IAM_POLICIES, INITIAL_IAM_AUDIT_DECISIONS, INITIAL_PRODUCTION_LINES, INITIAL_SHIFTS, INITIAL_SHIFT_SCHEDULES } from '../mockData';
+import { INITIAL_MACHINES, INITIAL_DEVICES, INITIAL_DEVICE_HEALTH_OVERRIDES, INITIAL_PRODUCTS, INITIAL_OPERATORS, INITIAL_WORK_ORDERS, INITIAL_LIVE_STATES, INITIAL_DOWNTIME_EVENTS, INITIAL_OPERATIONAL_EVENTS, INITIAL_MQTT_CLIENTS, INITIAL_MQTT_ROLES, INITIAL_MQTT_GROUPS, INITIAL_BROKER_CONFIG, INITIAL_CONFIG_VERSIONS, INITIAL_BROKER_OPERATIONS, INITIAL_BROKER_BACKUPS, INITIAL_SYSTEM_HEALTH, INITIAL_HEALTH_DETAIL, INITIAL_IAM_ROLES, INITIAL_IAM_PERMISSIONS, INITIAL_IAM_ASSIGNMENTS, INITIAL_IAM_POLICIES, INITIAL_IAM_AUDIT_DECISIONS, INITIAL_PRODUCTION_LINES, INITIAL_SHIFTS, INITIAL_SHIFT_SCHEDULES } from '../mockData';
 import { AdminEndpointKey, FORBIDDEN_ENDPOINT_PATTERNS, isValidEndpointPrefix } from '../endpoints';
 import { OperationalEvent } from '../../../types/monitoring';
 import { BrokerConfigSchema, BrokerOperation, BrokerBackup } from '../../../types/mqtt';
@@ -83,7 +83,6 @@ class MemoryStore {
   brokerBackups: BrokerBackup[] = [...INITIAL_BROKER_BACKUPS];
   systemHealth = { ...INITIAL_SYSTEM_HEALTH };
   healthDetail = JSON.parse(JSON.stringify(INITIAL_HEALTH_DETAIL)) as typeof INITIAL_HEALTH_DETAIL;
-  auditLogs = [...INITIAL_AUDIT_LOGS];
 
   iamInfo: IamInfo = {
     mode: 'enforce',
@@ -167,6 +166,10 @@ class MemoryStore {
    * demi kompatibilitas, tapi TIDAK disimpan (tidak ada di FR-034-01).
    * Catatan: mutasi IAM di sini hanya jejak demo — feed kanonisnya adalah
    * `/access-control/audit`, bukan `/system/audit` (O12).
+   *
+   * P33.3 (FAT-293): satu sumber seperti live — entri audit demo kini
+   * ditulis ke `operationalEvents` (dulu `auditLogs` terpisah, dihapus);
+   * `/system/audit` dan `/operational-events` membaca store yang sama.
    */
   addAudit(
     action: string,
@@ -178,7 +181,7 @@ class MemoryStore {
     void resource_type;
     void resource_id;
     const now = new Date().toISOString();
-    this.auditLogs.unshift({
+    this.operationalEvents.unshift({
       id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       recorded_at: now,
       device_id: extras?.device_id ?? null,
@@ -262,7 +265,6 @@ class MemoryStore {
         workOrders: this.workOrders.map((w) => ({ ...w })),
         downtimes: this.downtimes.map((dt) => ({ ...dt })),
         operationalEvents: this.operationalEvents.map((ev) => ({ ...ev })),
-        auditLogs: this.auditLogs.map((al) => ({ ...al })),
       };
       try {
         return fn();
@@ -274,7 +276,6 @@ class MemoryStore {
         this.workOrders = snapshot.workOrders;
         this.downtimes = snapshot.downtimes;
         this.operationalEvents = snapshot.operationalEvents;
-        this.auditLogs = snapshot.auditLogs;
         throw err;
       }
     });

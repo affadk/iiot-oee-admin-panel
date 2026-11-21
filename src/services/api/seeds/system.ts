@@ -4,7 +4,7 @@
  * Dipisah dari file god-file pada refactoring R9 (kontrak docs/DIRECTORY_STRUCTURE.md).
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
-import { SystemHealth, AuditLogItem, HealthDetail } from '../../../types/system';
+import { SystemHealth, HealthDetail } from '../../../types/system';
 import { IamRole, IamPermission, IamAssignment, IamPolicyRule, IamAuditDecision } from '../../../types/iam';
 
 export const INITIAL_SYSTEM_HEALTH: SystemHealth = {
@@ -68,73 +68,6 @@ export const INITIAL_HEALTH_DETAIL: HealthDetail = {
   },
 };
 
-/**
- * E20 P20.4 (FAT-156): seed audit = `OperationalEventItem` FR-034-01
- * (API doc §I) — tanpa field karangan (`operator_id`, `action`,
- * `resource_type`, `client_ip`, `access_mode`).
- */
-export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
-  {
-    id: 'aud-001',
-    recorded_at: '2026-11-11T08:05:10Z',
-    device_id: 'STM32-OEE-03',
-    station_label: null,
-    machine_id: 'CNC-PRESS-03',
-    machine_name: 'Hydraulic Stamping Press Charlie',
-    wo_id: null,
-    event_type: 'MASTER_DATA_MUTATION',
-    trigger_source: 'ADMIN_PANEL',
-    event_code: null,
-    snapshot_total_count: null,
-    snapshot_run_sec: null,
-    description: 'Classified incident dt-ev-01 as EQUIPMENT_FAILURE with reason: Hydraulic pressure drop',
-    acknowledged: false,
-    acknowledged_at: null,
-    acknowledged_by: null,
-    ack_note: null,
-    created_at: '2026-11-11T08:05:10Z',
-  },
-  {
-    id: 'aud-002',
-    recorded_at: '2026-11-11T07:05:00Z',
-    device_id: 'STM32-OEE-04',
-    station_label: null,
-    machine_id: 'CNC-WELD-04',
-    machine_name: 'Robotic Welding Cell Delta',
-    wo_id: 'WO-2026-097',
-    event_type: 'WORK_ORDER_CANCELLED',
-    trigger_source: 'ADMIN_PANEL',
-    event_code: null,
-    snapshot_total_count: null,
-    snapshot_run_sec: null,
-    description: 'Cancelled Work Order WO-2026-097 prior to servo calibration',
-    acknowledged: true,
-    acknowledged_at: '2026-11-11T07:06:00Z',
-    acknowledged_by: 'ADM-001',
-    ack_note: null,
-    created_at: '2026-11-11T07:05:00Z',
-  },
-  {
-    id: 'aud-003',
-    recorded_at: '2026-11-10T16:40:00Z',
-    device_id: 'STM32-OEE-01',
-    station_label: null,
-    machine_id: 'CNC-MILLING-01',
-    machine_name: 'CNC Milling Center Alpha',
-    wo_id: null,
-    event_type: 'MQTT_ADMIN_CLIENT_CREATED',
-    trigger_source: 'ADMIN_PANEL',
-    event_code: null,
-    snapshot_total_count: null,
-    snapshot_run_sec: null,
-    description: 'Created dynamic security credentials with role edge_publisher',
-    acknowledged: false,
-    acknowledged_at: null,
-    acknowledged_by: null,
-    ack_note: null,
-    created_at: '2026-11-10T16:40:00Z',
-  },
-];
 
 export const INITIAL_IAM_ROLES: IamRole[] = [
   {

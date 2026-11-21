@@ -212,7 +212,7 @@ test('Test B — Role Permission Management: fixed catalog, duplicate/reserved/w
 
     // 5. Revoke permission & verify audit log
     await apiClient.removeIamRolePermission(role.id, 'perm-22');
-    const latestAudit = store.auditLogs[0];
+    const latestAudit = store.operationalEvents[0];
     assert.equal(latestAudit.event_type, 'MASTER_DATA_MUTATION');
     assert.match(latestAudit.description, /perm-22/);
     assert.equal(store.iamPolicies.some((p) => p.roleId === role.id && p.permissionId === 'perm-22'), false);

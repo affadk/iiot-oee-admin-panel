@@ -155,7 +155,7 @@ test('Operational Event acknowledgement logs optional operator note in audit tra
 
   const updated = await apiClient.acknowledgeOperationalEvent(target.id, 'Checked coolant pump pressure');
   assert.equal(updated.acknowledged, true);
-  assert.match(store.auditLogs[0].description, /Checked coolant pump pressure/);
+  assert.match(store.operationalEvents[0].description, /Checked coolant pump pressure/);
 
   apiClient.setUserRole('ADMIN');
 });

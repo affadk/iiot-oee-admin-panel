@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
-import { Download, History, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Download, ExternalLink, History, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { AuditLogItem } from '../../types/system';
 import { OPERATIONAL_EVENT_TYPES } from '../../types/monitoring';
 import { useCapability } from '../../context/AuthContext';
 import { apiClient } from '../../services/api/client';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
@@ -111,30 +111,6 @@ export const AuditTrailPage: React.FC = () => {
         },
       },
       {
-        id: 'ack',
-        header: 'Acknowledgment',
-        cell: ({ row }) => {
-          const item = row.original;
-          return item.acknowledged ? (
-            <div className="space-y-0.5 text-[11px]">
-              <div className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {item.acknowledged_by ?? '—'}
-              </div>
-              {item.acknowledged_at && (
-                <div className="text-slate-400 font-tabular">
-                  {formatDateTime(item.acknowledged_at)}
-                </div>
-              )}
-              {item.ack_note && (
-                <div className="italic text-slate-600 dark:text-slate-300">“{item.ack_note}”</div>
-              )}
-            </div>
-          ) : (
-            <Badge variant="warning">Belum Ack</Badge>
-          );
-        },
-      },
-      {
         id: 'trigger',
         header: 'Trigger & WO',
         cell: ({ row }) => {
@@ -182,12 +158,24 @@ export const AuditTrailPage: React.FC = () => {
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Riwayat Audit Aktivitas Sistem
           </h1>
+          {/* E33 P33.1 (FAT-291): subjudul jujur — /system/audit adalah alias
+              feed operasional; kolom Acknowledgment dihapus (ack tercatat
+              sebagai entri OPERATIONAL_EVENT_ACKNOWLEDGED di feed yang sama). */}
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Catatan permanen mutasi sistem, perubahan data master, pengaturan hak akses, dan keamanan perangkat.
+            System Audit — alias feed operasional (ADMIN + LAN). Isi halaman ini sama dengan
+            Operational Events; hanya gerbang (ADMIN + LAN) dan filter machine_id yang berbeda.
+            Audit trail terpisah sedang dibangun (E33).
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            to="/admin/audit"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+          >
+            <span>Lihat Operational Events</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
           <Button size="sm" variant="secondary" onClick={handleExport} isLoading={isExporting}>
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>

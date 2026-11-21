@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { OperationalEvent } from '../../types/monitoring';
 import { Button } from '../../components/ui/Button';
@@ -61,8 +62,6 @@ export const OperationalEventsPage: React.FC = () => {
     onFilterChange: handleFilterChange,
   });
 
-  const columns = useOperationalEventColumns(setAckTarget);
-
   const { data: masterData } = useMasterAssetsQuery();
   const devices = masterData?.devices ?? [];
 
@@ -78,6 +77,10 @@ export const OperationalEventsPage: React.FC = () => {
 
   const events = eventsQuery.data?.data ?? [];
   const pagination = eventsQuery.data?.pagination;
+
+  // FAT-292 (P33.2): kolom Ack butuh daftar halaman saat ini untuk
+  // derivasi rtn-unacknowledged (eventAckState.ts).
+  const columns = useOperationalEventColumns(setAckTarget, events);
 
   const isGlobalScope = deviceFilter === 'ALL';
 
@@ -108,20 +111,30 @@ export const OperationalEventsPage: React.FC = () => {
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isGlobalScope
-              ? 'Jejak audit operasional seluruh perangkat pabrik beserta fitur ack idempoten dan ekspor.'
+              ? 'Riwayat kejadian operasional seluruh perangkat pabrik beserta fitur ack idempoten dan ekspor.'
               : `Riwayat kejadian operasional khusus perangkat ${deviceFilter}.`}
           </p>
         </div>
 
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => eventsQuery.refetch()}
-          isLoading={eventsQuery.isFetching}
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* FAT-292 (P33.2): tautan silang ke arsip audit — halaman ini
+              adalah daftar kerja, bukan audit. */}
+          <Link
+            to="/admin/system-audit"
+            className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
+          >
+            Lihat Audit Trail →
+          </Link>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => eventsQuery.refetch()}
+            isLoading={eventsQuery.isFetching}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </Button>
+        </div>
       </div>
 
       {!isValid && (
