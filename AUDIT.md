@@ -4202,3 +4202,17 @@ setelah push.
 
 Dokumen: `AUDIT.md` §58 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v46.
+
+**Verifikasi visual live 2026-11-21 10:53–10:54 WIB** (ADM-001, deploy
+`e7dade1`, browser task, tanpa perubahan data): **lolos**.
+Dropdown Alarm & Event tepat 15 opsi (ALL + 14 tipe operasional), tanpa
+satu pun tipe sistem; pilih DEVICE_OFFLINE → 11 baris, semua
+DEVICE_OFFLINE (tab "Perlu Tindakan 11", "Riwayat 11"). Dropdown Audit
+Trail tepat 19 opsi (Semua Event Type + 18 tipe sistem), tanpa satu pun
+tipe operasional; pilih OPERATOR_PROVISIONED → 3 baris, semua catatan
+pembuatan operator. Catatan: opsi "semua" di Alarm berlabel "ALL" (bukan
+"Semua") — kosmetik, sudah begitu sejak sebelum P33.8. Satu kejadian
+transien: navigasi langsung ke /admin/alarms setelah login pertama
+sempat menampilkan "Memulihkan sesi…" lalu kembali ke /login; login
+kedua + navigasi lewat sidebar berjalan normal — bukan cacat halaman,
+dicatat sebagai observasi. FAT-304 → **Done**.

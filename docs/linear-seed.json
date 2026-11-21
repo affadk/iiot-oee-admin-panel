@@ -1830,10 +1830,10 @@
  },
  "verified": {
   "total": 304,
-  "done": 265,
+  "done": 266,
   "todo": 31,
   "inProgress": 1,
-  "inReview": 5,
+  "inReview": 4,
   "canceled": 1,
   "parents": 37,
   "children": 261
