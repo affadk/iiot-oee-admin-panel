@@ -1,23 +1,60 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Menu } from 'lucide-react';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Package,
+  Users,
+  Cpu,
+  Server,
+  Activity,
+  AlertOctagon,
+  Bell,
+  LineChart,
+  PieChart,
+  History,
+  RefreshCw,
+  Radio,
+  KeyRound,
+  Sliders,
+  ShieldCheck,
+  FileText,
+  ScrollText,
+  Info,
+  Factory,
+  Clock,
+  Monitor,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Menu,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { NAV_GROUPS } from './components/sidebarNavGroups';
-import { SidebarFooter } from './components/SidebarFooter';
-import { SidebarNavGroup } from './components/SidebarNavGroup';
+import { CapabilityKey } from '../utils/capabilities';
+
+interface NavItem {
+  name: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  /**
+   * Kunci capability pengatur visibilitas. Opsional: item tanpa capability
+   * selalu tampil (mis. System Health / System Information — kunci
+   * `dashboard.read` karangan DIHAPUS, E20 P20.3).
+   */
+  capability?: CapabilityKey;
+}
+
+interface NavGroup {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+}
 
 interface SidebarProps {
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
 }
 
-/**
- * E32.6 (FAT-287): definisi grup navigasi dipecah ke
- * components/sidebarNavGroups.ts, render grup ke SidebarNavGroup, dan
- * footer ke SidebarFooter. Sidebar tinggal orkestrasi: state
- * collapse/buka-grup + header + tautan Overview + overlay mobile.
- * Perilaku/UI tidak berubah.
- */
 export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseMobile }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -33,6 +70,63 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
   const toggleGroup = (group: string) => {
     setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   };
+
+  const navGroups: NavGroup[] = [
+    {
+      title: 'Production',
+      icon: ClipboardList,
+      items: [
+        { name: 'Work Orders', path: '/work-orders', icon: ClipboardList, capability: 'work_order.read' },
+        { name: 'Downtime Events', path: '/downtime', icon: AlertOctagon, capability: 'downtime.read' },
+        { name: 'Alarm & Event', path: '/admin/alarms', icon: Bell, capability: 'operational_event.read' },
+        { name: 'Live Machine State', path: '/admin/live-state', icon: Activity, capability: 'telemetry.read' },
+      ],
+    },
+    {
+      title: 'Assets',
+      icon: Cpu,
+      items: [
+        { name: 'Edge Devices', path: '/admin/devices', icon: Server, capability: 'device.read' },
+        { name: 'Stations', path: '/admin/stations', icon: Monitor, capability: 'device.read' },
+        { name: 'Machines', path: '/admin/machines', icon: Cpu, capability: 'machine.read' },
+        { name: 'Products', path: '/admin/products', icon: Package, capability: 'product.read' },
+        { name: 'Operators', path: '/admin/operators', icon: Users, capability: 'operator.read' },
+        { name: 'Production Lines', path: '/admin/lines', icon: Factory, capability: 'production_line.read' },
+        { name: 'Shifts', path: '/admin/shifts', icon: Clock, capability: 'shift.read' },
+        { name: 'Shift Schedules', path: '/admin/shift-schedules', icon: CalendarClock, capability: 'shift_schedule.read' },
+      ],
+    },
+    {
+      title: 'Data & Analytics',
+      icon: LineChart,
+      items: [
+        { name: 'Telemetry History', path: '/telemetry', icon: History, capability: 'telemetry.read' },
+        { name: 'OEE & Shift Analytics', path: '/analytics', icon: LineChart, capability: 'oee.read' },
+        { name: 'Quality & Rejects', path: '/admin/quality', icon: PieChart, capability: 'quality.read' },
+        { name: 'Data Reconciliation', path: '/admin/reconciliation', icon: RefreshCw, capability: 'telemetry.read' },
+      ],
+    },
+    {
+      title: 'MQTT & Connectivity',
+      icon: Radio,
+      items: [
+        { name: 'Broker Overview', path: '/admin/mqtt/overview', icon: Radio, capability: 'mqtt.overview.read' },
+        { name: 'Dynamic Security', path: '/admin/mqtt/security', icon: KeyRound, capability: 'mqtt.dynsec.read' },
+        { name: 'Broker Configuration', path: '/admin/mqtt/configuration', icon: Sliders, capability: 'mqtt.config.read' },
+      ],
+    },
+    {
+      title: 'System',
+      icon: ShieldCheck,
+      items: [
+        { name: 'System Health', path: '/admin/system/health', icon: ShieldCheck },
+        { name: 'Hak Akses Pengguna', path: '/admin/access-control', icon: KeyRound, capability: 'access_control.read' },
+        { name: 'Audit Trail', path: '/admin/system-audit', icon: FileText, capability: 'access_control.read' },
+        { name: 'Audit IAM', path: '/admin/iam-audit', icon: ScrollText, capability: 'access_control.read' },
+        { name: 'System Information', path: '/admin/system/info', icon: Info },
+      ],
+    },
+  ];
 
   return (
     <>
@@ -98,22 +192,96 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onCloseM
             {!isCollapsed && <span>Overview Dashboard</span>}
           </NavLink>
 
-          {NAV_GROUPS.map((group, idx) => (
-            <SidebarNavGroup
-              key={group.title}
-              group={group}
-              index={idx}
-              isCollapsed={isCollapsed}
-              isOpen={openGroups[group.title] !== false}
-              onToggleGroup={toggleGroup}
-              onCloseMobile={onCloseMobile}
-              checkCapability={checkCapability}
-            />
-          ))}
+          {navGroups.map((group, idx) => {
+            const isOpen = openGroups[group.title] !== false;
+            // Capability-first navigation gating (Build Guide §4.5 via /auth/me)
+            const visibleItems = group.items.filter((item) => !item.capability || checkCapability(item.capability).canInteract);
+
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={group.title} className="pt-2">
+                {!isCollapsed ? (
+                  <div>
+                    <button
+                      onClick={() => toggleGroup(group.title)}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-200 uppercase tracking-wider rounded transition-colors"
+                    >
+                      <span>{group.title}</span>
+                      {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    </button>
+                    {isOpen && (
+                      <div className="space-y-0.5 mt-0.5 pl-1">
+                        {visibleItems.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <NavLink
+                              key={item.path}
+                              to={item.path}
+                              onClick={onCloseMobile}
+                              className={({ isActive }) =>
+                                `flex items-center gap-2.5 px-3 py-1.5 text-xs rounded transition-colors ${
+                                  isActive
+                                    ? 'bg-sky-600 text-white font-semibold'
+                                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
+                                }`
+                              }
+                            >
+                              <Icon className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{item.name}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {/* FAT-262: saat minimize, judul grup hilang — tanpa
+                        pemisah, ikon-ikon antar grup menyatu. Pertahankan
+                        break line seperti saat expand: garis pemisah antar
+                        grup (kecuali sebelum grup pertama, sama seperti
+                        mode expand yang juga tanpa garis di sana). */}
+                    {idx > 0 && (
+                      <div className="mx-2 my-2 border-t border-slate-800" aria-hidden="true" />
+                    )}
+                    {visibleItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          onClick={onCloseMobile}
+                          className={({ isActive }) =>
+                            `flex items-center justify-center p-2 rounded transition-colors ${
+                              isActive
+                                ? 'bg-sky-600 text-white'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                            }`
+                          }
+                          title={item.name}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {!isCollapsed && (
-          <SidebarFooter role={currentUser.role} operatorId={currentUser.operator_id} />
+          <div className="p-3 border-t border-slate-800 text-[11px] text-slate-400 bg-slate-950/40">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-300">Active Role:</span>
+              <span className="font-mono px-1.5 py-0.5 rounded bg-slate-800 text-sky-400 font-bold">
+                {currentUser.role}
+              </span>
+            </div>
+            <div className="mt-1 truncate text-slate-500">ID: {currentUser.operator_id}</div>
+          </div>
         )}
       </aside>
     </>

@@ -4,6 +4,12 @@ import { HistoryFilters } from '../../../types/historical';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
 import { FilterBar } from '../../../components/industrial/FilterBar';
+import {
+  EVENT_STATE_FILTER_LABELS,
+  stateFilterOptionsForView,
+  type OperationalEventStateFilter,
+  type OperationalEventView,
+} from '../eventView';
 
 // E20 P20.4 (FAT-156): dropdown = 32 nilai eksplisit enum tertutup FR-034-26/27
 // (API doc §I). Nilai tebakan lama (ALARM, STATE_CHANGE, COMMAND_EXECUTED,
@@ -26,22 +32,29 @@ export interface DeviceOption {
 export interface OperationalEventsFiltersProps {
   filters: HistoryFilters;
   deviceOptions: DeviceOption[];
-  ackFilter: 'ALL' | 'UNACK' | 'ACK';
+  // FAT-300 (P33.5): Filter State menggantikan Ack Status — membedakan
+  // 'Aktif belum ack' dari 'Clear belum di-ack' (derivasi client-side,
+  // eventView.ts). Opsi yang ditawarkan bergantung tampilan aktif:
+  // 'Sudah ack' tidak ada di tampilan Perlu Tindakan (server di sana
+  // hanya mengembalikan yang belum di-ack).
+  view: OperationalEventView;
+  stateFilter: OperationalEventStateFilter;
   customDeviceInput: string;
   onCustomDeviceInputChange: (value: string) => void;
   onFilterChange: (patch: Partial<HistoryFilters>) => void;
-  onAckChange: (value: 'ALL' | 'UNACK' | 'ACK') => void;
+  onStateChange: (value: OperationalEventStateFilter) => void;
   onApplyCustomDevice: () => void;
 }
 
 export const OperationalEventsFilters: React.FC<OperationalEventsFiltersProps> = ({
   filters,
   deviceOptions,
-  ackFilter,
+  view,
+  stateFilter,
   customDeviceInput,
   onCustomDeviceInputChange,
   onFilterChange,
-  onAckChange,
+  onStateChange,
   onApplyCustomDevice,
 }) => {
   const deviceFilter = filters.deviceId || 'ALL';
@@ -73,11 +86,14 @@ export const OperationalEventsFilters: React.FC<OperationalEventsFiltersProps> =
         />
 
         <Select
-          id="opev-ack-filter"
-          label="Ack Status"
-          value={ackFilter}
-          onChange={(e) => onAckChange(e.target.value as 'ALL' | 'UNACK' | 'ACK')}
-          options={[{ value: 'ALL', label: 'Semua' }, { value: 'UNACK', label: 'Belum Ack' }, { value: 'ACK', label: 'Sudah Ack' }]}
+          id="opev-state-filter"
+          label="State"
+          value={stateFilter}
+          onChange={(e) => onStateChange(e.target.value as OperationalEventStateFilter)}
+          options={stateFilterOptionsForView(view).map((s) => ({
+            value: s,
+            label: EVENT_STATE_FILTER_LABELS[s],
+          }))}
         />
       </div>
 

@@ -27,6 +27,7 @@ import { SystemHealthPage } from '../features/system/SystemHealthPage';
 import { AuditTrailPage } from '../features/system/AuditTrailPage';
 import { SystemInfoPage } from '../features/system/SystemInfoPage';
 import { AccessControlPage } from '../features/system/AccessControlPage';
+import { IamAuditPage } from '../features/system/IamAuditPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -47,8 +48,10 @@ export const AppRouter: React.FC = () => {
           <Route path="/telemetry" element={<TelemetryHistoryPage />} />
           <Route path="/analytics" element={<OeeAnalyticsPage />} />
           <Route path="/downtime" element={<DowntimeEventsPage />} />
-          <Route path="/audit" element={<OperationalEventsPage />} />
-          <Route path="/system-audit" element={<AuditTrailPage />} />
+          {/* P33.7 (FAT-302): rute lama dialihkan ke kanonik /admin/alarms
+              dan /admin/system-audit — satu rute kanonik per halaman. */}
+          <Route path="/audit" element={<Navigate to="/admin/alarms" replace />} />
+          <Route path="/system-audit" element={<Navigate to="/admin/system-audit" replace />} />
         </Route>
 
         {/* Admin Console (Spec §3.1) */}
@@ -58,7 +61,10 @@ export const AppRouter: React.FC = () => {
           {/* Canonical Spec §3.1 Routes */}
           <Route path="work-orders" element={<WorkOrdersPage />} />
           <Route path="downtime" element={<DowntimeEventsPage />} />
-          <Route path="audit" element={<OperationalEventsPage />} />
+          {/* P33.7 (FAT-302): /admin/alarms adalah rute kanonik Alarm &
+              Event; /admin/audit lama dialihkan ke sana. */}
+          <Route path="alarms" element={<OperationalEventsPage />} />
+          <Route path="audit" element={<Navigate to="/admin/alarms" replace />} />
           <Route path="devices" element={<DevicesPage />} />
           <Route path="stations" element={<StationsPage />} />
           <Route path="machines" element={<MachinesPage />} />
@@ -84,8 +90,9 @@ export const AppRouter: React.FC = () => {
 
           {/* System */}
           <Route path="system-audit" element={<AuditTrailPage />} />
+          <Route path="iam-audit" element={<IamAuditPage />} />
           <Route path="system/health" element={<SystemHealthPage />} />
-          <Route path="system/audit" element={<AuditTrailPage />} />
+          <Route path="system/audit" element={<Navigate to="/admin/system-audit" replace />} />
           <Route path="system/info" element={<SystemInfoPage />} />
           <Route path="system/access-control" element={<AccessControlPage />} />
 
@@ -98,13 +105,13 @@ export const AppRouter: React.FC = () => {
           <Route path="assets/stations" element={<StationsPage />} />
           <Route path="monitoring/live-state" element={<LiveStatePage />} />
           <Route path="monitoring/downtime" element={<DowntimeEventsPage />} />
-          <Route path="monitoring/events" element={<OperationalEventsPage />} />
+          <Route path="monitoring/events" element={<Navigate to="/admin/alarms" replace />} />
           <Route path="analytics/oee" element={<OeeAnalyticsPage />} />
           <Route path="analytics/quality" element={<QualityRejectsPage />} />
           <Route path="analytics/telemetry" element={<TelemetryHistoryPage />} />
           <Route path="analytics/reconciliation" element={<DataReconciliationPage />} />
           <Route path="mqtt/config" element={<BrokerConfigManagerPage />} />
-          <Route path="events" element={<OperationalEventsPage />} />
+          <Route path="events" element={<Navigate to="/admin/alarms" replace />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin" replace />} />

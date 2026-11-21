@@ -1,7 +1,7 @@
 import type { IamRole } from '../../types/iam';
 
 /** Satu-satunya tempat definisi tab AccessControl (dulu lokal di page, L44). */
-export type IamTab = 'roles' | 'assignments' | 'policies' | 'permissions' | 'inspector' | 'audit';
+export type IamTab = 'roles' | 'assignments' | 'policies' | 'permissions' | 'inspector';
 
 export interface IamFeedback {
   type: 'success' | 'error';

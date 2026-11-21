@@ -1,6 +1,7 @@
 import { DowntimeEvent, OperationalEvent } from '../../types/monitoring';
 import { HourlyOeePoint, TelemetryHistoryRecord, TelemetryRollupItem } from '../../types/analytics';
 import { ExportFormat, ExportMetadata } from '../../types/historical';
+import type { IamAuditDecision } from '../../types/iam';
 import { mapDowntimeToSixBigLoss } from './sixBigLoss';
 
 /**
@@ -205,6 +206,22 @@ export function formatOperationalEventExportRows(events: OperationalEvent[]): Re
  */
 export function formatSystemAuditExportRows(events: OperationalEvent[]): Record<string, unknown>[] {
   return formatOperationalEventExportRows(events);
+}
+
+/**
+ * P33.6 (FAT-301): kolom CSV ekspor Audit IAM = kolom layar
+ * (timestamp, subject, decision, mode, action, resource, reason).
+ */
+export function formatIamAuditExportRows(decisions: IamAuditDecision[]): Record<string, unknown>[] {
+  return decisions.map((d) => ({
+    timestamp: d.timestamp,
+    subject: d.subject,
+    decision: d.decision,
+    mode: d.mode,
+    action: d.action,
+    resource: d.resource,
+    reason: d.reason ?? '',
+  }));
 }
 
 /**

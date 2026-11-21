@@ -12,13 +12,27 @@ import { useOperationalEvents } from './hooks/useOperationalEvents';
 import { useOperationalEventColumns } from './hooks/useOperationalEventColumns';
 import { OperationalEventsFilters } from './components/OperationalEventsFilters';
 import { OperationalEventAckModal } from './components/OperationalEventAckModal';
+import { OperationalEventViewTabs } from './components/OperationalEventViewTabs';
+import {
+  acknowledgedParamForView,
+  describeTabCounts,
+  filterEventsByState,
+  sortActionView,
+  type OperationalEventStateFilter,
+  type OperationalEventView,
+} from './eventView';
 
 export const OperationalEventsPage: React.FC = () => {
   const { filters, isValid, validationErrors, updateFilters, resetFilters } = useHistoryFilters({
     limit: DEFAULT_HISTORY_PAGE_LIMIT,
   });
 
-  const [ackFilter, setAckFilter] = useState<'ALL' | 'UNACK' | 'ACK'>('ALL');
+  // FAT-300 (P33.5, E33 tahap A analisis halaman Opsi 3 §3): dua tampilan
+  // dalam satu halaman. 'action' ("Perlu Tindakan", default) hanya
+  // menampilkan yang belum di-ack; 'history' ("Riwayat") menampilkan semua
+  // event. Filter State menyaring client-side atas halaman yang dimuat.
+  const [view, setView] = useState<OperationalEventView>('action');
+  const [stateFilter, setStateFilter] = useState<OperationalEventStateFilter>('ALL');
   const [customDeviceInput, setCustomDeviceInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
@@ -30,9 +44,20 @@ export const OperationalEventsPage: React.FC = () => {
     updateFilters(patch);
   };
 
-  const handleAckChange = (value: 'ALL' | 'UNACK' | 'ACK') => {
+  // Pindah tampilan tidak mengganti filter lain (device, tipe, rentang) —
+  // hanya menyaring state ack dan kembali ke halaman 1. 'ACKED' tidak
+  // berlaku di tampilan Perlu Tindakan, jadi kembalikan ke 'ALL'.
+  const handleViewChange = (nextView: OperationalEventView) => {
     setCursorStack([undefined]);
-    setAckFilter(value);
+    if (nextView === 'action' && stateFilter === 'ACKED') {
+      setStateFilter('ALL');
+    }
+    setView(nextView);
+  };
+
+  const handleStateChange = (value: OperationalEventStateFilter) => {
+    setCursorStack([undefined]);
+    setStateFilter(value);
   };
 
   const handleApplyCustomDevice = () => {
@@ -70,7 +95,7 @@ export const OperationalEventsPage: React.FC = () => {
     filters,
     activeCursor,
     {
-      acknowledged: ackFilter === 'ALL' ? undefined : ackFilter === 'ACK',
+      acknowledged: acknowledgedParamForView(view),
     },
     isValid
   );
@@ -78,9 +103,27 @@ export const OperationalEventsPage: React.FC = () => {
   const events = eventsQuery.data?.data ?? [];
   const pagination = eventsQuery.data?.pagination;
 
-  // FAT-292 (P33.2): kolom Ack butuh daftar halaman saat ini untuk
-  // derivasi rtn-unacknowledged (eventAckState.ts).
+  // FAT-300 (P33.5): kolom Ack dan derivasi rtn-unack memakai daftar
+  // halaman PENUH (belum disaring tampilan) — lihat eventView.ts.
   const columns = useOperationalEventColumns(setAckTarget, events);
+
+  // Daftar tampil: saring menurut Filter State (derivasi dari halaman
+  // penuh), lalu urutkan tampilan Perlu Tindakan (aktif dulu, lalu clear).
+  // Tampilan Riwayat memakai urutan server (terbaru dulu).
+  const displayEvents = useMemo(() => {
+    const filtered = filterEventsByState(events, stateFilter);
+    return view === 'action' ? sortActionView(filtered, events) : filtered;
+  }, [events, stateFilter, view]);
+
+  // Jumlah tab dari halaman yang dimuat (batas bawah bila masih ada
+  // halaman berikut — lihat eventView.ts). Belum ada data → tanpa angka.
+  const tabCounts = useMemo(
+    () =>
+      eventsQuery.data
+        ? describeTabCounts(events, cursorStack.length - 1, Boolean(pagination?.has_more))
+        : undefined,
+    [eventsQuery.data, events, cursorStack.length, pagination?.has_more]
+  );
 
   const isGlobalScope = deviceFilter === 'ALL';
 
@@ -107,23 +150,35 @@ export const OperationalEventsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Operational Events &amp; Incident Acknowledgments
+            Alarm &amp; Event
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {isGlobalScope
-              ? 'Riwayat kejadian operasional seluruh perangkat pabrik beserta fitur ack idempoten dan ekspor.'
-              : `Riwayat kejadian operasional khusus perangkat ${deviceFilter}.`}
+            {view === 'action'
+              ? isGlobalScope
+                ? 'Daftar kerja — event yang belum di-ack di seluruh perangkat pabrik; yang masih aktif didahulukan, lalu yang sudah clear.'
+                : `Daftar kerja khusus perangkat ${deviceFilter} — event yang belum di-ack.`
+              : isGlobalScope
+                ? 'Riwayat kejadian operasional seluruh perangkat pabrik beserta fitur ack idempoten dan ekspor.'
+                : `Riwayat kejadian operasional khusus perangkat ${deviceFilter}.`}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* FAT-292 (P33.2): tautan silang ke arsip audit — halaman ini
-              adalah daftar kerja, bukan audit. */}
+              adalah daftar kerja, bukan audit.
+              FAT-302 (P33.7): tambah tautan ke Audit IAM — ketiga halaman
+              Opsi 3 saling bertaut. */}
           <Link
             to="/admin/system-audit"
             className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
           >
             Lihat Audit Trail →
+          </Link>
+          <Link
+            to="/admin/iam-audit"
+            className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
+          >
+            Lihat Audit IAM →
           </Link>
           <Button
             size="sm"
@@ -149,14 +204,22 @@ export const OperationalEventsPage: React.FC = () => {
         </div>
       )}
 
+      <OperationalEventViewTabs
+        view={view}
+        onViewChange={handleViewChange}
+        actionCount={tabCounts?.action}
+        historyCount={tabCounts?.history}
+      />
+
       <OperationalEventsFilters
         filters={filters}
         deviceOptions={deviceOptions}
-        ackFilter={ackFilter}
+        view={view}
+        stateFilter={stateFilter}
         customDeviceInput={customDeviceInput}
         onCustomDeviceInputChange={setCustomDeviceInput}
         onFilterChange={handleFilterChange}
-        onAckChange={handleAckChange}
+        onStateChange={handleStateChange}
         onApplyCustomDevice={handleApplyCustomDevice}
       />
 
@@ -187,7 +250,7 @@ export const OperationalEventsPage: React.FC = () => {
       )}
 
       <DataTable
-        data={events}
+        data={displayEvents}
         columns={columns}
         getRowId={(r) => r.id}
         isLoading={eventsQuery.isLoading}
@@ -195,11 +258,20 @@ export const OperationalEventsPage: React.FC = () => {
         error={eventsQuery.error}
         onRetry={() => eventsQuery.refetch()}
         dataUpdatedAt={eventsQuery.dataUpdatedAt}
-        emptyTitle="Tidak ada operational event"
-        emptyDescription="Tidak ada kejadian operasional yang sesuai filter aktif."
+        emptyTitle={
+          view === 'action'
+            ? 'Tidak ada event yang perlu tindakan'
+            : 'Tidak ada operational event'
+        }
+        emptyDescription={
+          view === 'action'
+            ? 'Tidak ada kejadian yang belum di-ack sesuai filter aktif.'
+            : 'Tidak ada kejadian operasional yang sesuai filter aktif.'
+        }
         emptyActionLabel="Reset Filter"
         onEmptyAction={() => {
-          setAckFilter('ALL');
+          setView('action');
+          setStateFilter('ALL');
           resetFilters();
         }}
         cursorPagination={{

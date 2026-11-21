@@ -163,17 +163,24 @@ export const AuditTrailPage: React.FC = () => {
               sebagai entri OPERATIONAL_EVENT_ACKNOWLEDGED di feed yang sama). */}
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             System Audit — alias feed operasional (ADMIN + LAN). Isi halaman ini sama dengan
-            Operational Events; hanya gerbang (ADMIN + LAN) dan filter machine_id yang berbeda.
+            Alarm &amp; Event; hanya gerbang (ADMIN + LAN) dan filter machine_id yang berbeda.
             Audit trail terpisah sedang dibangun (E33).
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* FAT-302 (P33.7): tautan silang ke dua halaman Opsi 3 lainnya. */}
           <Link
-            to="/admin/audit"
+            to="/admin/iam-audit"
+            className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
+          >
+            Lihat Audit IAM →
+          </Link>
+          <Link
+            to="/admin/alarms"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
           >
-            <span>Lihat Operational Events</span>
+            <span>Lihat Alarm &amp; Event</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </Link>
           <Button size="sm" variant="secondary" onClick={handleExport} isLoading={isExporting}>

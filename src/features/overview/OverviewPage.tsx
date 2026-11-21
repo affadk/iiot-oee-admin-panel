@@ -312,7 +312,7 @@ export const OverviewPage: React.FC = () => {
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Recent Operational Events (Global Feed)
           </h2>
-          <Link to="/admin/audit" className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline">
+          <Link to="/admin/alarms" className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline">
             Semua Event →
           </Link>
         </div>

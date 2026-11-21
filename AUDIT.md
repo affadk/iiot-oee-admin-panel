@@ -4045,3 +4045,87 @@ B33.1–B33.4 (FAT-295–298) + D33.1 ADR (FAT-299). Perbaikan kecil ini
 tidak mengubah arah itu.
 
 Dokumen: `AUDIT.md` §54 (file ini).
+
+## 55. E33 — Keputusan rancangan halaman Opsi 3 + tiket P33.5–P33.7 (FAT-300–302)
+
+Keputusan Fathur 2026-11-21 10:20 WIB: **setuju semua rancangan**
+analisis halaman (`~/workspace/analisis-halaman-opsi-3.md`) — 3 halaman
+(Alarm & Event / Audit Trail / Audit IAM), Audit IAM naik jadi halaman
+penuh, ganti nama "Operational Events" → "Alarm & Event" + rute kanonik
+`/audit` → `/admin/alarms`, mulai tahap A–C (panel saja) sekarang.
+
+Tiket baru di bawah epic E33 (FAT-290), semua Todo saat dibuat:
+
+- **P33.5 (FAT-300, Medium)** — tahap A: halaman Alarm & Event, 2 tampilan
+  (Perlu Tindakan / Riwayat) + filter State. → In Progress.
+- **P33.6 (FAT-301, Medium)** — tahap B: Audit IAM jadi halaman penuh
+  `/admin/iam-audit` + export CSV + paging server-side + pintasan DENY.
+  → In Progress.
+- **P33.7 (FAT-302, Low)** — tahap C: rute kanonik + redirect + tautan
+  silang 3 halaman + nama sidebar. Tetap Todo — bergantung P33.5/P33.6.
+
+Pelaksanaan: P33.5 + P33.6 paralel (2 subagen), P33.7 setelah keduanya
+oleh parent; verifikasi pusat + push + verifikasi visual live menyusul.
+
+Dokumen: `AUDIT.md` §55 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v43 (total 302 = 262 Done / 31 Todo /
+3 In Progress / 4 In Review / 1 Canceled).
+
+## 56. E33 — Implementasi panel tahap A–C analisis halaman Opsi 3 (FAT-300–302)
+
+Keputusan Fathur 2026-11-21 10:20 WIB: setuju semua rancangan analisis
+halaman (`~/workspace/analisis-halaman-opsi-3.md`). Implementasi panel
+tahap A–C selesai lokal 2026-11-21 ~10:35 WIB (P33.5 + P33.6 paralel
+oleh 2 subagen + P33.7 oleh parent).
+
+**P33.5 (FAT-300) — Alarm & Event, 2 tampilan + filter State:**
+`eventView.ts` baru (helper murni) + `OperationalEventViewTabs.tsx`
+baru + `eventView.test.ts` (13 tes baru); `OperationalEventsPage.tsx`
+(state `view` default `'action'`, query `acknowledged=false` di tab
+Perlu Tindakan) + `OperationalEventsFilters.tsx` (Filter State
+menggantikan Ack Status — superset-nya). Sort tampilan aksi: aktif dulu,
+lalu clear, terbaru dulu per kelompok. Derivasi rtn-unack selalu memakai
+daftar halaman PENUH sebagai referensi (pasangan OFFLINE→ONLINE tidak
+hilang saat penyaringan). **Kejujuran angka:** tidak ada query COUNT(*)
+total di backend — jumlah tab adalah batas bawah ("12+") kecuali halaman
+1 tanpa halaman berikut; didokumentasikan di `eventView.ts`.
+Tidak dibuat: pintasan "hanya yang butuh saya" yang bisa dibagikan lewat
+URL (tab itu sendiri adalah pintasannya; tampilan aktif tidak tercermin
+di URL — tugas kecil terpisah bila diminta).
+
+**P33.6 (FAT-301) — Audit IAM jadi halaman penuh `/admin/iam-audit`:**
+`IamAuditPage.tsx` + `useIamAudit.ts` + `IamAuditFilterBar.tsx` +
+`IamAuditTable.tsx` + `iamAudit.ts` + `iamAudit.test.ts` (6 tes baru)
+baru; `AuditTab.tsx` DIHAPUS (diganti komponen baru, kolom/filter
+dipindah verbatim); `AccessControlPage.tsx` (tab dihapus → tautan
+"Lihat Audit IAM →"); `useIamData.ts` (berhenti memuat keputusan audit);
+`Router.tsx` + `Sidebar.tsx` ("Audit IAM", ikon ScrollText) +
+`Breadcrumbs.tsx` + `serialization.ts` (`formatIamAuditExportRows`).
+Baru: export CSV, pintasan "Hanya DENY", filter teks Resource/Action,
+Subjek jadi tautan deep-link inspector
+(`/admin/access-control?tab=inspector&operator=<subject>`).
+**Limitasi jujur:** paginasi adalah CLIENT-SIDE (irisan 25 baris dari
+daftar yang dimuat, default limit 100) — `GET /access-control/audit`
+hanya mendukung subject/decision/mode/from/to/limit, tanpa
+cursor/offset. Paging server-side butuh perubahan kontrak backend (di
+luar B33.x; belum ditiketkan).
+
+**P33.7 (FAT-302) — rute kanonik + redirect + tautan silang + nama
+sidebar (oleh parent):** rute kanonik `/admin/alarms`;
+redirect → `/admin/alarms` dari `/audit`, `/admin/audit`,
+`/monitoring/events`, `/events`; `/admin/system-audit` kanonik,
+`/system-audit` + `/admin/system/audit` redirect ke sana; sidebar
+"Operational Events" → "Alarm & Event" (`/admin/alarms`); breadcrumb
+`audit`/`events`/`alarms` → "Alarm & Event"; judul h1 halaman →
+"Alarm & Event"; tautan silang lengkap di ketiga halaman (Alarm & Event
+↔ Audit Trail ↔ Audit IAM); tautan Overview "Semua Event →" dan catatan
+MachineBindModal diperbarui ke nama baru.
+
+**Verifikasi pusat:** tsc 0, tes 575/575 (556 + 13 P33.5 + 6 P33.6),
+build OK, checker 0 FAIL / 35 WARN, 420 file. WARN baru (+2, lunak,
+di bawah batas keras): `useIamAudit.ts` 159/150, `serialization.ts`
+311/300 — diterima per prinsip 0. Verifikasi visual live menyusul
+setelah push.
+
+Dokumen: `AUDIT.md` §56 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v44.

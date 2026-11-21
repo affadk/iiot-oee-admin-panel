@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../../../services/api/client';
 import type {
   IamAssignment,
-  IamAuditDecision,
   IamInfo,
   IamPermission,
   IamPolicyRule,
@@ -16,10 +15,14 @@ import type { IamFeedback } from '../accessControlTypes';
 /**
  * Data + loading + corong mutasi AccessControlPage.
  *
- * Memuat ketujuh list sekaligus (Promise.all) dan memuat ulang semuanya
+ * Memuat keenam list sekaligus (Promise.all) dan memuat ulang semuanya
  * setelah setiap mutasi via afterMutation: reload → refreshCapabilities →
  * banner sukses + advisory authz_version. Urutan ini load-bearing: mutasi
  * bisa mengunci admin itu sendiri di tengah sesi bila capabilities stale.
+ *
+ * Keputusan audit IAM TIDAK dimuat di sini lagi (P33.6, FAT-301): tab
+ * Audit dipindah ke halaman penuh /admin/iam-audit dengan hook-nya
+ * sendiri (useIamAudit) — halaman ini tidak lagi menampilkan keputusan.
  *
  * Catatan default form: loader versi lama juga men-default-kan
  * assignOperatorId / selectedPermId dari item pertama (prev || first).
@@ -39,7 +42,6 @@ export const useIamData = () => {
   const [permissions, setPermissions] = useState<IamPermission[]>([]);
   const [assignments, setAssignments] = useState<IamAssignment[]>([]);
   const [policies, setPolicies] = useState<IamPolicyRule[]>([]);
-  const [decisions, setDecisions] = useState<IamAuditDecision[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,13 +66,12 @@ export const useIamData = () => {
     }
     setIsLoading(true);
     try {
-      const [info, rList, pList, aList, polList, decList, opList] = await Promise.all([
+      const [info, rList, pList, aList, polList, opList] = await Promise.all([
         apiClient.getIamInfo(),
         apiClient.getIamRoles(),
         apiClient.getIamPermissions(),
         apiClient.getIamUserRoles(),
         apiClient.getIamPolicies(),
-        apiClient.getIamAuditDecisions(),
         apiClient.getOperators(),
       ]);
       setIamInfo(info);
@@ -78,7 +79,6 @@ export const useIamData = () => {
       setPermissions(pList);
       setAssignments(aList);
       setPolicies(polList);
-      setDecisions(decList);
       setOperators(opList);
       return info;
     } catch (err: unknown) {
@@ -92,22 +92,6 @@ export const useIamData = () => {
   useEffect(() => {
     void loadIamData();
   }, [loadIamData]);
-
-  /**
-   * Muat ulang keputusan audit dengan filter server (§3.4:
-   * subject/decision/mode/from/to).
-   */
-  const reloadDecisions = useCallback(
-    async (filters: import('../../../types/iam').IamAuditFilters): Promise<void> => {
-      try {
-        const decList = await apiClient.getIamAuditDecisions(filters);
-        setDecisions(decList);
-      } catch (err: unknown) {
-        reportError(err, 'Gagal memuat keputusan audit IAM.');
-      }
-    },
-    [reportError],
-  );
 
   const handleAfterMutation = useCallback(
     async (msg: string, bumpsAuthz = true) => {
@@ -128,7 +112,6 @@ export const useIamData = () => {
     permissions,
     assignments,
     policies,
-    decisions,
     operators,
     isLoading,
     isSubmitting,
@@ -136,7 +119,6 @@ export const useIamData = () => {
     feedback,
     setFeedback,
     reload: loadIamData,
-    reloadDecisions,
     afterMutation: handleAfterMutation,
     reportError,
     canRead,

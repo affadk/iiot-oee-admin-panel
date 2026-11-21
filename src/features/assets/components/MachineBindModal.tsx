@@ -79,7 +79,7 @@ export const MachineBindModal: React.FC<MachineBindModalProps> = ({
         description={`Perangkat ${bindConfirmTarget?.deviceId ?? ''} akan dihubungkan secara eksklusif (1:1) ke mesin ${bindConfirmTarget?.machine.name ?? ''}.`}
         impacts={[
           'Telemetri langsung dari perangkat akan mulai diarahkan ke mesin ini.',
-          'Operasi ini mencatat event MACHINE_BOUND di Audit Trail dan Operational Events.',
+          'Operasi ini mencatat event MACHINE_BOUND di Audit Trail dan Alarm & Event.',
         ]}
         confirmLabel="Ya, Ikatkan Perangkat"
         isLoading={isBinding}

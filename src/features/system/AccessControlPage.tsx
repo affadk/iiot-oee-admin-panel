@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import type { IamMutationDeps, IamTab } from './accessControlTypes';
@@ -14,7 +14,6 @@ import { AssignmentsTab } from './components/AssignmentsTab';
 import { PoliciesTab } from './components/PoliciesTab';
 import { PermissionsTab } from './components/PermissionsTab';
 import { InspectorTab } from './components/InspectorTab';
-import { AuditTab } from './components/AuditTab';
 import { RoleDetailModal } from './components/RoleDetailModal';
 import { CreateRoleModal } from './components/CreateRoleModal';
 import { EditRoleModal } from './components/EditRoleModal';
@@ -24,7 +23,7 @@ import { CreatePolicyModal } from './components/CreatePolicyModal';
 import { EditPolicyModal } from './components/EditPolicyModal';
 import { AccessControlConfirmDialogs } from './components/AccessControlConfirmDialogs';
 
-const VALID_TABS: IamTab[] = ['roles', 'assignments', 'policies', 'permissions', 'inspector', 'audit'];
+const VALID_TABS: IamTab[] = ['roles', 'assignments', 'policies', 'permissions', 'inspector'];
 
 /**
  * Pengaturan Hak Akses & Kebijakan Pengguna — orkestrasi saja.
@@ -88,11 +87,17 @@ export const AccessControlPage: React.FC = () => {
             Pengaturan Hak Akses &amp; Kebijakan Pengguna
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Pengaturan peran pengguna, penugasan area kerja, aturan izin, dan riwayat pemeriksaan akses. Baca digate <code className="font-mono">access_control.read</code>, tulis digate <code className="font-mono">access_control.manage</code>.
+            Pengaturan peran pengguna, penugasan area kerja, dan aturan izin. Baca digate <code className="font-mono">access_control.read</code>, tulis digate <code className="font-mono">access_control.manage</code>.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            to="/admin/iam-audit"
+            className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
+          >
+            Lihat Audit IAM →
+          </Link>
           <Badge variant={iam.iamInfo?.mode === 'enforce' ? 'success' : 'warning'}>
             Status Keamanan Akses: {iam.iamInfo ? `${iam.iamInfo.mode === 'enforce' ? 'AKTIF' : iam.iamInfo.mode.toUpperCase()} · Pembaruan #${iam.iamInfo.authzVersion}` : 'MEMUAT...'}
           </Badge>
@@ -127,7 +132,6 @@ export const AccessControlPage: React.FC = () => {
             ['policies', `Aturan Kebijakan (${iam.policies.length})`],
             ['permissions', `Permissions (${iam.permissions.length})`],
             ['inspector', 'Pemeriksa Izin Pengguna'],
-            ['audit', `Riwayat Pemeriksaan (${iam.decisions.length})`],
           ] as Array<[IamTab, string]>
         ).map(([key, label]) => (
           <button
@@ -207,8 +211,6 @@ export const AccessControlPage: React.FC = () => {
               onInspect={inspector.handleInspectSubject}
             />
           )}
-
-          {activeTab === 'audit' && <AuditTab decisions={iam.decisions} onApplyFilters={iam.reloadDecisions} />}
         </>
       )}
 
