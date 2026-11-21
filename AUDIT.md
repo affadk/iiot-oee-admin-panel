@@ -4129,3 +4129,42 @@ setelah push.
 
 Dokumen: `AUDIT.md` §56 (file ini), `docs/LINEAR.md` §8,
 `docs/linear-seed.json` v44.
+
+## 57. E33 — Verifikasi visual live P33.5–P33.7 + spec kebutuhan backend (FAT-303)
+
+**Verifikasi visual live 2026-11-21 10:33–10:35 WIB** (ADM-001, deploy
+`7c53435`, browser task, tanpa perubahan data): ketiga halaman + redirect
+**lolos**. Alarm & Event: sidebar + h1 "Alarm & Event"; tab "Perlu
+Tindakan 50+" (default) + "Riwayat 50+"; filter State 3 opsi di Perlu
+Tindakan, 4 opsi di Riwayat; tautan silang ke Audit Trail + Audit IAM
+berfungsi. Audit IAM: tabel, filter, Export CSV, "Hanya DENY" (4 baris
+DENY, OPR-1001), paginasi 25/halaman (halaman 2 tampil), tab Audit di
+Hak Akses hilang, tautan "Lihat Audit IAM →" berfungsi. Redirect:
+`/audit` → `/admin/alarms`, `/admin/audit` → `/admin/alarms`,
+`/system-audit` → `/admin/system-audit`. Audit Trail: tautan silang
+keduanya berfungsi.
+Catatan: State="Sudah ack" mengembalikan 0 baris di jendela 7 dan 90
+hari — mekanik tab/filter bekerja, baris ack belum bisa dikonfirmasi
+visual karena tidak ada datanya. FAT-300/301/302 → **Done**.
+
+**Cacat backend terbukti live (bukan panel):** semua sel Waktu Audit IAM
+menampilkan "01 Jan 1970, 07.00". Akar dilacak ke kode: mapper panel
+`mapIamAuditDecision` memakai `iso(pick(r.timestamp, r.created_at,
+r.createdAt))` dan `iso()` hanya menerima string ISO tidak kosong — bila
+field tidak ada ATAU berupa angka, panel jatuh ke `new Date(0)`.
+Jadi backend tidak mengirim timestamp ISO (atau mengirim angka); skema
+respons 200 `GET /access-control/audit` di OpenAPI live juga kosong
+(`{}`).
+
+**Spec kebutuhan backend** (perintah Fathur 10:35 WIB, setelah tugas
+selesai): `docs/BACKEND_REQUIREMENTS_E33_PAGES.md` (~26 KB) — kontrak
+lengkap dengan payload untuk backend menyesuaikan mengikuti admin-panel:
+§1 B33.1 kategori + R-18/R-19 (FAT-295), §2 B33.2 store audit append-only
++ `GET /system/audit-trail` (FAT-296), §3 B33.3 ack → entri audit baru
+(FAT-297), §4 B33.4 `alarmState` server-side + `totalCount` asli
+(FAT-298), §5 B33.5 IAM audit timestamp + paging (tiket baru **FAT-303**,
+High), §6 kontrak umum, §7 cara panel memverifikasi, §8 daftar tugas.
+Urutan disarankan: §5 dulu (cacat live) → §1 → §2 → §3 → §4.
+
+Dokumen: `AUDIT.md` §57 (file ini), `docs/LINEAR.md` §8,
+`docs/linear-seed.json` v45.
