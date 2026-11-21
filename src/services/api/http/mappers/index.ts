@@ -8,3 +8,4 @@ export * from './assets';
 export * from './monitoring';
 export * from './system';
 export * from './mqttConfig';
+export * from './workOrders';

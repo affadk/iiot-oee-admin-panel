@@ -1,24 +1,18 @@
-import { useState } from 'react';
 import { apiClient } from '../../../services/api/client';
 import { Operator } from '../../../types/production';
-import { ApiError, UserRole } from '../../../types/auth';
+import { ApiError } from '../../../types/auth';
 import { CapabilityKey } from '../../../utils/capabilities';
-import { ConflictDialogState } from '../../../components/ui/ConflictDialog';
 import { FeedbackState } from './useOperators';
+import { useOperatorFormMutations } from './useOperatorFormMutations';
+import { useOperatorDelete } from './useOperatorDelete';
 
-export interface CreateOperatorInput {
-  operatorId: string;
-  name: string;
-  role: UserRole;
-  lineId: string;
-  password: string;
-}
-
-export interface UpdateOperatorInput {
-  name: string;
-  role: UserRole;
-  lineId: string;
-}
+// Tipe input mutasi form tinggal di useOperatorFormMutations.ts
+// (E32.7, FAT-288); di-re-export dari sini supaya impor modal lama
+// tetap jalan.
+export type {
+  CreateOperatorInput,
+  UpdateOperatorInput,
+} from './useOperatorFormMutations';
 
 export interface UseOperatorCrudOptions {
   loadOperators: () => Promise<void>;
@@ -32,10 +26,13 @@ export interface UseOperatorCrudOptions {
 
 /**
  * Mutasi CRUD operator (R9.5, dipindah dari OperatorsPage L131–284).
- * Validasi field + lock submit milik modal; hook hanya menjalankan API,
- * reload, feedback sukses, dan — mengikuti preseden useDevices — men-set
- * feedback error LALU melempar ulang agar modal menampilkan submit error.
- * Toggle/delete bukan submit modal: gagalnya hanya lewat feedback banner.
+ * Toggle/rotate bukan submit modal: gagalnya hanya lewat feedback
+ * banner. Bentuk return tidak berubah (dipakai OperatorsPage).
+ *
+ * E32.7 (FAT-288): mutasi form (create/update, melempar ulang untuk
+ * submit error modal) dipindah ke useOperatorFormMutations.ts; alur
+ * hapus + konflik ke useOperatorDelete.ts — hook ini tinggal
+ * orkestrasi + toggle status + rotasi password.
  */
 export function useOperatorCrud({
   loadOperators,
@@ -46,58 +43,19 @@ export function useOperatorCrud({
   setTogglingId,
   onOperatorDeleted,
 }: UseOperatorCrudOptions) {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [conflictState, setConflictState] = useState<ConflictDialogState | null>(null);
+  const { createOperator, updateOperator } = useOperatorFormMutations({
+    loadOperators,
+    reportForbidden,
+    refreshCapabilities,
+    setFeedback,
+  });
 
-  const createOperator = async (input: CreateOperatorInput): Promise<void> => {
-    setFeedback(null);
-    try {
-      const created = await apiClient.createOperator({
-        operator_id: input.operatorId.trim(),
-        name: input.name.trim(),
-        role: input.role,
-        line_id: input.lineId.trim(),
-        password: input.password,
-      });
-      await loadOperators();
-      setFeedback({
-        type: 'success',
-        msg: `Akun operator ${created.operator_id} (${created.role}) berhasil dibuat.`,
-      });
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('operator.create', input.operatorId, err.message);
-      }
-      setFeedback({
-        type: 'error',
-        msg: err instanceof Error ? err.message : 'Gagal membuat akun operator.',
-      });
-      throw err;
-    }
-  };
-
-  const updateOperator = async (operatorId: string, input: UpdateOperatorInput): Promise<void> => {
-    setFeedback(null);
-    try {
-      const updated = await apiClient.updateOperator(operatorId, {
-        name: input.name.trim(),
-        role: input.role,
-        line_id: input.lineId.trim(),
-      });
-      await loadOperators();
-      await refreshCapabilities();
-      setFeedback({ type: 'success', msg: `Profil operator ${updated.operator_id} berhasil diperbarui.` });
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('operator.update', operatorId, err.message);
-      }
-      setFeedback({
-        type: 'error',
-        msg: err instanceof Error ? err.message : 'Gagal memperbarui profil operator.',
-      });
-      throw err;
-    }
-  };
+  const { deleteOperator, isDeleting, conflictState, setConflictState } = useOperatorDelete({
+    loadOperators,
+    reportForbidden,
+    setFeedback,
+    onOperatorDeleted,
+  });
 
   const toggleOperatorStatus = async (op: Operator): Promise<void> => {
     if (togglingId) return;
@@ -134,42 +92,6 @@ export function useOperatorCrud({
       }
       setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Gagal merotasi password.' });
       throw err;
-    }
-  };
-
-  const deleteOperator = async (target: Operator): Promise<void> => {
-    if (isDeleting) return;
-    setIsDeleting(true);
-    setFeedback(null);
-    try {
-      await apiClient.deleteOperator(target.operator_id);
-      const deletedId = target.operator_id;
-      onOperatorDeleted(deletedId);
-      await loadOperators();
-      setFeedback({
-        type: 'success',
-        msg: `Operator ${deletedId} dihapus. Riwayat Work Order terdahulu tetap tersimpan untuk arsip.`,
-      });
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('operator.delete', target.operator_id, err.message);
-      }
-      if (err instanceof ApiError && err.httpStatus === 409) {
-        setConflictState({
-          open: true,
-          code: err.code,
-          title: `Tidak Dapat Menghapus Operator ${target.operator_id}`,
-          message: err.message,
-          activeWoId: err.activeWoId,
-        });
-      }
-      const extraWo = err instanceof ApiError && err.activeWoId ? ` (Active WO: ${err.activeWoId})` : '';
-      setFeedback({
-        type: 'error',
-        msg: `${err instanceof Error ? err.message : 'Gagal menghapus operator.'}${extraWo}`,
-      });
-    } finally {
-      setIsDeleting(false);
     }
   };
 

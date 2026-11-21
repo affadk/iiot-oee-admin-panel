@@ -5,15 +5,11 @@
  * Satu file = satu domain. Barrel penggabung ada di file induknya.
  */
 import { MUTATION_TIMEOUT_MS, calledKeys, assertLanForMutation, assertAuthenticatedHttp, fetchRaw, reqJson, reqList, checkAbortHttp, sleep } from './transport';
-import { mapBrokerConfigVersion, mapBrokerConfigStatus, mapBrokerConfigDiff, mapBrokerOperation } from './mappers';
-import { num, str, bool, iso, pick } from './primitives';
+import { mapBrokerConfigVersion, mapBrokerConfigStatus, mapBrokerConfigDiff, mapBrokerOperation, mapBrokerConfigSchema, mapBrokerConfigRawResult, mapBrokerBackup } from './mappers';
+import { str, pick } from './primitives';
 import { ADMIN_ENDPOINTS } from '../endpoints';
 import { ApiError } from '../../../types/auth';
 import { BrokerConfigSchema, BrokerConfigStatus, BrokerConfigVersion, BrokerConfigDiffResult, BrokerOperation, BrokerBackup, BrokerConfigRawResult } from '../../../types/mqtt';
-
-/** Angka bila berupa number berhingga, `null` bila null/absen (§3.3b). */
-const numOrNull = (v: unknown): number | null =>
-  typeof v === 'number' && Number.isFinite(v) ? v : null;
 
 /** Polling operasi sampai terminal (SUCCEEDED/FAILED) — maks 30 × 500 md. */
 async function pollBrokerOperationUntilTerminal(
@@ -44,57 +40,7 @@ export const httpMqttConfig = {
     assertAuthenticatedHttp();
     return reqJson(
       { path: ADMIN_ENDPOINTS.MQTT_CONFIG_GET.buildPath(), signal, endpointKey: 'MQTT_CONFIG_GET', capability: 'mqtt.config.read' },
-      (raw) => {
-        const r = (raw ?? {}) as Record<string, unknown>;
-        const general = (r.general ?? {}) as Record<string, unknown>;
-        const limits = (r.limits ?? {}) as Record<string, unknown>;
-        return {
-          version: str(pick(r.version), '1'),
-          general: {
-            per_listener_settings: bool(general.per_listener_settings, false),
-            allow_anonymous: bool(general.allow_anonymous, false),
-            // E20 P20.5 (FAT-157): field tanpa sumber = `null` — HAPUS
-            // default fabrikasi (autosave 300; §3.3b).
-            autosave_interval_seconds: numOrNull(general.autosave_interval_seconds),
-            persistence: bool(general.persistence, true),
-            persistence_location: str(general.persistence_location, ''),
-            log_dest: (general.log_dest as string[]) ?? [],
-            log_type: (general.log_type as string[]) ?? [],
-            connection_messages: bool(general.connection_messages, true),
-          },
-          limits: {
-            // E20 P20.5 (FAT-157): HAPUS default fabrikasi `max_connections`
-            // 1000, `max_packet_size_bytes` 268435456, `max_queued_bytes` 0 —
-            // field tanpa sumber = `null` (§3.3b).
-            // E23 Batch 3 (FAT-198, N-29): sisa default fabrikasi
-            // `max_queued_messages` 1000 / `max_inflight_messages` 20 juga
-            // dihapus (spec nullable) — null tetap null.
-            max_connections: numOrNull(limits.max_connections),
-            max_packet_size_bytes: numOrNull(limits.max_packet_size_bytes),
-            max_queued_messages: numOrNull(limits.max_queued_messages),
-            max_queued_bytes: numOrNull(limits.max_queued_bytes),
-            max_inflight_messages: numOrNull(limits.max_inflight_messages),
-          },
-          listeners: (r.listeners as BrokerConfigSchema['listeners']) ?? [],
-          // E20 P20.5 (FAT-157): `tls_profiles` selalu `[]` (§3.3b) —
-          // TLS melekat pada listener/bridge, bukan profil terpisah.
-          tls_profiles: [],
-          bridges: (r.bridges as BrokerConfigSchema['bridges']) ?? [],
-          // E23 Batch 3 (FAT-198, N-29): `unmanaged[]` spec berupa objek
-          // `{key, section, line, reason}` — petakan sebagai objek (dulu
-          // `String(u)` → "[object Object]"). Item bukan objek dilewati.
-          unmanaged: Array.isArray(r.unmanaged)
-            ? (r.unmanaged as unknown[])
-                .filter((u): u is Record<string, unknown> => typeof u === 'object' && u !== null)
-                .map((u) => ({
-                  key: str(pick(u.key)),
-                  section: str(pick(u.section)),
-                  line: num(pick(u.line), 0),
-                  reason: str(pick(u.reason)),
-                }))
-            : [],
-        };
-      },
+      mapBrokerConfigSchema,
     );
   },
 
@@ -114,24 +60,7 @@ export const httpMqttConfig = {
       endpointKey: 'MQTT_CONFIG_RAW',
     });
     calledKeys.add('MQTT_CONFIG_RAW');
-    const json = (raw.json ?? null) as Record<string, unknown> | null;
-    if (json && typeof json.text === 'string') {
-      const meta = (json.metadata ?? null) as Record<string, unknown> | null;
-      return {
-        text: json.text,
-        metadata:
-          meta && typeof meta.checksum === 'string'
-            ? {
-                source: str(pick(meta.source)),
-                checksum: meta.checksum,
-                sizeBytes: num(pick(meta.sizeBytes, meta.size_bytes), 0),
-                modifiedAt: str(pick(meta.modifiedAt, meta.modified_at)),
-                mosquittoVersion: str(pick(meta.mosquittoVersion, meta.mosquitto_version)),
-              }
-            : null,
-      };
-    }
-    return { text: raw.text, metadata: null };
+    return mapBrokerConfigRawResult(raw.json, raw.text);
   },
 
   /**
@@ -383,16 +312,7 @@ export const httpMqttConfig = {
     assertAuthenticatedHttp();
     return reqList<BrokerBackup>(
       { path: ADMIN_ENDPOINTS.MQTT_CONFIG_BACKUPS.buildPath(), signal, endpointKey: 'MQTT_CONFIG_BACKUPS', capability: 'mqtt.config.read' },
-      (raw) => {
-        const r = (raw ?? {}) as Record<string, unknown>;
-        return {
-          backup_id: str(pick(r.backup_id, r.backupId, r.id)),
-          filename: str(pick(r.filename, r.name)),
-          version_id: str(pick(r.version_id, r.versionId)),
-          created_at: iso(pick(r.created_at, r.createdAt)),
-          size_bytes: num(pick(r.size_bytes, r.sizeBytes), 0),
-        } satisfies BrokerBackup;
-      },
+      mapBrokerBackup,
       50,
     ).then((p) => p.data);
   },

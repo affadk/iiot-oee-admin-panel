@@ -1,14 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthMeResponse, LoginResponse, UserRole } from '../types/auth';
 import { apiClient } from '../services/api/client';
-import { resolveAuthTtlFallbackSec } from '../services/api/mode';
 import { useSessionRestore, type SessionUser } from './authSessionRestore';
-import {
-  CapabilityKey,
-  CapabilityState,
-  capabilityDenialStore,
-  evaluateCapability,
-} from '../utils/capabilities';
+import { useSessionTtl, DEFAULT_AUTH_TTL_FALLBACK_SEC } from './useSessionTtl';
+import { useAuthCapabilities } from './useAuthCapabilities';
+import { CapabilityKey, CapabilityState, capabilityDenialStore } from '../utils/capabilities';
 import { useNetworkAccess } from './NetworkAccessContext';
 
 interface AuthContextType {
@@ -50,8 +46,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_FALLBACK_TTL = resolveAuthTtlFallbackSec();
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { mode, accessMode, refreshServerAccessMode, clearServerAccessMode } = useNetworkAccess();
   // Guide §4.4/D5: tidak ada sesi pra-login. Pengguna HARUS login lewat
@@ -69,55 +63,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     line_id: undefined,
   });
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
-  const [sessionTtlRemaining, setSessionTtlRemaining] = useState<number>(0);
-  const [sessionTtlTotal, setSessionTtlTotal] = useState<number>(0);
   const [sessionExpiredReason, setSessionExpiredReason] = useState<string | null>(null);
-  const [authzVersion, setAuthzVersion] = useState<number>(0);
-  const [authMe, setAuthMe] = useState<AuthMeResponse | null>(null);
-  const [, setDenialRevision] = useState<number>(0);
 
-  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  // FAT-282 (E32.1): /auth/me + checkCapability + denial 403 tinggal di
+  // useAuthCapabilities; TTL + sliding refresh tinggal di useSessionTtl.
+  const {
+    authMe,
+    authzVersion,
+    refreshCapabilities,
+    loadAuthMe,
+    clearAuthMe,
+    reportForbidden,
+    checkCapability,
+  } = useAuthCapabilities({
+    isAuthenticated,
+    role: currentUser.role,
+    networkMode: mode,
+    accessMode,
+    onMustChangePassword: setMustChangePassword,
+  });
 
-  // Terapkan sesi yang sudah terautentikasi (dipakai login + silent restore).
-  const applySession = useCallback((user: SessionUser, ttl: number, mustChange: boolean) => {
-    setCurrentUser(user);
-    setMustChangePassword(mustChange);
-    setSessionTtlTotal(ttl);
-    setSessionTtlRemaining(ttl);
-    setIsAuthenticated(true);
+  // logout dipakai useSessionTtl (onExpire) tapi juga butuh setSessionTtl
+  // dari hook itu — putaran ini dipecah lewat ref: handleSessionExpire
+  // stabil dan memanggil logoutRef.current, yang diisi setelah render
+  // pertama (jauh sebelum TTL bisa habis — TTL hanya jalan saat
+  // isAuthenticated, dan ref terisi saat mount).
+  const logoutRef = useRef<(reason?: string) => void>(() => {});
+  const handleSessionExpire = useCallback((reason: string) => {
+    logoutRef.current(reason);
   }, []);
 
-  const isRestoringSession = useSessionRestore(applySession);
-
-  // Re-render consumers whenever dynamic 403 denials change
-  useEffect(() => {
-    return capabilityDenialStore.subscribe(() => {
-      setDenialRevision((r) => r + 1);
-    });
-  }, []);
-
-  const refreshCapabilities = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const me = await apiClient.getAuthMe();
-      setAuthMe(me);
-      setAuthzVersion(me.authzVersion);
-      // Spec 043: flag gerbang juga dibaca dari GET /auth/me.
-      if (typeof me.operator.mustChangePassword === 'boolean') {
-        setMustChangePassword(me.operator.mustChangePassword);
-      }
-    } catch {
-      // Fall back cleanly if unauthenticated or offline
-    }
-  }, [isAuthenticated]);
-
-  const clearSessionExpiredReason = useCallback(() => {
-    setSessionExpiredReason(null);
-  }, []);
-
-  const clearMustChangePassword = useCallback(() => {
-    setMustChangePassword(false);
-  }, []);
+  const { sessionTtlRemaining, setSessionTtl } = useSessionTtl({
+    isAuthenticated,
+    onExpire: handleSessionExpire,
+    onRefreshed: refreshCapabilities,
+  });
 
   const logout = useCallback((reason?: string) => {
     capabilityDenialStore.clearAll();
@@ -126,20 +106,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // berikutnya mengambil ulang dari server (bila ada).
     clearServerAccessMode();
     setIsAuthenticated(false);
-    setAuthMe(null);
+    clearAuthMe();
     setMustChangePassword(false);
-    setSessionTtlRemaining(0);
+    setSessionTtl(0);
     if (reason) {
       setSessionExpiredReason(reason);
     }
-  }, [clearServerAccessMode]);
+  }, [clearServerAccessMode, clearAuthMe, setSessionTtl]);
 
-  const reportForbidden = useCallback(
-    (capability: CapabilityKey, resourceId?: string, reason?: string) => {
-      capabilityDenialStore.recordDenial(capability, resourceId, reason);
-    },
-    []
-  );
+  useEffect(() => {
+    logoutRef.current = logout;
+  });
+
+  // Terapkan sesi yang sudah terautentikasi (dipakai login + silent restore).
+  const applySession = useCallback((user: SessionUser, ttl: number, mustChange: boolean) => {
+    setCurrentUser(user);
+    setMustChangePassword(mustChange);
+    setSessionTtl(ttl);
+    setIsAuthenticated(true);
+  }, [setSessionTtl]);
+
+  const isRestoringSession = useSessionRestore(applySession);
+
+  const clearSessionExpiredReason = useCallback(() => {
+    setSessionExpiredReason(null);
+  }, []);
+
+  const clearMustChangePassword = useCallback(() => {
+    setMustChangePassword(false);
+  }, []);
 
   // Wire centralized 401 & 403 handlers in apiClient
   useEffect(() => {
@@ -174,25 +169,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     capabilityDenialStore.clearAll();
     const res = await apiClient.login(operator_id, password);
     setSessionExpiredReason(null);
-    const ttl = res.expires_in || DEFAULT_FALLBACK_TTL;
+    const ttl = res.expires_in || DEFAULT_AUTH_TTL_FALLBACK_SEC;
     // Spec 043: flag gerbang dari respons login 200 (operator.must_change_password).
     applySession(
       { operator_id: res.operator.id, name: res.operator.username, role: res.operator.role, line_id: res.operator.line_id },
       ttl,
       res.operator.must_change_password === true,
     );
-    try {
-      const me = await apiClient.getAuthMe();
-      setAuthMe(me);
-      setAuthzVersion(me.authzVersion);
-      if (typeof me.operator.mustChangePassword === 'boolean') {
-        setMustChangePassword(me.operator.mustChangePassword);
-      }
-    } catch {
-      // Ignored if auth/me unavailable immediately
-    }
+    // loadAuthMe tanpa guard isAuthenticated: state isAuthenticated di
+    // closure ini masih false (applySession di atas belum ter-commit).
+    await loadAuthMe();
     return res;
-  }, [applySession]);
+  }, [applySession, loadAuthMe]);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const result = await apiClient.changePassword(currentPassword, newPassword);
@@ -200,59 +188,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (result.success) setMustChangePassword(false);
     return result;
   }, []);
-
-  // Session TTL countdown + proactive single-flight sliding refresh at 80% elapsed (20% remaining).
-  // E29 (FAT-245, T6): refresh TANPA syarat kanal — kondisi `mode === 'LAN'`
-  // dihapus. Refresh bukan mutasi (spec /auth/refresh tanpa 403); sesi tidak
-  // boleh mati di TTL hanya karena kanal REMOTE_TUNNEL. `mode` tetap dipakai
-  // checkCapability di bawah, jadi destructure tidak dihapus. Logika lain
-  // tidak berubah: single-flight, ambang 20%, logout saat TTL habis.
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const refreshThreshold = Math.max(1, Math.floor(sessionTtlTotal * 0.2));
-    const interval = setInterval(() => {
-      setSessionTtlRemaining((prev) => {
-        if (prev <= 1) {
-          logout('Waktu sesi operator habis. Silakan masuk kembali.');
-          return 0;
-        }
-        const next = prev - 1;
-        // Refresh proactively at <= 20% remaining (80% elapsed), any channel
-        if (next === refreshThreshold && !refreshInFlightRef.current) {
-          refreshInFlightRef.current = apiClient
-            .refreshSession()
-            .then((refreshed) => {
-              const nextTotal = refreshed.expires_in || DEFAULT_FALLBACK_TTL;
-              setSessionTtlTotal(nextTotal);
-              setSessionTtlRemaining(nextTotal);
-              refreshCapabilities();
-            })
-            .catch(() => {
-              // Handled cleanly by 401 hook if expired
-            })
-            .finally(() => {
-              refreshInFlightRef.current = null;
-            });
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, sessionTtlTotal, logout, refreshCapabilities]);
-
-  const checkCapability = useCallback(
-    (capability: CapabilityKey, resourceId?: string) => {
-      return evaluateCapability(capability, {
-        role: currentUser.role,
-        networkMode: mode,
-        accessMode,
-        isAuthenticated,
-        resourceId,
-        serverCapabilities: authMe?.capabilities ?? null,
-      });
-    },
-    [currentUser.role, mode, accessMode, isAuthenticated, authMe]
-  );
 
   return (
     <AuthContext.Provider

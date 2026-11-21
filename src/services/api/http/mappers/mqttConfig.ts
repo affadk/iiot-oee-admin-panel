@@ -1,12 +1,17 @@
 /**
- * Mapper backend→lokal — domain mqttConfig (versi + status + diff).
+ * Mapper backend→lokal — domain mqttConfig (versi + status + diff + skema
+ * + raw + backup).
  *
  * Dipisah dari mappers/system.ts pada E23 Batch 1 (kontrak
  * docs/DIRECTORY_STRUCTURE.md, pola R9.2): system.ts menyentuh hard cap
  * 600 baris. Satu file = satu domain. Barrel penggabung ada di file induknya.
+ *
+ * FAT-285 (E32.4): `mapBrokerConfigSchema`, `mapBrokerConfigRawResult`,
+ * dan `mapBrokerBackup` dipindah verbatim dari `http/mqttConfig.ts`
+ * (R10 — pemetaan tinggal di `mappers/`, bukan inline di method HTTP).
  */
 import { num, str, bool, iso, pick } from '../primitives';
-import { BrokerConfigSchema, BrokerConfigVersion, BrokerConfigStatus, BrokerConfigValidation, BrokerConfigImpact, BrokerConfigDiff, BrokerConfigLastOperation } from '../../../../types/mqtt';
+import { BrokerConfigSchema, BrokerConfigVersion, BrokerConfigStatus, BrokerConfigValidation, BrokerConfigImpact, BrokerConfigDiff, BrokerConfigLastOperation, BrokerBackup, BrokerConfigRawResult } from '../../../../types/mqtt';
 
 
 export function mapBrokerConfigVersion(raw: unknown): BrokerConfigVersion {
@@ -232,4 +237,111 @@ export function mapBrokerConfigStatus(raw: unknown): BrokerConfigStatus {
     lastOperation: mapBrokerConfigLastOperation(r.lastOperation ?? r.last_operation ?? null),
     lastAppliedVersionId: (pick(r.lastAppliedVersionId, r.last_applied_version_id) as string | null) ?? null,
   };
+}
+
+/** Angka bila berupa number berhingga, `null` bila null/absen (§3.3b). */
+const numOrNull = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null;
+
+/**
+ * FAT-285 (E32.4): pemetaan `GET /mqtt/configuration` — dipindah verbatim
+ * dari `http/mqttConfig.ts` (dulu inline di `getBrokerConfig`).
+ */
+export function mapBrokerConfigSchema(raw: unknown): BrokerConfigSchema {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const general = (r.general ?? {}) as Record<string, unknown>;
+  const limits = (r.limits ?? {}) as Record<string, unknown>;
+  return {
+    version: str(pick(r.version), '1'),
+    general: {
+      per_listener_settings: bool(general.per_listener_settings, false),
+      allow_anonymous: bool(general.allow_anonymous, false),
+      // E20 P20.5 (FAT-157): field tanpa sumber = `null` — HAPUS
+      // default fabrikasi (autosave 300; §3.3b).
+      autosave_interval_seconds: numOrNull(general.autosave_interval_seconds),
+      persistence: bool(general.persistence, true),
+      persistence_location: str(general.persistence_location, ''),
+      log_dest: (general.log_dest as string[]) ?? [],
+      log_type: (general.log_type as string[]) ?? [],
+      connection_messages: bool(general.connection_messages, true),
+    },
+    limits: {
+      // E20 P20.5 (FAT-157): HAPUS default fabrikasi `max_connections`
+      // 1000, `max_packet_size_bytes` 268435456, `max_queued_bytes` 0 —
+      // field tanpa sumber = `null` (§3.3b).
+      // E23 Batch 3 (FAT-198, N-29): sisa default fabrikasi
+      // `max_queued_messages` 1000 / `max_inflight_messages` 20 juga
+      // dihapus (spec nullable) — null tetap null.
+      max_connections: numOrNull(limits.max_connections),
+      max_packet_size_bytes: numOrNull(limits.max_packet_size_bytes),
+      max_queued_messages: numOrNull(limits.max_queued_messages),
+      max_queued_bytes: numOrNull(limits.max_queued_bytes),
+      max_inflight_messages: numOrNull(limits.max_inflight_messages),
+    },
+    listeners: (r.listeners as BrokerConfigSchema['listeners']) ?? [],
+    // E20 P20.5 (FAT-157): `tls_profiles` selalu `[]` (§3.3b) —
+    // TLS melekat pada listener/bridge, bukan profil terpisah.
+    tls_profiles: [],
+    bridges: (r.bridges as BrokerConfigSchema['bridges']) ?? [],
+    // E23 Batch 3 (FAT-198, N-29): `unmanaged[]` spec berupa objek
+    // `{key, section, line, reason}` — petakan sebagai objek (dulu
+    // `String(u)` → "[object Object]"). Item bukan objek dilewati.
+    unmanaged: Array.isArray(r.unmanaged)
+      ? (r.unmanaged as unknown[])
+          .filter((u): u is Record<string, unknown> => typeof u === 'object' && u !== null)
+          .map((u) => ({
+            key: str(pick(u.key)),
+            section: str(pick(u.section)),
+            line: num(pick(u.line), 0),
+            reason: str(pick(u.reason)),
+          }))
+      : [],
+  };
+}
+
+/**
+ * FAT-285 (E32.4): pemetaan `GET /mqtt/configuration/raw` — dipindah
+ * verbatim dari `http/mqttConfig.ts` (dulu inline di `getBrokerConfigRaw`).
+ *
+ * E23 Batch 3 (FAT-199, N-30): spec live mengembalikan JSON
+ * `{metadata:{source, checksum, sizeBytes, modifiedAt,
+ * mosquittoVersion}, text}` — `text` adalah isi mosquitto.conf (bukan
+ * dokumen JSON utuh). Bila server mengembalikan teks polos (bentuk
+ * lama), pakai teks itu dengan metadata null.
+ */
+export function mapBrokerConfigRawResult(json: unknown, rawText: string): BrokerConfigRawResult {
+  const obj = (json ?? null) as Record<string, unknown> | null;
+  if (obj && typeof obj.text === 'string') {
+    const meta = (obj.metadata ?? null) as Record<string, unknown> | null;
+    return {
+      text: obj.text,
+      metadata:
+        meta && typeof meta.checksum === 'string'
+          ? {
+              source: str(pick(meta.source)),
+              checksum: meta.checksum,
+              sizeBytes: num(pick(meta.sizeBytes, meta.size_bytes), 0),
+              modifiedAt: str(pick(meta.modifiedAt, meta.modified_at)),
+              mosquittoVersion: str(pick(meta.mosquittoVersion, meta.mosquitto_version)),
+            }
+          : null,
+    };
+  }
+  return { text: rawText, metadata: null };
+}
+
+/**
+ * FAT-285 (E32.4): pemetaan satu baris `GET /mqtt/configuration/backups`
+ * — dipindah verbatim dari `http/mqttConfig.ts` (dulu inline di
+ * `getBrokerConfigBackups`).
+ */
+export function mapBrokerBackup(raw: unknown): BrokerBackup {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    backup_id: str(pick(r.backup_id, r.backupId, r.id)),
+    filename: str(pick(r.filename, r.name)),
+    version_id: str(pick(r.version_id, r.versionId)),
+    created_at: iso(pick(r.created_at, r.createdAt)),
+    size_bytes: num(pick(r.size_bytes, r.sizeBytes), 0),
+  } satisfies BrokerBackup;
 }

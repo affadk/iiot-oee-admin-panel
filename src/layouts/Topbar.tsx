@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Sun, Moon, User, Radio, Database, Menu, LogOut, Clock, KeyRound } from 'lucide-react';
+import { Sun, Moon, Menu } from 'lucide-react';
 import { useAuth, useCapability } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNetworkAccess } from '../context/NetworkAccessContext';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { TopbarModeSwitch } from './components/TopbarModeSwitch';
+import { TopbarNav } from './components/TopbarNav';
+import { TopbarSessionBadge } from './components/TopbarSessionBadge';
+import { TopbarStatusIndicators } from './components/TopbarStatusIndicators';
+import { TopbarUserMenu } from './components/TopbarUserMenu';
 import { resolveApiMode, setApiMode, isApiModeSwitchAllowed, resolvePlantLabel, ApiMode } from '../services/api/mode';
 import {
   resolveAccessMode,
@@ -17,6 +22,24 @@ interface TopbarProps {
   onOpenMobileSidebar?: () => void;
 }
 
+function apiModeClassForValue(mode: string): string {
+  return mode === 'real'
+    ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+    : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300';
+}
+
+function accessModeClassForValue(mode: string): string {
+  return mode === 'public'
+    ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+    : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300';
+}
+
+/**
+ * E32.6 (FAT-287): sub-bagian dipecah per tanggung jawab ke
+ * layouts/components/ (TopbarNav, TopbarModeSwitch, TopbarSessionBadge,
+ * TopbarStatusIndicators, TopbarUserMenu). Topbar tinggal orkestrasi:
+ * state mode + theme + modal ganti password. Perilaku/UI tidak berubah.
+ */
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
   const navigate = useNavigate();
   const { currentUser, logout, sessionTtlRemaining } = useAuth();
@@ -58,14 +81,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
     navigate('/login');
   };
 
-  const formatSessionTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  const isLowSession = sessionTtlRemaining < 180;
-
   return (
     <>
       <header className="h-14 px-4 sm:px-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 shrink-0 select-none">
@@ -86,172 +101,43 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
           <span className="hidden lg:inline text-xs text-slate-400 font-mono whitespace-nowrap shrink-0">| {resolvePlantLabel()}</span>
         </div>
 
-        <nav className="hidden md:flex items-center gap-4 xl:gap-5 text-xs font-medium text-slate-600 dark:text-slate-300">
-          <NavLink
-            to="/admin/live-state"
-            className={({ isActive }) =>
-              `hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''
-              }`
-            }
-          >
-            Live State
-          </NavLink>
-          <NavLink
-            to="/admin/work-orders"
-            className={({ isActive }) =>
-              `hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''
-              }`
-            }
-          >
-            Work Orders
-          </NavLink>
-          <NavLink
-            to="/admin/downtime"
-            className={({ isActive }) =>
-              `hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''
-              }`
-            }
-          >
-            Downtime
-          </NavLink>
-          <NavLink
-            to="/admin/telemetry"
-            className={({ isActive }) =>
-              `hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''
-              }`
-            }
-          >
-            Telemetry
-          </NavLink>
-          {canReadBrokerConfig && (
-            <NavLink
-              to="/admin/mqtt/configuration"
-              className={({ isActive }) =>
-                `hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-                  isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''
-                }`
-              }
-            >
-              Broker Config
-            </NavLink>
-          )}
-        </nav>
+        <TopbarNav canReadBrokerConfig={canReadBrokerConfig} />
 
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          <div className="hidden 2xl:flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-tabular border-r border-slate-200 dark:border-slate-800 pr-3">
-            <div className="flex items-center gap-1.5" title="Status Koneksi Perangkat Pabrik">
-              <Radio className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Koneksi Mesin Aktif</span>
-            </div>
-            <span aria-hidden="true">·</span>
-            <div className="flex items-center gap-1.5" title="Penyimpanan Data Produksi">
-              <Database className="w-3.5 h-3.5 text-sky-500" />
-              <span>Basis Data Aktif</span>
-            </div>
-          </div>
+          <TopbarStatusIndicators />
 
-          <div
-            className={`hidden sm:flex items-center gap-1 text-[11px] font-tabular px-2 py-0.5 rounded border ${
-              isLowSession
-                ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-            }`}
-            title="Sisa waktu aktif sesi login Anda"
-          >
-            <Clock className="w-3 h-3 text-slate-400" />
-            <span>{formatSessionTime(sessionTtlRemaining)}</span>
-          </div>
+          <TopbarSessionBadge sessionTtlRemaining={sessionTtlRemaining} />
 
-          <div
-            className="flex items-center gap-1.5"
-            title={
-              apiModeSwitchAllowed
-                ? 'Mode API: Demo memakai data lokal di memori; Real memakai HTTP ke backend (VITE_API_URL). Pilihan tersimpan dan halaman dimuat ulang.'
-                : 'Mode API terkunci di env (VITE_API_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang.'
-            }
-          >
-            <span className="text-[11px] text-slate-400 hidden sm:inline">API:</span>
-            {apiModeSwitchAllowed ? (
-              // E31.6 (FAT-269): BYPASS R2 — select ini memakai warna latar
-              // kondisional per mode (Real = emerald, Demo = amber) sebagai
-              // indikator visual mode aktif; ui/Select tidak mendukung
-              // className kondisional pada elemen select-nya.
-              <select
-                value={apiMode}
-                onChange={(e) => handleApiModeChange(e.target.value as ApiMode)}
-                className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
-                  apiMode === 'real'
-                    ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-                    : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                }`}
-                aria-label="API Mode"
-              >
-                <option value="demo">Demo</option>
-                <option value="real">Real</option>
-              </select>
-            ) : (
-              <span
-                className={`text-xs border rounded px-2 py-1 font-semibold ${
-                  apiMode === 'real'
-                    ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-                    : 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                }`}
-                aria-label={`API Mode: ${apiMode} (terkunci di env)`}
-              >
-                {apiMode === 'real' ? 'Real' : 'Demo'}
-              </span>
-            )}
-          </div>
+          <TopbarModeSwitch
+            label="API"
+            value={apiMode}
+            options={[
+              { value: 'demo', label: 'Demo' },
+              { value: 'real', label: 'Real' },
+            ]}
+            switchAllowed={apiModeSwitchAllowed}
+            onChange={(next) => handleApiModeChange(next as ApiMode)}
+            allowedTitle="Mode API: Demo memakai data lokal di memori; Real memakai HTTP ke backend (VITE_API_URL). Pilihan tersimpan dan halaman dimuat ulang."
+            lockedTitle="Mode API terkunci di env (VITE_API_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang."
+            classForValue={apiModeClassForValue}
+          />
 
           {/* Switch mode akses Private/Public — mirroring pola badge API di atas.
               Private (biru) = akses penuh hanya dari LAN pabrik, via internet
               read-only. Public (amber) = akses penuh juga via internet. */}
-          <div
-            className="flex items-center gap-1.5"
-            title={
-              accessModeSwitchAllowed
-                ? 'Mode Akses: Private = akses penuh hanya dari LAN pabrik (via internet read-only); Public = akses penuh juga via internet publik. Pilihan tersimpan dan halaman dimuat ulang.'
-                : 'Mode Akses terkunci di env (VITE_ACCESS_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang.'
-            }
-          >
-            <span className="text-[11px] text-slate-400 hidden sm:inline">Akses:</span>
-            {accessModeSwitchAllowed ? (
-              // E31.6 (FAT-269): BYPASS R2 — alasan sama seperti select API
-              // Mode di atas (warna latar kondisional: Public = amber,
-              // Private = sky).
-              <select
-                value={accessMode}
-                onChange={(e) => handleAccessModeChange(e.target.value as AccessMode)}
-                className={`text-xs border rounded px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 ${
-                  accessMode === 'public'
-                    ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                    : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300'
-                }`}
-                aria-label="Mode Akses"
-              >
-                <option value="private">Private</option>
-                <option value="public">Public</option>
-              </select>
-            ) : (
-              <span
-                className={`text-xs border rounded px-2 py-1 font-semibold ${
-                  accessMode === 'public'
-                    ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                    : 'bg-sky-100 dark:bg-sky-950/60 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300'
-                }`}
-                aria-label={`Mode Akses: ${accessMode} (terkunci di env)`}
-              >
-                {accessMode === 'public' ? 'Public' : 'Private'}
-              </span>
-            )}
-          </div>
-
-          {/* Ganti peran TIDAK ada di sini: peran berasal dari login.
-              Untuk ganti peran: logout, lalu login sebagai operator lain. */}
+          <TopbarModeSwitch
+            label="Akses"
+            value={accessMode}
+            options={[
+              { value: 'private', label: 'Private' },
+              { value: 'public', label: 'Public' },
+            ]}
+            switchAllowed={accessModeSwitchAllowed}
+            onChange={(next) => handleAccessModeChange(next as AccessMode)}
+            allowedTitle="Mode Akses: Private = akses penuh hanya dari LAN pabrik (via internet read-only); Public = akses penuh juga via internet publik. Pilihan tersimpan dan halaman dimuat ulang."
+            lockedTitle="Mode Akses terkunci di env (VITE_ACCESS_MODE). Untuk mengubahnya, ubah env lalu build/deploy ulang."
+            classForValue={accessModeClassForValue}
+          />
 
           <button
             onClick={toggleTheme}
@@ -262,34 +148,13 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileSidebar }) => {
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
           </button>
 
-          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800 text-xs">
-            <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200">
-              <User className="w-4 h-4" />
-            </div>
-            <div className="hidden lg:block text-left mr-1">
-              <span className="block font-semibold text-slate-900 dark:text-slate-100 leading-tight">
-                {currentUser.name}
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono leading-tight">{currentUser.operator_id}</span>
-            </div>
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              disabled={isReadOnly}
-              className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 rounded transition-colors disabled:opacity-40"
-              title={isReadOnly ? 'Ganti password dinonaktifkan (mode observasi)' : 'Ganti Password Sendiri'}
-              aria-label="Ganti Password"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
-              title="Keluar dari sesi (Logout)"
-              aria-label="Keluar dari sesi"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <TopbarUserMenu
+            userName={currentUser.name}
+            operatorId={currentUser.operator_id}
+            isReadOnly={isReadOnly}
+            onChangePassword={() => setShowPasswordModal(true)}
+            onLogout={handleLogout}
+          />
         </div>
       </header>
 

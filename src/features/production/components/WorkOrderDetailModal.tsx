@@ -1,12 +1,13 @@
 import React from 'react';
-import { AlertTriangle, Clock, Cpu, User } from 'lucide-react';
+import { AlertTriangle, Clock, Cpu } from 'lucide-react';
 import { WorkOrder, WorkOrderResolveResult } from '../../../types/production';
 import { CorrelatedWorkOrderSummary } from '../../shared/historyFilters';
-import { formatDeletedRelationLabel } from '../../../utils/oeeCalculations';
 import { formatDateTime } from '../../../utils/formatDate';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { WorkOrderCorrelationPanel } from './WorkOrderCorrelationPanel';
+import { WorkOrderDetailSummary } from './WorkOrderDetailSummary';
+import { WorkOrderResolveResultPanel } from './WorkOrderResolveResultPanel';
 
 interface WorkOrderDetailModalProps {
   displayedWo: WorkOrder | null;
@@ -20,6 +21,10 @@ interface WorkOrderDetailModalProps {
   onClose: () => void;
 }
 
+// E32.7 (FAT-288): ringkasan identitas/kuantitas → WorkOrderDetailSummary,
+// panel hasil pemeriksaan parameter → WorkOrderResolveResultPanel — modal
+// ini tinggal orkestrasi: korelasi + alasan batal + error resolve +
+// stempel waktu.
 export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
   displayedWo,
   selectedDeviceId,
@@ -63,57 +68,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
     >
       {displayedWo && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-800 text-xs">
-            <div>
-              <div className="text-slate-400">Status</div>
-              <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
-                {displayedWo.status}
-              </div>
-            </div>
-            <div>
-              <div className="text-slate-400">Mesin</div>
-              <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
-                {formatDeletedRelationLabel(displayedWo.machine_name, displayedWo.machine_id).label}
-              </div>
-            </div>
-            <div>
-              <div className="text-slate-400">Produk</div>
-              <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
-                {formatDeletedRelationLabel(displayedWo.product_name, displayedWo.product_id).label}
-              </div>
-            </div>
-            <div>
-              <div className="text-slate-400">Operator</div>
-              <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 flex items-center gap-1">
-                <User className="w-3 h-3 text-slate-400" />
-                {formatDeletedRelationLabel(displayedWo.operator_name, displayedWo.operator_id).label}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 text-xs font-tabular">
-            <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
-              <span className="text-slate-400 block">Target Qty</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {displayedWo.target_qty ?? displayedWo.target_quantity} pcs
-              </span>
-            </div>
-            {/* E20 P20.5 (FAT-157): `completed_quantity`/`rejected_quantity`
-                DIHAPUS dari kontrak WO (§C) — kartu diganti `dispatched_at` /
-                `acked_at`; output/reject dibaca dari telemetri/OEE. */}
-            <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
-              <span className="text-slate-400 block">Dispatched</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {displayedWo.dispatched_at ? formatDateTime(displayedWo.dispatched_at) : '—'}
-              </span>
-            </div>
-            <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded">
-              <span className="text-slate-400 block">Acked</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {displayedWo.acked_at ? formatDateTime(displayedWo.acked_at) : '—'}
-              </span>
-            </div>
-          </div>
+          <WorkOrderDetailSummary wo={displayedWo} />
 
           <WorkOrderCorrelationPanel
             displayedWo={displayedWo}
@@ -141,58 +96,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             </div>
           )}
 
-          {resolveResult && (
-            <div className="p-3.5 rounded-lg bg-slate-950 text-slate-100 border border-slate-800 space-y-2 text-xs">
-              <div className="flex items-center justify-between text-emerald-400 font-semibold">
-                <span>Parameter Kesiapan Produksi · {resolveResult.work_order.wo_id}</span>
-                <span>SIAP</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-tabular text-[11px]">
-                <div>
-                  <span className="text-slate-400 block">Target per Jam</span>
-                  <span className="font-bold text-sky-400">
-                    {/* E23 Batch 4 (FAT-204, N-35): targetPerHour null =
-                        'tidak diketahui' (bukan 0 pcs/jam). */}
-                    {resolveResult.work_order.targetPerHour === null
-                      ? '—'
-                      : `${resolveResult.work_order.targetPerHour} pcs/jam`}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Waktu Siklus Standar</span>
-                  <span className="font-bold">{resolveResult.work_order.std_cycle_time_sec} dtk</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Durasi Operasi Rencana</span>
-                  <span className="font-bold">
-                    {resolveResult.work_order.shift_plan.planned_operating_sec} dtk
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Jadwal Shift</span>
-                  <span>
-                    {resolveResult.work_order.shift_plan.shift_start}–
-                    {resolveResult.work_order.shift_plan.shift_end}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Jadwal Istirahat</span>
-                  <span>
-                    {/* E23 Batch 4 (FAT-204, N-35): `break` null bila
-                        spec tidak mengirimnya — tampil '—', bukan
-                        jadwal fabrikasi kosong. */}
-                    {resolveResult.work_order.break
-                      ? `${resolveResult.work_order.break.start}–${resolveResult.work_order.break.end} (${resolveResult.work_order.break.minutes}m)`
-                      : '—'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Durasi Istirahat</span>
-                  <span>{resolveResult.work_order.shift_plan.planned_break_min} min</span>
-                </div>
-              </div>
-            </div>
-          )}
+          {resolveResult && <WorkOrderResolveResultPanel resolveResult={resolveResult} />}
 
           <div className="flex items-center gap-2 text-[11px] text-slate-500 font-tabular">
             <Clock className="w-3.5 h-3.5" />
