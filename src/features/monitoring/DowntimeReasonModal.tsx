@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { DowntimeCategory, DowntimeEvent } from '../../types/monitoring';
+import { DowntimeCategory, DowntimeEvent, DowntimeReasonResult } from '../../types/monitoring';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { apiClient } from '../../services/api/client';
 import { ApiError } from '../../types/auth';
 import { useAuth, useCapability } from '../../context/AuthContext';
@@ -12,7 +13,11 @@ import { AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 interface DowntimeReasonModalProps {
   event: DowntimeEvent | null;
   onClose: () => void;
-  onSuccess: (updated: DowntimeEvent) => void;
+  // E20 P20.5 (FAT-157): classify mengembalikan `DowntimeReasonResult`
+  // (§J.3: {success, eventId, deviceId, operatorReason, isOverwrite,
+  // operator}) — BUKAN DowntimeEvent penuh. Pemanggil memuat ulang
+  // daftar (invalidateQueries) untuk event terbarunya.
+  onSuccess: (result: DowntimeReasonResult) => void;
 }
 
 const CATEGORIES: { value: DowntimeCategory; label: string }[] = [
@@ -28,25 +33,52 @@ const CATEGORIES: { value: DowntimeCategory; label: string }[] = [
   { value: 'OTHER', label: '6. Other Startup / Organizational Losses' },
 ];
 
+/**
+ * E28 Batch B (FAT-230, MUT-04): buang prefix kategori "[KATEGORI] " di
+ * depan teks alasan — server menyimpan `operatorReason` dengan prefix
+ * itu saat label dikirim lewat POST /reason, sehingga alasan yang
+ * dibaca kembali ("[EQUIPMENT_FAILURE] Equipment failure") bukan lagi
+ * teks asli ("Equipment failure"). Dipakai saat prefill overwrite (agar
+ * prefix tidak menumpuk di setiap overwrite berikut) dan saat opsi
+ * "kembalikan ke Belum dikategorikan" dipakai. Hanya prefix di awal
+ * yang dibuang; "[...]" di tengah teks dibiarkan.
+ */
+export function stripDowntimeCategoryPrefix(reason: string): string {
+  return reason.replace(/^\[[A-Z0-9_]+\]\s*/, '');
+}
+
+/** Kategori netral untuk opsi kembalikan — lihat `DowntimeReasonModal`. */
+export const RESTORE_UNLABELED_CATEGORY: DowntimeCategory = 'OTHER';
+
 export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
   event,
   onClose,
   onSuccess,
 }) => {
   const { reportForbidden } = useAuth();
-  const canLabel = useCapability('downtime.reason.label', event?.id);
+  const canLabel = useCapability('downtime_event.label', event?.id);
 
   const [category, setCategory] = useState<DowntimeCategory>('EQUIPMENT_FAILURE');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  // E28 Batch B (FAT-230, MUT-04): opsi kembalikan ke "Belum
+  // dikategorikan" — hanya untuk overwrite (event sudah berlabel).
+  const [restoreUnlabeled, setRestoreUnlabeled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (event) {
-      setCategory(event.category);
-      setReason(event.is_labeled ? event.reason : '');
+      // E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' bukan nilai valid body
+      // POST /reason (spec: 10 kategori) — default pelabelan ke 'OTHER'
+      // (pilihan netral, masih bisa diubah pengguna).
+      setCategory(event.category === 'UNKNOWN' ? 'OTHER' : event.category);
+      // E28 Batch B (FAT-230): prefill TANPA prefix "[KATEGORI] " yang
+      // ditambahkan server — pengguna mengedit teks aslinya, dan prefix
+      // tidak menumpuk bila di-overwrite berulang kali.
+      setReason(event.is_labeled ? stripDowntimeCategoryPrefix(event.reason) : '');
       setNotes(event.notes ?? '');
+      setRestoreUnlabeled(false);
       setErrorMsg(null);
     }
   }, [event]);
@@ -54,7 +86,9 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
   if (!event) return null;
 
   const isOverwrite = event.is_labeled;
-  const sixBigLoss = mapDowntimeToSixBigLoss(category);
+  const sixBigLoss = mapDowntimeToSixBigLoss(
+    restoreUnlabeled ? RESTORE_UNLABELED_CATEGORY : category
+  );
   const machineLabel = formatDeletedRelationLabel(event.machine_name, event.machine_id);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,17 +109,24 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const updated = await apiClient.classifyDowntimeReason(
+      // E28 Batch B (FAT-230): mode kembalikan memakai kategori netral
+      // 'OTHER' + teks asli tanpa prefix. Spec 20 Nov MEWAJIBKAN
+      // `category` (10 nilai enum, tanpa 'UNKNOWN' dan tanpa endpoint
+      // unlabel) — jadi "tanpa kategori" tidak bisa dikirim; ini yang
+      // paling dekat dengan "Belum dikategorikan" yang diizinkan API.
+      // Kolom kategori hanya bisa benar-benar kembali ke "Belum
+      // dikategorikan" bila backend menambah dukungan unlabel.
+      const result = await apiClient.classifyDowntimeReason(
         event.id,
-        category,
+        restoreUnlabeled ? RESTORE_UNLABELED_CATEGORY : category,
         reason.trim(),
         notes.trim() || undefined
       );
-      onSuccess(updated);
+      onSuccess(result);
       onClose();
     } catch (err: any) {
       if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('downtime.reason.label', event.id, err.message);
+        reportForbidden('downtime_event.label', event.id, err.message);
       }
       setErrorMsg(err?.message || 'Gagal mengklasifikasi alasan downtime.');
     } finally {
@@ -136,22 +177,36 @@ export const DowntimeReasonModal: React.FC<DowntimeReasonModalProps> = ({
           </div>
         )}
 
-        <div className="space-y-1">
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Kategori Six Big Losses
+        <Select
+          label="Kategori Six Big Losses"
+          value={restoreUnlabeled ? RESTORE_UNLABELED_CATEGORY : category}
+          onChange={(e) => setCategory(e.target.value as DowntimeCategory)}
+          disabled={restoreUnlabeled}
+          options={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+        />
+
+        {/* E28 Batch B (FAT-230, MUT-04): opsi kembalikan ke "Belum
+            dikategorikan" — hanya saat overwrite. Mengirim kategori
+            netral OTHER + teks asli tanpa prefix "[KATEGORI] ". */}
+        {isOverwrite && (
+          <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded">
+            <input
+              type="checkbox"
+              checked={restoreUnlabeled}
+              onChange={(e) => setRestoreUnlabeled(e.target.checked)}
+              className="rounded border-slate-300 text-sky-600 mt-0.5"
+            />
+            <span>
+              <span className="font-semibold">Kembalikan ke &ldquo;Belum dikategorikan&rdquo;</span>
+              <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Label dikirim sebagai kategori netral (Other) dengan teks alasan asli tanpa
+                prefix kategori. API saat ini mewajibkan satu dari 10 kategori — kolom
+                kategori baru benar-benar kembali ke &ldquo;Belum dikategorikan&rdquo; bila
+                backend menambah dukungan unlabel.
+              </span>
+            </span>
           </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as DowntimeCategory)}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        )}
 
         <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded text-xs flex items-center justify-between gap-2">
           <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">

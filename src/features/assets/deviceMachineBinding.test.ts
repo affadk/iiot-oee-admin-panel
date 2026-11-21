@@ -13,7 +13,6 @@ function snapshotStore() {
     workOrders: store.workOrders.map((w) => ({ ...w })),
     downtimes: store.downtimes.map((dt) => ({ ...dt })),
     operationalEvents: store.operationalEvents.map((ev) => ({ ...ev })),
-    auditLogs: store.auditLogs.map((al) => ({ ...al })),
     iamAuditDecisions: store.iamAuditDecisions.map((d) => ({ ...d })),
     role: apiClient.getUserRole(),
     network: apiClient.getNetworkMode(),
@@ -32,7 +31,6 @@ function restoreStore(snap: ReturnType<typeof snapshotStore>) {
   store.workOrders = snap.workOrders;
   store.downtimes = snap.downtimes;
   store.operationalEvents = snap.operationalEvents;
-  store.auditLogs = snap.auditLogs;
   store.iamAuditDecisions = snap.iamAuditDecisions;
   apiClient.setNetworkMode(snap.network);
   apiClient.setIamMode(snap.iamMode);
@@ -73,10 +71,10 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     assert.equal(normalizeMacAddress('aa-bb-cc-dd-ee-ff'), 'AA:BB:CC:DD:EE:FF');
 
     // A3: CREATE device valid (with '-' MAC normalized to uppercase ':') + IPv6
+    // E23 Batch 4 (FAT-206, N-37): spec live POST /devices tanpa
+    // model/serial_number — keduanya tidak lagi dikirim.
     const created = await apiClient.registerDevice({
       device_id: 'STM32-TEST-90',
-      model: 'STM32H743-Edge-Pro',
-      serial_number: 'SN-TEST-90',
       mac_address: 'aa-bb-cc-11-22-90',
       ip_address: '2001:db8::90',
       firmware_version: 'v2.5.0',
@@ -87,14 +85,14 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     assert.equal(created.bound_machine_id, null);
     assert.equal(created.boundMachine, null);
 
-    // A4: Duplicate deviceId -> 409
+    // A4: Duplicate deviceId -> 409 DEVICE_ALREADY_REGISTERED (E20 P20.2 D10)
     await assert.rejects(
       () =>
         apiClient.registerDevice({
           device_id: 'STM32-TEST-90',
           mac_address: 'AA:BB:CC:11:22:99',
         }),
-      (err: any) => err.httpStatus === 409 && err.code === 'CONFLICT'
+      (err: any) => err.httpStatus === 409 && err.code === 'DEVICE_ALREADY_REGISTERED'
     );
 
     // A5: Duplicate MAC across ':' vs '-' -> 409
@@ -125,10 +123,10 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
       (err: any) => err.httpStatus === 400 && err.code === 'VALIDATION_ERROR'
     );
 
-    // A8: DELETE bound device whose machine has ACTIVE WO -> 409 MACHINE_HAS_ACTIVE_WO
+    // A8: DELETE bound device whose machine has ACTIVE WO -> 409 CONFLICT (E20 P20.2 D10)
     await assert.rejects(
       () => apiClient.deleteDevice('STM32-OEE-01'),
-      (err: any) => err.httpStatus === 409 && err.code === 'MACHINE_HAS_ACTIVE_WO' && err.activeWoId === 'WO-2026-101'
+      (err: any) => err.httpStatus === 409 && err.code === 'CONFLICT' && err.activeWoId === 'WO-2026-101'
     );
 
     // A9: DELETE device preserves historical downtimes & operationalEvents with device_id = null
@@ -150,17 +148,23 @@ test('Test A — Device Management Workflow (READ list/detail, CREATE, UPDATE im
     });
     store.operationalEvents.unshift({
       id: 'opev-hist-test-90',
+      recorded_at: '2026-11-10T08:04:00Z',
       device_id: 'STM32-TEST-90',
+      station_label: null,
       machine_id: null,
-      machine_name: 'Unbound Test Machine',
-      event_type: 'DISCONNECT',
-      severity: 'INFO',
-      message: 'Historical reconnect',
+      machine_name: null,
+      wo_id: null,
+      event_type: 'DEVICE_OFFLINE',
+      trigger_source: 'DEVICE',
+      event_code: null,
+      snapshot_total_count: null,
+      snapshot_run_sec: null,
+      description: 'Historical reconnect',
       acknowledged: true,
       acknowledged_by: 'ADM-001',
       acknowledged_at: '2026-11-10T08:05:00Z',
       ack_note: 'ok',
-      timestamp: '2026-11-10T08:04:00Z',
+      created_at: '2026-11-10T08:04:00Z',
     });
 
     const delRes = await apiClient.deleteDevice('STM32-TEST-90');
@@ -330,12 +334,10 @@ test('Test B — Machine Management Workflow (CREATE default slave=1, optional d
       operator_name: 'Budi Santoso',
       shift_name: 'Shift 1',
       target_quantity: 100,
-      completed_quantity: 100,
-      rejected_quantity: 2,
       status: 'COMPLETED',
       planned_start: '2026-11-13T08:00:00Z',
-      actual_start: '2026-11-13T08:00:00Z',
-      actual_end: '2026-11-13T16:00:00Z',
+      actual_start_at: '2026-11-13T08:00:00Z',
+      actual_end_at: '2026-11-13T16:00:00Z',
     });
 
     const delOk = await apiClient.deleteMachine('CNC-ATOMIC-02');
@@ -363,7 +365,6 @@ test('Test C — Device-Machine Binding (1:1 Invariant, BIND, UNBIND, Audit, Ope
     const wsEvents: TelemetryWsEvent[] = [];
     const unsub = telemetrySocket.subscribe((ev) => wsEvents.push(ev));
     try {
-      const prevAuditCount = store.auditLogs.length;
       const prevOpEventCount = store.operationalEvents.length;
 
       // C1: Bind unbound STM32-OEE-05 -> unbound CNC-GRIND-05
@@ -375,9 +376,8 @@ test('Test C — Device-Machine Binding (1:1 Invariant, BIND, UNBIND, Audit, Ope
       assert.equal(dev05.bound_machine_id, 'CNC-GRIND-05');
       assert.equal(dev05.boundMachine?.machine_id, 'CNC-GRIND-05');
 
-      // Audit Log + Operational Event + WS emitted
-      assert.equal(store.auditLogs.length, prevAuditCount + 1);
-      assert.equal(store.auditLogs[0].action, 'MACHINE_BOUND');
+      // P33.3 dedup (FAT-293): bind menulis SATU entri ke satu store
+      // (addOperationalEvent saja) + WS emitted
       assert.equal(store.operationalEvents.length, prevOpEventCount + 1);
       assert.equal(store.operationalEvents[0].event_type, 'MACHINE_BOUND');
       assert.ok(wsEvents.some((e) => e.type === 'MACHINE_BOUND' && (e as any).payload.device_id === 'STM32-OEE-05'));
@@ -403,13 +403,12 @@ test('Test C — Device-Machine Binding (1:1 Invariant, BIND, UNBIND, Audit, Ope
         (err: any) => err.httpStatus === 409 && err.code === 'DEVICE_ALREADY_BOUND'
       );
 
-      // C4: Unbind CNC-GRIND-05 -> succeeds, emits Audit + OperationalEvent + WS MACHINE_UNBOUND
+      // C4: Unbind CNC-GRIND-05 -> succeeds, emits OperationalEvent + WS MACHINE_UNBOUND
       const unboundResult = await apiClient.unbindDevice('CNC-GRIND-05');
       assert.equal(unboundResult.bound_device_id, null);
       assert.equal(unboundResult.boundDevice, null);
       const dev05Freed = await apiClient.getDeviceById('STM32-OEE-05');
       assert.equal(dev05Freed.bound_machine_id, null);
-      assert.equal(store.auditLogs[0].action, 'MACHINE_UNBOUND');
       assert.equal(store.operationalEvents[0].event_type, 'MACHINE_UNBOUND');
       assert.ok(wsEvents.some((e) => e.type === 'MACHINE_UNBOUND' && (e as any).payload.machine_id === 'CNC-GRIND-05'));
 
@@ -509,7 +508,6 @@ test('Test E — Authorization, Network Perimeter & Zero Side-Effects on Denial'
     const wsEvents: TelemetryWsEvent[] = [];
     const unsub = telemetrySocket.subscribe((ev) => wsEvents.push(ev));
     try {
-      const initialAudits = store.auditLogs.length;
       const initialOpEvents = store.operationalEvents.length;
 
       // E1: Non-ADMIN roles on LAN cannot mutate devices, machines, or bindings
@@ -574,8 +572,7 @@ test('Test E — Authorization, Network Perimeter & Zero Side-Effects on Denial'
       );
       assert.equal(unauthFired, true);
 
-      // E4: Zero audit logs, operational events, or WS events leaked from denied operations
-      assert.equal(store.auditLogs.length, initialAudits);
+      // E4: Zero operational events or WS events leaked from denied operations
       assert.equal(store.operationalEvents.length, initialOpEvents);
       assert.equal(wsEvents.length, 0);
     } finally {

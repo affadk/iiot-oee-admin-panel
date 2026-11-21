@@ -2,7 +2,7 @@ import { DowntimeCategory } from './monitoring';
 
 export type ExportFormat = 'csv' | 'ndjson' | 'json';
 
-export type TimeWindowPreset = '24h' | '7d' | '30d' | '90d' | 'custom';
+export type TimeWindowPreset = 'today' | '24h' | '7d' | '30d' | '90d' | 'custom';
 
 export interface ExportMetadata {
   source: string;
@@ -47,14 +47,22 @@ export interface HistoryFilters {
   machineId?: string;
   deviceId?: string;
   woId?: string;
-  status?: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+  // E20 P20.5 (FAT-157): status WO kanonis §C.1 — termasuk PENDING_CLOSE.
+  status?: 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';
   eventType?: string;
   category?: string;
   activeOnly?: boolean;
   unlabeledOnly?: boolean;
   isBuffered?: boolean;
-  groupBy?: 'machine' | 'day' | 'month';
+  // E23 Batch 3 (FAT-195, N-26): groupBy rollup mencakup 'line'.
+  groupBy?: 'machine' | 'line' | 'day' | 'month';
   bucket?: '1m' | '5m' | '15m' | '1h' | '1d';
+  // E12 T12.1 (X-1 / FAT-54): filter shift — tanggal kalender shift
+  // (YYYY-MM-DD, tanggal mulai shift) + ID shift (Shift.shiftId). Bila
+  // keduanya terisi, from/to adalah jendela shift itu (resolveShiftWindow);
+  // tanpa keduanya, from/to berlaku seperti sebelumnya (default 7 hari).
+  shiftDate?: string;
+  shiftId?: string;
   from: string; // ISO8601 dengan offset
   to: string;
   limit: number;
@@ -80,20 +88,51 @@ export interface DowntimeExportQuery {
   limit?: number;
 }
 
+/**
+ * E20 P20.4 (FAT-156): `GET /operational-events` (global) hanya mendaftarkan
+ * `from, to, event_type, acknowledged, limit, cursor, envelope` (API doc §I)
+ * — tanpa `machine_id` (hanya `/system/audit`) dan tanpa `severity`
+ * (tidak didukung; parameter tak dikenal diabaikan 200). D-12: hanya kirim
+ * parameter terdaftar per endpoint.
+ */
 export interface OperationalEventsQuery extends HistoricalTimeFilter {
   device_id?: string; // undefined or 'ALL' => global /api/v1/operational-events
-  machine_id?: string;
   event_type?: string;
-  severity?: string;
   acknowledged?: boolean;
 }
 
+/**
+ * E20 P20.4 (FAT-156): `GET /operational-events/export` hanya mendaftarkan
+ * `from, to, format, limit` (API doc §I) — tanpa `machine_id`/`event_type`
+ * (D-12). Guard: policy `refresh:telemetry`, SUPERVISOR/ADMIN LAN (D-13).
+ */
 export interface OperationalEventsExportQuery {
   device_id?: string; // undefined or 'ALL' => global /api/v1/operational-events/export
-  machine_id?: string;
+  from: string;
+  to: string;
+  /**
+   * E23 Batch 3 (FAT-201, N-34): spec live menerima `event_type` pada
+   * ekspor op-events (global + per-device); komentar lama yang mengklaim
+   * D-12/O8 'tanpa machine_id/event_type' keliru untuk event_type.
+   * `machine_id` tetap TIDAK dikirim (B23: hanya /system/audit).
+   */
+  event_type?: string;
+  format: ExportFormat;
+  limit?: number;
+}
+
+/**
+ * E20 P20.4 (FAT-156): `GET /system/audit/export` memakai filter yang sama
+ * dengan daftar (`from`, `to`, `event_type`, `machine_id`) — format
+ * csv/ndjson/json (default csv), limit 1..100000 default 10000, retensi
+ * 90 hari → 400 RETENTION_EXCEEDED, rate limit 5/min, guard
+ * `access_control.read` (D-13).
+ */
+export interface SystemAuditExportQuery {
   from: string;
   to: string;
   event_type?: string;
+  machine_id?: string;
   format: ExportFormat;
   limit?: number;
 }
@@ -112,8 +151,12 @@ export interface TelemetryExportQuery {
 }
 
 export interface WorkOrdersQuery extends HistoricalTimeFilter {
+  // E23 Batch 2 (FAT-188, N-19): `wo_id` TIDAK terdaftar di spec
+  // GET /work-orders — TIDAK dikirim ke server; filter diterapkan sisi
+  // klien (http/workOrders.ts + demo/workOrders.ts).
   wo_id?: string;
-  status?: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+  // E20 P20.5 (FAT-157): status WO kanonis §C.1 — termasuk PENDING_CLOSE.
+  status?: 'PENDING' | 'ACTIVE' | 'PENDING_CLOSE' | 'COMPLETED' | 'ABORTED';
   machine_id?: string;
   product_id?: string;
   operator_id?: string;

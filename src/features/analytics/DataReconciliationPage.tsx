@@ -8,8 +8,10 @@ import { ApiError } from '../../types/auth';
 import { useAuth, useCapability } from '../../context/AuthContext';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { formatIsoWithOffset } from '../../utils/historicalExport';
+import { formatIsoWithOffset, formatJakartaDateTime } from '../../utils/historicalExport';
 import { HISTORY_DATA_STALE_TIME_MS } from '../shared/useHistoricalQueries';
+import { EmptyStateBlock } from '../shared/TableStateRow';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 
 export const DataReconciliationPage: React.FC = () => {
   const { reportForbidden } = useAuth();
@@ -42,8 +44,10 @@ export const DataReconciliationPage: React.FC = () => {
     if (!canRefresh.canInteract || cooldownSec > 0 || isTriggering) return;
 
     const payload = {
-      from: startWindow ? formatIsoWithOffset(new Date(startWindow)) : undefined,
-      to: endWindow ? formatIsoWithOffset(new Date(endWindow)) : undefined,
+      // E23 Batch 1 (FAT-177, N-8): body kanonis spec live
+      // `{startWindow, endWindow}` (membalikkan keputusan E20 `{from, to}`).
+      startWindow: startWindow ? formatIsoWithOffset(new Date(startWindow)) : undefined,
+      endWindow: endWindow ? formatIsoWithOffset(new Date(endWindow)) : undefined,
     };
 
     const parsed = ReconciliationRefreshSchema.safeParse(payload);
@@ -188,6 +192,33 @@ export const DataReconciliationPage: React.FC = () => {
       )}
 
       {/* Scheduled CAGG Jobs */}
+      {/* E28 Batch B (FAT-219, E2E-05): empty state pola bersama
+          (EmptyStateBlock — varian non-tabel TableStateRow); gagal muat
+          dibedakan dari kosong lewat LoadErrorBanner + retry. */}
+      {jobsQuery.isError && jobs.length === 0 && (
+        <LoadErrorBanner
+          title="Gagal memuat job rekonsiliasi"
+          message={
+            jobsQuery.error instanceof Error
+              ? jobsQuery.error.message
+              : 'Terjadi kesalahan saat memuat daftar job.'
+          }
+          onRetry={() => jobsQuery.refetch()}
+        />
+      )}
+      {jobsQuery.isLoading && jobs.length === 0 && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-center text-xs text-slate-400">
+          Memuat job rekonsiliasi…
+        </div>
+      )}
+      {!jobsQuery.isLoading && !jobsQuery.isError && jobs.length === 0 && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
+          <EmptyStateBlock
+            emptyTitle="Belum ada job rekonsiliasi"
+            emptyDescription="Tidak ada job sinkronisasi bucket per jam/harian yang terdaftar. Job dibuat oleh backend; jalankan 'Perbarui Data Sekarang' di atas untuk memicu pembaruan ulang manual."
+          />
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {jobs.map((job) => (
           <div
@@ -238,7 +269,10 @@ export const DataReconciliationPage: React.FC = () => {
 
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-tabular">
               <Clock className="w-3.5 h-3.5" />
-              <span>Last Run: {new Date(job.last_run).toLocaleString()}</span>
+              {/* E23 Batch 2 (FAT-191, N-22): `lastRunStartedAt` spec boleh
+                  null (job belum pernah jalan) → mapper memberi ''; tampil
+                  '—', bukan tanggal kosong. */}
+              <span>Last Run: {job.last_run ? formatJakartaDateTime(job.last_run) : '—'}</span>
             </div>
           </div>
         ))}

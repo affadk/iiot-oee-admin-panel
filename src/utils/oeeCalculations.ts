@@ -1,17 +1,23 @@
 import { MachineFsmState } from '../types/monitoring';
-import { UserRole, NetworkAccessMode } from '../types/auth';
+import { AccessMode, UserRole, NetworkAccessMode } from '../types/auth';
 import { CapabilityKey, evaluateCapability } from './capabilities';
 
 /**
  * Normalizes legacy and backend FSM states into the 6 canonical FsmStateEnum values
- * (API Doc §6.A / Build Guide §6.1).
+ * (API Doc §6.A / Build Guide §6.1) + `OFFLINE` (nilai item sah, D-4).
  * Presence (online/offline) is tracked separately via `device_online` / `isOnline`.
+ *
+ * E20 P20.5 (FAT-157): `OFFLINE` diteruskan apa adanya (D-4) — JANGAN
+ * normalisasi ke `UNCONFIGURED`. `STANDBY` TIDAK dinormalisasi di klien —
+ * server yang menormalisasi `STANDBY → READY` di read boundary (§7D);
+ * bila mentah sampai ke klien, jatuh ke default `UNCONFIGURED`.
  */
 export function normalizeFsmState(rawState: string | undefined | null): MachineFsmState {
   if (!rawState) return 'UNCONFIGURED';
   const upper = rawState.trim().toUpperCase();
   if (upper === 'RUNNING') return 'RUNNING';
-  if (upper === 'READY' || upper === 'STANDBY') return 'READY';
+  if (upper === 'READY') return 'READY';
+  if (upper === 'OFFLINE') return 'OFFLINE';
   if (upper === 'UNCONFIGURED') return 'UNCONFIGURED';
   if (upper === 'PLANNED_DOWNTIME' || upper === 'PLANNED_STOP') return 'PLANNED_DOWNTIME';
   if (
@@ -49,6 +55,17 @@ export function parseServerMetric(value: string | number | null | undefined, fal
   if (value === null || value === undefined) return fallback;
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num : fallback;
+}
+
+/**
+ * E20 P20.5 (FAT-157): format `*Pct` nullable untuk layar — `null` berarti
+ * "unknown", tampil '—', BUKAN 0%. Nilai string-numeric ("92.50") diparse
+ * seperti `parseServerMetric`.
+ */
+export function formatNullablePct(value: string | number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined) return '—';
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? `${num.toFixed(digits)}%` : '—';
 }
 
 /**
@@ -90,23 +107,29 @@ const ACTION_TO_CAPABILITY: Record<AdminMutationAction, CapabilityKey> = {
   MQTT_SECURITY: 'mqtt.dynsec.manage',
   MANAGE_IAM: 'access_control.manage',
   ACK_EVENT: 'operational_event.ack',
-  LABEL_DOWNTIME: 'downtime.reason.label',
+  LABEL_DOWNTIME: 'downtime_event.label',
   REFRESH_RECONCILIATION: 'telemetry.reconciliation.refresh',
 };
 
 /**
  * Enforces network access boundaries and capability baselines.
  * Note: direct machine actuation & HMI WO dispatch/complete are strictly excluded from Admin Panel.
+ *
+ * Parameter ke-2 (`networkMode`) adalah kanal saat ini; parameter ke-4
+ * (`accessMode`, default `private`) adalah mode akses deployment —
+ * tunnel + `public` mengizinkan mutasi, tunnel + `private` menolak.
  */
 export function canPerformMutation(
   role: UserRole,
-  accessMode: NetworkAccessMode,
-  action: AdminMutationAction
+  networkMode: NetworkAccessMode,
+  action: AdminMutationAction,
+  accessMode: AccessMode = 'private'
 ): { allowed: boolean; reason?: string } {
   const cap = ACTION_TO_CAPABILITY[action];
   const evaluation = evaluateCapability(cap, {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   });
   return {
@@ -115,18 +138,28 @@ export function canPerformMutation(
   };
 }
 
-export function canCancelWorkOrder(role: UserRole, accessMode: NetworkAccessMode): boolean {
+export function canCancelWorkOrder(
+  role: UserRole,
+  networkMode: NetworkAccessMode,
+  accessMode: AccessMode = 'private'
+): boolean {
   return evaluateCapability('work_order.cancel', {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   }).canInteract;
 }
 
-export function canForceReconciliationRefresh(role: UserRole, accessMode: NetworkAccessMode): boolean {
+export function canForceReconciliationRefresh(
+  role: UserRole,
+  networkMode: NetworkAccessMode,
+  accessMode: AccessMode = 'private'
+): boolean {
   return evaluateCapability('telemetry.reconciliation.refresh', {
     role,
-    networkMode: accessMode,
+    networkMode,
+    accessMode,
     isAuthenticated: true,
   }).canInteract;
 }

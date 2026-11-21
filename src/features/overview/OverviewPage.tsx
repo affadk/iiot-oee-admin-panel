@@ -19,10 +19,12 @@ import { LiveStateRecord, DowntimeEvent, OperationalEvent } from '../../types/mo
 import { SystemHealth } from '../../types/system';
 import { WorkOrder } from '../../types/production';
 import { MetricCard } from '../../components/industrial/MetricCard';
-import { MachineStateBadge } from '../../components/industrial/MachineStateBadge';
+import { OverviewLiveTable } from './components/OverviewLiveTable';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
+import { formatTimeWithSeconds } from '../../utils/formatDate';
 
 export const OverviewPage: React.FC = () => {
   const [liveStates, setLiveStates] = useState<LiveStateRecord[]>([]);
@@ -32,6 +34,9 @@ export const OverviewPage: React.FC = () => {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(telemetrySocket.getStatus());
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-215 E2E-01): kegagalan muat JANGAN ditelan diam-diam —
+  // tampilkan banner + retry; data lama dipertahankan (stale-while-revalidate).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const canManageIam = useCapability('access_control.manage');
@@ -51,9 +56,12 @@ export const OverviewPage: React.FC = () => {
       setHealth(sysHealth);
       setWorkOrders(woPage.data);
       setRecentEvents(opEventsPage.data.slice(0, 5));
+      setLoadError(null);
       setLastUpdated(new Date());
-    } catch {
-      // Errors handled gracefully
+    } catch (err: unknown) {
+      // E28 Batch A (FAT-215 E2E-01): jangan `catch {}` — catat pesan agar
+      // banner error + retry bisa tampil; kartu lama tetap tampil.
+      setLoadError(err instanceof Error ? err.message : 'Gagal memuat data overview.');
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +151,7 @@ export const OverviewPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-tabular">
             <Clock className="w-3.5 h-3.5" />
-            <span>Diperbarui: {lastUpdated.toLocaleTimeString()}</span>
+            <span>Diperbarui: {formatTimeWithSeconds(lastUpdated)}</span>
           </div>
           <Button size="sm" variant="secondary" onClick={loadData} isLoading={isLoading}>
             <RefreshCw className="w-3.5 h-3.5" />
@@ -151,6 +159,15 @@ export const OverviewPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* E28 Batch A (FAT-215 E2E-01): banner error + retry bila muat gagal. */}
+      {loadError && !isLoading && (
+        <LoadErrorBanner
+          title="Gagal memuat data overview"
+          message={loadError}
+          onRetry={() => void loadData()}
+        />
+      )}
 
       {/* Top KPI Grid (Max 4 cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -189,86 +206,16 @@ export const OverviewPage: React.FC = () => {
               ? `Layar aktif: ${health.ws_clients} · Basis data: ${health.db_connected ? 'Terhubung' : 'Terputus'} · Antrean gagal: ${health.buffer_dropped}`
               : 'Menunggu data sistem...'
           }
-          statusVariant={health?.status === 'HEALTHY' ? 'success' : 'warning'}
+          statusVariant={health?.status === 'ok' ? 'success' : 'warning'}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
       </div>
 
       {/* Secondary Grid: Active Machine State Matrix & Downtime / Events */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Live Machine Status Matrix */}
-        <div className="xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Live Machine State Matrix
-            </h2>
-            <Link
-              to="/admin/live-state"
-              className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
-            >
-              <span>Buka Monitor Detail</span>
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-2.5 px-4">Mesin / Device</th>
-                  <th className="py-2.5 px-4">FSM State &amp; Presence</th>
-                  <th className="py-2.5 px-4">Active WO</th>
-                  <th className="py-2.5 px-4 text-right">OEE</th>
-                  <th className="py-2.5 px-4 text-right">Parts (G/R)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-                {liveStates.map((st) => (
-                  <tr key={st.device_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                    <td className="py-2.5 px-4">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{st.machine_name}</div>
-                      <div className="text-[11px] text-slate-500 font-tabular">
-                        {st.machine_id || '[unlinked]'} · {st.device_id}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <MachineStateBadge state={st.fsm_state} />
-                        <span
-                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                            st.device_online
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                              : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                          }`}
-                        >
-                          {st.device_online ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-4 font-tabular text-slate-700 dark:text-slate-300">
-                      {st.active_work_order ? (
-                        <div>
-                          <div className="font-medium text-sky-600 dark:text-sky-400">{st.active_work_order}</div>
-                          <div className="text-[11px] text-slate-400">{st.active_product}</div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">Idle / No WO</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-tabular font-semibold text-slate-900 dark:text-slate-100">
-                      {st.oee.toFixed(1)}%
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-tabular">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{st.good_count}</span>
-                      <span className="text-slate-400 mx-1">/</span>
-                      <span className="text-red-500 dark:text-red-400 font-medium">{st.reject_count}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Live Machine Status Matrix — E31.12 (FAT-275): kartu tabel
+            dipindah ke components/OverviewLiveTable.tsx */}
+        <OverviewLiveTable liveStates={liveStates} isLoading={isLoading} />
 
         {/* Right Panel: Quick Actions & Downtime Summary */}
         <div className="space-y-6">
@@ -370,32 +317,37 @@ export const OverviewPage: React.FC = () => {
           </Link>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-          {recentEvents.map((ev) => {
+          {isLoading && recentEvents.length === 0 ? (
+            <div className="px-4 py-2.5" aria-busy="true" aria-label="Memuat event operasional">
+              <div className="h-5 rounded bg-slate-100 dark:bg-slate-800/70 animate-pulse" />
+              <span className="sr-only">Memuat event operasional…</span>
+            </div>
+          ) : recentEvents.length === 0 ? (
+            <p className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
+              Belum ada event operasional terbaru.
+            </p>
+          ) : (
+            recentEvents.map((ev) => {
             const devLbl = formatDeletedRelationLabel(ev.machine_name, ev.device_id);
             return (
               <div key={ev.id} className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
-                  <Badge
-                    variant={
-                      ev.severity === 'CRITICAL' ? 'danger' : ev.severity === 'WARN' ? 'warning' : 'info'
-                    }
-                  >
-                    {ev.severity}
-                  </Badge>
+                  <Badge variant="info">{ev.event_type}</Badge>
                   <div>
                     <span className="font-semibold text-slate-900 dark:text-slate-100 mr-2">
                       {devLbl.label}
                     </span>
-                    <span className="text-slate-600 dark:text-slate-300">{ev.message}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{ev.description}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-tabular text-slate-400 shrink-0">
-                  <span>{ev.event_type}</span>
-                  <span>{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                  <span>{ev.acknowledged ? 'Ack' : 'Pending Ack'}</span>
+                  <span>{ev.recorded_at ? formatTimeWithSeconds(ev.recorded_at) : '—'}</span>
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
     </div>

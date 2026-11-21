@@ -1,4 +1,5 @@
 import React from 'react';
+import { Select } from '../../components/ui/Select';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -31,8 +32,19 @@ export const CursorPaginationBar: React.FC<CursorPaginationBarProps> = ({
     <div className="px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
       <div className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-300 font-tabular">
         <span>
-          Menampilkan <strong className="text-slate-900 dark:text-slate-100">{loadedCount}</strong> dari{' '}
-          <strong className="text-slate-900 dark:text-slate-100">{totalCount}</strong> rekaman
+          Menampilkan <strong className="text-slate-900 dark:text-slate-100">{loadedCount}</strong>
+          {/* E20 tindak lanjut: total dataset tidak pernah dikirim server
+              (envelope `meta.count` = baris halaman, bukan total) — "dari
+              total" hanya jujur bila tidak ada halaman lanjutan, karena
+              saat itu semua rekaman sudah dimuat. Bila masih ada halaman,
+              total tidak diketahui, jadi jangan tampilkan angka total. */}
+          {!hasMore ? (
+            <>
+              {' '}dari <strong className="text-slate-900 dark:text-slate-100">{totalCount}</strong> rekaman
+            </>
+          ) : (
+            <> rekaman</>
+          )}
         </span>
         <span aria-hidden="true" className="text-slate-400">·</span>
         <span className="font-sans text-slate-500 dark:text-slate-400">Urutan menurun (terbaru)</span>
@@ -54,16 +66,14 @@ export const CursorPaginationBar: React.FC<CursorPaginationBarProps> = ({
           >
             Per halaman:
           </label>
-          <select
+          <Select
             id="cursor-page-limit"
+            aria-label="Per halaman"
+            wrapperClassName="shrink-0"
             value={pageLimit}
             onChange={(e) => onPageLimitChange(Number(e.target.value))}
-            className="px-2 py-1 text-xs font-tabular bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-sky-500 focus:outline-none"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
+            options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]}
+          />
         </div>
 
         {hasActiveCursor && (

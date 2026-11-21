@@ -7,11 +7,26 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { useAuth } from '../context/AuthContext';
 
 export const AdminLayout: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mustChangePassword, isRestoringSession } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // FAT-280 Opsi B: tahan redirect /login selama silent restore berjalan.
+  if (isRestoringSession) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-sm text-slate-500">Memulihkan sesi…</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Spec 043 (§L): gerbang ganti-password-wajib — tidak ada navigasi lain
+  // selama flag aktif.
+  if (mustChangePassword) {
+    return <Navigate to="/force-change-password" replace />;
   }
 
   return (

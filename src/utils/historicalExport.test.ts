@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { apiClient, store } from '../services/api/client';
+import { ADMIN_ENDPOINTS } from '../services/api/endpoints';
 import { ReconciliationError } from '../types/historical';
 import {
   RETENTION_POLICY_DAYS,
@@ -8,13 +9,19 @@ import {
   buildDowntimeHistoryEndpoint,
   buildOperationalEventsEndpoint,
   buildOperationalEventsExportEndpoint,
+  buildSystemAuditExportEndpoint,
   buildTelemetryExportEndpoint,
   buildTelemetryHistoryEndpoint,
   buildTelemetryHourlyExportEndpoint,
+  buildTelemetryRollupEndpoint,
   canExportHistoricalData,
+  detectTimeWindowPreset,
+  formatIsoWithOffset,
+  isTodayWindow,
   mapDowntimeToSixBigLoss,
   paginateWithCursor,
   parseExportMetadataHeaders,
+  resolveTimeWindowPreset,
   serializeExportRecords,
   validateRetentionWindow,
 } from './historicalExport';
@@ -111,12 +118,17 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
   });
   assert.match(dtExp, /^\/api\/v1\/downtime-events\/STM32-OEE-01\/export\?/);
 
-  const opGlobal = buildOperationalEventsEndpoint({ device_id: 'ALL', machine_id: 'CNC-MILLING-01' });
+  // E20 P20.4 (FAT-156, O4/O13/R9, D-12): tanpa trailing slash; `acknowledged`
+  // dikirim; `machine_id` TIDAK dikirim ke endpoint global (hanya /system/audit).
+  const opGlobal = buildOperationalEventsEndpoint({ device_id: 'ALL', acknowledged: false });
   assert.match(opGlobal, /^\/api\/v1\/operational-events\?/);
-  assert.match(opGlobal, /machine_id=CNC-MILLING-01/);
+  assert.match(opGlobal, /acknowledged=false/);
+  assert.doesNotMatch(opGlobal, /machine_id/);
+  assert.doesNotMatch(opGlobal, /severity/);
 
-  const opPerDevice = buildOperationalEventsEndpoint({ device_id: 'STM32-OEE-02', event_type: 'ALARM' });
+  const opPerDevice = buildOperationalEventsEndpoint({ device_id: 'STM32-OEE-02', event_type: 'DEVICE_OFFLINE', acknowledged: true });
   assert.match(opPerDevice, /^\/api\/v1\/operational-events\/STM32-OEE-02\?/);
+  assert.match(opPerDevice, /acknowledged=true/);
 
   const opGlobalExp = buildOperationalEventsExportEndpoint({
     device_id: 'ALL',
@@ -125,6 +137,23 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
     format: 'csv',
   });
   assert.match(opGlobalExp, /^\/api\/v1\/operational-events\/export\?/);
+  // E20 P20.4 (FAT-156, D-12): ekspor global hanya from/to/format/limit.
+  assert.doesNotMatch(opGlobalExp, /machine_id/);
+  assert.doesNotMatch(opGlobalExp, /event_type/);
+
+  // E20 P20.4 (FAT-156, O9): ekspor system-audit memakai filter daftar.
+  const auditExp = buildSystemAuditExportEndpoint({
+    from: '2026-11-01T00:00:00Z',
+    to: '2026-11-12T00:00:00Z',
+    event_type: 'WORK_ORDER_CANCELLED',
+    machine_id: 'CNC-MILLING-01',
+    format: 'ndjson',
+    limit: 100,
+  });
+  assert.match(auditExp, /^\/api\/v1\/system\/audit\/export\?/);
+  assert.match(auditExp, /event_type=WORK_ORDER_CANCELLED/);
+  assert.match(auditExp, /machine_id=CNC-MILLING-01/);
+  assert.match(auditExp, /format=ndjson/);
 
   const opDevExp = buildOperationalEventsExportEndpoint({
     device_id: 'STM32-OEE-03',
@@ -161,6 +190,79 @@ test('Endpoint builders match authoritative backend routes & parse X-Export-* me
   });
   assert.equal(meta.source, 'timescaledb:downtime_events');
   assert.equal(meta.deviceId, 'STM32-OEE-03');
+});
+
+test('E12 T12.8 (F-9): telemetry endpoint builders delegate path to ADMIN_ENDPOINTS registry', () => {
+  // URL lengkap (path + query string) harus IDENTIK dengan sebelum delegasi:
+  // builder hanya menempel query string di atas ADMIN_ENDPOINTS.*.buildPath().
+  const from = '2026-11-01T00:00:00Z';
+  const to = '2026-11-12T00:00:00Z';
+
+  const hist = buildTelemetryHistoryEndpoint({
+    device_id: 'STM32-OEE-01',
+    from,
+    to,
+    is_buffered: false,
+    cursor: 'abc',
+    limit: 10,
+  });
+  assert.equal(
+    hist,
+    '/api/v1/telemetry/STM32-OEE-01?from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&is_buffered=false&cursor=abc&limit=10&envelope=true'
+  );
+  assert.equal(hist.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_HISTORY.buildPath('STM32-OEE-01'));
+
+  const rollup = buildTelemetryRollupEndpoint({
+    group_by: 'machine',
+    machine_id: 'M1',
+    device_id: 'STM32-OEE-01',
+    from,
+    to,
+    limit: 20,
+    cursor: 'c1',
+  });
+  assert.equal(
+    rollup,
+    '/api/v1/telemetry/rollup?group_by=machine&machine_id=M1&device_id=STM32-OEE-01&from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&limit=20&cursor=c1'
+  );
+  assert.equal(rollup.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_ROLLUP.buildPath());
+
+  const exp = buildTelemetryExportEndpoint({ device_id: 'STM32-OEE-01', from, to, format: 'csv', limit: 100 });
+  assert.equal(
+    exp,
+    '/api/v1/telemetry/STM32-OEE-01/export?from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&format=csv&limit=100'
+  );
+  assert.equal(exp.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_EXPORT.buildPath('STM32-OEE-01'));
+
+  const hourlyExp = buildTelemetryHourlyExportEndpoint({
+    device_id: 'STM32-OEE-01',
+    from,
+    to,
+    format: 'json',
+    limit: 50,
+  });
+  assert.equal(
+    hourlyExp,
+    '/api/v1/telemetry/STM32-OEE-01/hourly/export?from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z&format=json&limit=50'
+  );
+  assert.equal(hourlyExp.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_HOURLY_EXPORT.buildPath('STM32-OEE-01'));
+
+  // Encoding device_id mengikuti registry (enc = encodeURIComponent) — sama
+  // seperti builder lama, bukan perilaku baru.
+  const encoded = buildTelemetryHistoryEndpoint({ device_id: 'STM32 OEE/01', limit: 5 });
+  assert.equal(encoded, '/api/v1/telemetry/STM32%20OEE%2F01?limit=5&envelope=true');
+  assert.equal(encoded.split('?')[0], ADMIN_ENDPOINTS.TELEMETRY_HISTORY.buildPath('STM32 OEE/01'));
+});
+
+test('E12 T12.8 (F-9): getTelemetryHistory (non-page) removed; getTelemetryHistoryPage remains', async () => {
+  const clientSurface = apiClient as unknown as Record<string, unknown>;
+  assert.equal('getTelemetryHistory' in clientSurface, false);
+  assert.equal(typeof clientSurface.getTelemetryHistoryPage, 'function');
+
+  const page = await apiClient.getTelemetryHistoryPage({ device_id: 'STM32-OEE-01', limit: 5 });
+  assert.ok(Array.isArray(page.data));
+  assert.ok(page.data.length > 0);
+  assert.ok(page.data.length <= 5);
 });
 
 test('serializeExportRecords escapes CSV commas/quotes and outputs valid NDJSON and JSON', () => {
@@ -235,15 +337,114 @@ test('apiClient export contracts enforce 90-day retention, RBAC 403, and read-on
     );
   }
 
+  // 3b. Dynamic ALLOW: OPERATOR tanpa baseline export, diberi policy
+  // refresh:telemetry via role kustom → export diizinkan dan tercatat
+  // sebagai ALLOW dengan aksi kunci capability `telemetry.refresh`.
+  // (Demo hanya mencatat ALLOW untuk grant policy dinamis; export
+  // baseline ADMIN/SUPERVISOR tidak dicatat sebagai ALLOW.)
+  apiClient.setNetworkMode('LAN');
+  apiClient.setUserRole('ADMIN');
+  apiClient.setSessionActive(true);
+  store.currentUserId = 'ADM-001';
+  store.currentUserRole = 'ADMIN';
+  store.isAuthenticated = true;
+  store.tokenAuthzVersion = store.iamInfo.authzVersion;
+  const allowRole = await apiClient.createIamRole({
+    name: 'EXPORT_ALLOW',
+    description: 'Role uji dynamic allow export',
+  });
+  await apiClient.addIamRolePermission(allowRole.id, 'perm-06', {
+    resourcePattern: 'telemetry:*',
+    effect: 'ALLOW',
+  });
+  await apiClient.assignIamUserRole({
+    operatorId: 'OP-115',
+    roleName: 'EXPORT_ALLOW',
+    scopeType: 'ORGANIZATION',
+  });
+  try {
+    await apiClient.login('OP-115', 'AnyPass123');
+    const opExport = await apiClient.exportTelemetryData({
+      device_id: 'STM32-OEE-01',
+      from: validFrom,
+      to,
+      format: 'json',
+    });
+    assert.ok(opExport.rowCount > 0);
+  } finally {
+    store.currentUserId = 'ADM-001';
+    store.currentUserName = 'Alexandria Vance';
+    store.currentUserRole = 'ADMIN';
+    store.currentUserLineId = 'ORG-ALL';
+    store.isAuthenticated = true;
+    store.tokenAuthzVersion = store.iamInfo.authzVersion;
+    await apiClient.revokeIamUserRole({
+      operatorId: 'OP-115',
+      roleName: 'EXPORT_ALLOW',
+      scopeType: 'ORGANIZATION',
+    });
+    await apiClient.removeIamRolePermission(allowRole.id, 'perm-06');
+    await apiClient.deleteIamRole(allowRole.id);
+  }
+
   // 4. Authz decision audit recorded export ALLOW/DENY decisions
-  assert.ok(store.iamAuditDecisions.some((d) => d.action === 'refresh:telemetry' && d.decision === 'ALLOW'));
+  // (aksi tercatat memakai kunci capability `telemetry.refresh`).
+  assert.ok(store.iamAuditDecisions.some((d) => d.action === 'telemetry.refresh' && d.decision === 'ALLOW'));
   assert.ok(
-    store.iamAuditDecisions.some(
-      (d) => (d.action === 'export.telemetry' || d.action === 'refresh:telemetry') && d.decision === 'DENY'
-    )
+    store.iamAuditDecisions.some((d) => d.action === 'telemetry.refresh' && d.decision === 'DENY')
   );
 
   // Restore defaults
   apiClient.setNetworkMode('LAN');
   apiClient.setUserRole('ADMIN');
+});
+
+// ---------------------------------------------------------------------------
+// E12 T12.9 (X-2 / FAT-62): preset "Hari ini" + deteksi preset dari rentang
+// aktif — pemilih periode halaman OEE.
+// ---------------------------------------------------------------------------
+
+test("resolveTimeWindowPreset('today') mengembalikan tengah malam hari ini sampai sekarang", () => {
+  const now = new Date(2026, 10, 17, 10, 24, 0);
+  const range = resolveTimeWindowPreset('today', now);
+  // E12 T12.11 (X-4 / FAT-59): tengah malam Asia/Jakarta — `now` lokal
+  // 2026-11-17 10:24 (VM UTC) = 17:24 WIB 17 Nov, jadi from = 00:00 WIB.
+  assert.equal(range.from, '2026-11-17T00:00:00+07:00');
+  assert.equal(range.to, formatIsoWithOffset(now));
+});
+
+test('isTodayWindow hanya benar untuk jendela hari ini (from tengah malam, to hari ini)', () => {
+  const now = new Date('2026-11-17T10:24:00+07:00');
+  assert.equal(isTodayWindow('2026-11-17T00:00:00+07:00', '2026-11-17T10:24:00+07:00', now), true);
+  // Kemarin 00:00 -> bukan hari ini.
+  assert.equal(isTodayWindow('2026-11-16T00:00:00+07:00', '2026-11-16T10:24:00+07:00', now), false);
+  // 24 jam terakhir (kemarin 10:24 -> hari ini) bukan "hari ini".
+  assert.equal(isTodayWindow('2026-11-16T10:24:00+07:00', '2026-11-17T10:24:00+07:00', now), false);
+  // Tanpa offset / tidak valid -> false.
+  assert.equal(isTodayWindow('2026-11-17T00:00:00', '2026-11-17T10:24:00+07:00', now), false);
+  assert.equal(isTodayWindow('bukan-tanggal', '2026-11-17T10:24:00+07:00', now), false);
+});
+
+test('detectTimeWindowPreset mengenali preset dari rentang aktif, kustom untuk sisanya', () => {
+  const now = new Date('2026-11-17T10:24:00+07:00');
+  for (const preset of ['today', '24h', '7d', '30d', '90d'] as const) {
+    const range = resolveTimeWindowPreset(preset, now);
+    assert.equal(detectTimeWindowPreset(range.from, range.to, now), preset);
+  }
+  // Jendela shift 8 jam (07:00-15:00) bukan preset -> kustom.
+  assert.equal(
+    detectTimeWindowPreset('2026-11-16T07:00:00+07:00', '2026-11-16T15:00:00+07:00', now),
+    'custom'
+  );
+  // Rentang 3 hari sembarang -> kustom.
+  assert.equal(
+    detectTimeWindowPreset('2026-11-02T00:00:00+07:00', '2026-11-05T00:00:00+07:00', now),
+    'custom'
+  );
+  // Tidak valid / terbalik -> kustom.
+  assert.equal(detectTimeWindowPreset('bukan-tanggal', '2026-11-17T10:24:00+07:00', now), 'custom');
+  assert.equal(
+    detectTimeWindowPreset('2026-11-17T10:24:00+07:00', '2026-11-16T10:24:00+07:00', now),
+    'custom'
+  );
 });

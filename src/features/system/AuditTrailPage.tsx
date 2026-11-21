@@ -1,17 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
-import { History, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Download, ExternalLink, History, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { AuditLogItem } from '../../types/system';
+import { OPERATIONAL_EVENT_TYPES } from '../../types/monitoring';
 import { useCapability } from '../../context/AuthContext';
-import { Badge } from '../../components/ui/Badge';
+import { apiClient } from '../../services/api/client';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
-import { formatIsoWithOffset } from '../../utils/historicalExport';
+import { formatIsoWithOffset, triggerBrowserDownload, withExportAbortTimeout } from '../../utils/historicalExport';
+import { formatDateTime } from '../../utils/formatDate';
 import { useHistoryFilters } from '../shared/historyFilters';
-import { useSystemAuditQuery } from '../shared/useHistoricalQueries';
+import { useMasterAssetsQuery, useSystemAuditQuery } from '../shared/useHistoricalQueries';
 
 export const AuditTrailPage: React.FC = () => {
-  const canReadAudit = useCapability('audit.system.read');
+  const canReadAudit = useCapability('access_control.read');
   const { filters, isValid, validationErrors, updateFilters, resetFilters } = useHistoryFilters({
     limit: 20,
   });
@@ -20,11 +24,18 @@ export const AuditTrailPage: React.FC = () => {
   const [toInput, setToInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const auditQuery = useSystemAuditQuery(filters, activeCursor, canReadAudit.canInteract && isValid);
 
   const logs = auditQuery.data?.data ?? [];
   const pagination = auditQuery.data?.pagination;
+
+  const { data: masterData } = useMasterAssetsQuery(canReadAudit.canInteract);
+  const machines = masterData?.machines ?? [];
+  const machineFilter = filters.machineId || 'ALL';
+  const eventTypeFilter = filters.eventType || 'ALL';
 
   const applyTimeWindow = (nextFrom: string, nextTo: string) => {
     setCursorStack([undefined]);
@@ -42,6 +53,33 @@ export const AuditTrailPage: React.FC = () => {
     }
   };
 
+  // E20 P20.4 (FAT-156, O9): ekspor system-audit — filter sama dengan daftar,
+  // guard `access_control.read` (D-13), format csv default.
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const result = await withExportAbortTimeout(undefined, (signal) =>
+        apiClient.exportSystemAuditData(
+          {
+            from: filters.from,
+            to: filters.to,
+            event_type: eventTypeFilter === 'ALL' ? undefined : eventTypeFilter,
+            machine_id: machineFilter === 'ALL' ? undefined : machineFilter,
+            format: 'csv',
+          },
+          signal
+        )
+      );
+      triggerBrowserDownload(result.filename, result.content, result.mimeType);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Gagal mengekspor audit sistem.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const columns = useMemo<ColumnDef<AuditLogItem, unknown>[]>(
     () => [
       {
@@ -49,42 +87,38 @@ export const AuditTrailPage: React.FC = () => {
         header: 'Timestamp',
         cell: ({ row }) => (
           <span className="font-tabular text-xs text-slate-500 whitespace-nowrap">
-            {new Date(row.original.timestamp).toLocaleString()}
+            {row.original.recorded_at ? formatDateTime(row.original.recorded_at) : '—'}
           </span>
         ),
       },
       {
-        id: 'actor',
-        header: 'Aktor & Mode',
+        id: 'event',
+        header: 'Event & Perangkat',
         cell: ({ row }) => {
           const item = row.original;
           return (
-            <div className="text-xs">
-              <div className="font-semibold text-slate-900 dark:text-slate-100">
-                {item.operator_name}
+            <div className="text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                <History className="w-3.5 h-3.5 shrink-0" />
+                <span>{item.event_type}</span>
               </div>
-              <div className="text-[11px] font-tabular text-slate-400">
-                {item.operator_id || 'SYSTEM'} · {item.access_mode}
+              <div className="text-[11px] text-slate-500">
+                {item.machine_name ?? '[mesin dihapus]'}
+                <span className="font-tabular text-slate-400"> · {item.device_id ?? '[dihapus]'}</span>
               </div>
             </div>
           );
         },
       },
       {
-        id: 'action',
-        header: 'Aksi & Resource',
+        id: 'trigger',
+        header: 'Trigger & WO',
         cell: ({ row }) => {
           const item = row.original;
           return (
-            <div className="text-xs">
-              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-sky-700 dark:text-sky-300">
-                <History className="w-3.5 h-3.5 shrink-0" />
-                <span>{item.action}</span>
-              </div>
-              <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                <Badge variant="neutral">{item.resource_type}</Badge>
-                <span className="font-tabular">{item.resource_id}</span>
-              </div>
+            <div className="text-[11px] text-slate-500 space-y-0.5">
+              <div className="font-tabular">{item.trigger_source ?? '—'}</div>
+              <div className="font-tabular">{item.wo_id ?? '—'}</div>
             </div>
           );
         },
@@ -94,17 +128,8 @@ export const AuditTrailPage: React.FC = () => {
         header: 'Detail',
         cell: ({ row }) => (
           <span className="text-xs text-slate-700 dark:text-slate-300 block max-w-md">
-            {row.original.details}
+            {row.original.description}
           </span>
-        ),
-      },
-      {
-        id: 'client_ip',
-        header: () => <div className="text-right">Client IP</div>,
-        cell: ({ row }) => (
-          <div className="text-right font-tabular text-xs text-slate-500">
-            {row.original.client_ip}
-          </div>
         ),
       },
     ],
@@ -133,21 +158,51 @@ export const AuditTrailPage: React.FC = () => {
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Riwayat Audit Aktivitas Sistem
           </h1>
+          {/* E33 P33.1 (FAT-291): subjudul jujur — /system/audit adalah alias
+              feed operasional; kolom Acknowledgment dihapus (ack tercatat
+              sebagai entri OPERATIONAL_EVENT_ACKNOWLEDGED di feed yang sama). */}
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Catatan permanen mutasi sistem, perubahan data master, pengaturan hak akses, dan keamanan perangkat.
+            System Audit — alias feed operasional (ADMIN + LAN). Isi halaman ini sama dengan
+            Operational Events; hanya gerbang (ADMIN + LAN) dan filter machine_id yang berbeda.
+            Audit trail terpisah sedang dibangun (E33).
           </p>
         </div>
 
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => auditQuery.refetch()}
-          isLoading={auditQuery.isFetching}
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/admin/audit"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+          >
+            <span>Lihat Operational Events</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+          <Button size="sm" variant="secondary" onClick={handleExport} isLoading={isExporting}>
+            <Download className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => auditQuery.refetch()}
+            isLoading={auditQuery.isFetching}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </Button>
+        </div>
       </div>
+
+      {exportError && (
+        <div
+          role="alert"
+          className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-xs text-red-900 dark:text-red-200 flex items-center justify-between gap-2"
+        >
+          <span>{exportError}</span>
+          <Button size="sm" variant="ghost" onClick={() => setExportError(null)}>
+            Tutup
+          </Button>
+        </div>
+      )}
 
       {!isValid && (
         <div
@@ -161,7 +216,7 @@ export const AuditTrailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Time Filter */}
+      {/* Time + Audit Filters */}
       <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="audit-from" className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
@@ -207,6 +262,26 @@ export const AuditTrailPage: React.FC = () => {
             Reset Waktu
           </Button>
         )}
+        <Select
+          id="audit-event-type"
+          label="Event Type"
+          value={eventTypeFilter}
+          onChange={(e) => {
+              setCursorStack([undefined]);
+              updateFilters({ eventType: e.target.value === 'ALL' ? undefined : e.target.value });
+            }}
+          options={[{ value: 'ALL', label: 'Semua Event Type' }, ...OPERATIONAL_EVENT_TYPES.map((t) => ({ value: t, label: t }))]}
+        />
+        <Select
+          id="audit-machine"
+          label="Mesin"
+          value={machineFilter}
+          onChange={(e) => {
+              setCursorStack([undefined]);
+              updateFilters({ machineId: e.target.value === 'ALL' ? undefined : e.target.value });
+            }}
+          options={[{ value: 'ALL', label: 'Semua Mesin' }, ...machines.map((m) => ({ value: m.machine_id, label: m.machine_id }))]}
+        />
       </div>
 
       <DataTable

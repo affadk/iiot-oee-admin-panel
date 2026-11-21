@@ -1,24 +1,44 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Server, Database, Activity, Wifi, RefreshCw, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
-import { SystemHealth } from '../../types/system';
+import { HealthDetail, SystemHealth } from '../../types/system';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { LoadErrorBanner } from '../shared/LoadErrorBanner';
 import { formatDuration } from '../../utils/oeeCalculations';
+import { formatDateTime } from '../../utils/formatDate';
 
 export const SystemHealthPage: React.FC = () => {
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // E28 Batch A (FAT-217 E2E-03): GET /health yang gagal JANGAN dibiarkan
+  // menampilkan "Memuat..." selamanya — tampilkan banner + Refresh.
+  const [healthError, setHealthError] = useState<string | null>(null);
+  // E20 P20.4 (FAT-156): detail infrastruktur (ADMIN + LAN) — bila tidak
+  // tersedia (non-admin / tunnel / 403), halaman tetap memakai /health
+  // ringkas; tidak ada nilai yang dikarang.
+  const [detail, setDetail] = useState<HealthDetail | null>(null);
+  const [detailUnavailable, setDetailUnavailable] = useState(false);
 
   const loadHealth = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await apiClient.getSystemHealth();
       setHealth(res);
-    } catch {
+      setHealthError(null);
+    } catch (err: unknown) {
       setHealth(null);
+      setHealthError(err instanceof Error ? err.message : 'Gagal memuat status kesehatan sistem.');
     } finally {
       setIsLoading(false);
+    }
+    try {
+      const res = await apiClient.getHealthDetail();
+      setDetail(res);
+      setDetailUnavailable(false);
+    } catch {
+      setDetail(null);
+      setDetailUnavailable(true);
     }
   }, []);
 
@@ -45,14 +65,23 @@ export const SystemHealthPage: React.FC = () => {
       </div>
 
       {!health ? (
-        <div className="p-8 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
-          Memuat status kesehatan sistem...
-        </div>
+        isLoading ? (
+          <div className="p-8 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
+            Memuat status kesehatan sistem...
+          </div>
+        ) : (
+          <LoadErrorBanner
+            title="Gagal memuat status kesehatan sistem"
+            message={healthError}
+            onRetry={() => void loadHealth()}
+            retryLabel="Refresh"
+          />
+        )
       ) : (
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Badge variant={health.status === 'HEALTHY' ? 'success' : 'danger'}>{health.status}</Badge>
+              <Badge variant={health.status === 'ok' ? 'success' : 'danger'}>{health.status === 'ok' ? 'HEALTHY' : health.status.toUpperCase()}</Badge>
               <span className="text-xs font-tabular text-slate-600 dark:text-slate-300">
                 Uptime: <strong>{formatDuration(health.uptime_seconds)}</strong>
               </span>
@@ -79,10 +108,10 @@ export const SystemHealthPage: React.FC = () => {
                 <span className="font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                   <Server className="w-4 h-4 text-sky-500" /> Layanan Aplikasi Utama
                 </span>
-                <Badge variant={health.backend.status === 'UP' ? 'success' : 'danger'}>{health.backend.status}</Badge>
+                <Badge variant={health.backend.status === 'UP' ? 'success' : health.backend.status === 'DOWN' ? 'danger' : 'neutral'}>{health.backend.status}</Badge>
               </div>
               <div className="font-tabular text-slate-500">
-                {health.backend.label === 'API v1' ? 'Layanan Utama' : health.backend.label} · {health.backend.environment === 'production' ? 'Produksi' : health.backend.environment} · Waktu Respons: {health.backend.latency_ms} ms
+                {health.backend.label ?? 'Layanan Utama'} · {health.backend.environment ? (health.backend.environment === 'production' ? 'Produksi' : health.backend.environment) : '—'} · Waktu Respons: {health.backend.latency_ms !== null ? `${health.backend.latency_ms} ms` : '—'}
               </div>
             </div>
 
@@ -96,7 +125,9 @@ export const SystemHealthPage: React.FC = () => {
                 </Badge>
               </div>
               <div className="font-tabular text-slate-500">
-                {health.database.engine.toLowerCase().includes('timescale') || health.database.engine.toLowerCase().includes('postgres') ? 'Basis Data Produksi' : health.database.engine} · Waktu Respons: {health.database.latency_ms} ms
+                {health.database.engine
+                  ? (health.database.engine.toLowerCase().includes('timescale') || health.database.engine.toLowerCase().includes('postgres') ? 'Basis Data Produksi' : health.database.engine)
+                  : 'Basis Data'} · Waktu Respons: {health.database.latency_ms !== null ? `${health.database.latency_ms} ms` : '—'}
               </div>
             </div>
 
@@ -105,10 +136,10 @@ export const SystemHealthPage: React.FC = () => {
                 <span className="font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                   <Activity className="w-4 h-4 text-indigo-500" /> Broker Komunikasi Mesin
                 </span>
-                <Badge variant={health.mqtt.status === 'UP' ? 'success' : 'danger'}>{health.mqtt.status}</Badge>
+                <Badge variant={health.mqtt.status === 'UP' ? 'success' : health.mqtt.status === 'DOWN' ? 'danger' : 'neutral'}>{health.mqtt.status}</Badge>
               </div>
               <div className="font-tabular text-slate-500">
-                Perangkat Terhubung: {health.mqtt.connected_clients} · Keamanan Dinamis: {health.mqtt.dynamic_security}
+                Perangkat Terhubung: {health.mqtt.connected_clients ?? '—'} · Keamanan Dinamis: {health.mqtt.dynamic_security ?? '—'}
               </div>
             </div>
 
@@ -117,7 +148,7 @@ export const SystemHealthPage: React.FC = () => {
                 <span className="font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                   <Wifi className="w-4 h-4 text-sky-500" /> Pembaruan Layar Langsung
                 </span>
-                <Badge variant={health.websocket.status === 'UP' ? 'success' : 'danger'}>
+                <Badge variant={health.websocket.status === 'UP' ? 'success' : health.websocket.status === 'DOWN' ? 'danger' : 'neutral'}>
                   {health.websocket.status}
                 </Badge>
               </div>
@@ -125,6 +156,83 @@ export const SystemHealthPage: React.FC = () => {
                 Saluran Pembaruan Langsung · Pengguna Terhubung: {health.ws_clients}
               </div>
             </div>
+          </div>
+
+          {/* Detail Infrastruktur (GET /health/detail, ADMIN + LAN) */}
+          <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md space-y-3">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Detail Infrastruktur (ADMIN + LAN)
+            </h2>
+            {detail ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-tabular">
+                <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">Aplikasi</div>
+                  <div className="text-slate-500">
+                    {detail.application.name ?? '—'} · {detail.application.version ?? '—'}
+                  </div>
+                  <div className="text-slate-500">
+                    {detail.application.environment ?? '—'} · Commit: {detail.application.commit ?? '—'}
+                  </div>
+                  <div className="text-slate-500">
+                    Uptime: {detail.application.uptimeSeconds !== null ? formatDuration(detail.application.uptimeSeconds) : '—'}
+                  </div>
+                  <div className="text-slate-400">
+                    Diukur: {detail.application.measuredAt ? formatDateTime(detail.application.measuredAt) : '—'}
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">
+                    Basis Data · <span className={detail.database.status === 'UP' ? 'text-emerald-600' : detail.database.status === 'DEGRADED' ? 'text-amber-600' : 'text-red-600'}>{detail.database.status}</span>
+                  </div>
+                  <div className="text-slate-500">
+                    Latensi SELECT 1: {detail.database.latencyMs !== null ? `${detail.database.latencyMs} ms` : '—'}
+                  </div>
+                  <div className="text-slate-400">
+                    Diukur: {detail.database.measuredAt ? formatDateTime(detail.database.measuredAt) : '—'}
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">
+                    MQTT Admin · <span className={detail.mqtt.status === 'UP' ? 'text-emerald-600' : detail.mqtt.status === 'DEGRADED' ? 'text-amber-600' : 'text-red-600'}>{detail.mqtt.status}</span>
+                  </div>
+                  <div className="text-slate-500">
+                    {detail.mqtt.adminConnection === null
+                      ? 'Koneksi admin: — (tidak dilaporkan server)'
+                      : (
+                        <>
+                          Koneksi admin: {detail.mqtt.adminConnection.connected === null ? '—' : detail.mqtt.adminConnection.connected ? 'Terhubung' : 'Terputus'}
+                          {' · '}Plugin siap: {detail.mqtt.adminConnection.pluginReady === null ? '—' : detail.mqtt.adminConnection.pluginReady ? 'Ya' : 'Tidak'}
+                        </>
+                      )}
+                  </div>
+                  <div className="text-slate-500">
+                    Klien: {detail.mqtt.clientsCount ?? '—'}
+                    {detail.mqtt.adminConnection?.lastError ? ` · Galat terakhir: ${detail.mqtt.adminConnection.lastError}` : ''}
+                  </div>
+                  <div className="text-slate-400">
+                    Diukur: {detail.mqtt.measuredAt ? formatDateTime(detail.mqtt.measuredAt) : '—'}
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-slate-50 dark:bg-slate-800/50 space-y-1">
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">
+                    WebSocket · <span className={detail.websocket.status === 'UP' ? 'text-emerald-600' : 'text-red-600'}>{detail.websocket.status}</span>
+                  </div>
+                  <div className="text-slate-500">Klien: {detail.websocket.clients ?? '—'}</div>
+                  <div className="text-slate-400">
+                    Diukur: {detail.websocket.measuredAt ? formatDateTime(detail.websocket.measuredAt) : '—'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  {detailUnavailable
+                    ? 'Detail infrastruktur hanya tersedia untuk ADMIN di jaringan lokal pabrik.'
+                    : 'Memuat detail infrastruktur...'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Nullable Ingestion Metrics */}
@@ -156,7 +264,7 @@ export const SystemHealthPage: React.FC = () => {
                   <span className="text-slate-400 block">Terakhir Diterima</span>
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                     {health.metrics.lastIngestedAt
-                      ? new Date(health.metrics.lastIngestedAt).toLocaleString()
+                      ? formatDateTime(health.metrics.lastIngestedAt)
                       : 'Belum ada'}
                   </span>
                 </div>

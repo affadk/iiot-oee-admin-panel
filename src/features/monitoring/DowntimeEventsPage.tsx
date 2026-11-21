@@ -1,31 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy';
+import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Tag, RefreshCw, Activity } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { apiClient } from '../../services/api/client';
 import { DowntimeCategory, DowntimeEvent } from '../../types/monitoring';
-import { ExportFormat, TimeWindowPreset } from '../../types/historical';
-import { ApiError } from '../../types/auth';
-import { useAuth } from '../../context/AuthContext';
-import { Badge } from '../../components/ui/Badge';
+import { TimeWindowPreset } from '../../types/historical';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { DataTable } from '../../components/industrial/DataTable';
 import { DowntimeReasonModal } from './DowntimeReasonModal';
 import { HistoricalExportToolbar } from '../../components/industrial/HistoricalExportToolbar';
 import {
   DEFAULT_HISTORY_PAGE_LIMIT,
-  mapDowntimeToSixBigLoss,
   resolveTimeWindowPreset,
-  triggerBrowserDownload,
-  withExportAbortTimeout,
 } from '../../utils/historicalExport';
-import { formatDuration, formatDeletedRelationLabel } from '../../utils/oeeCalculations';
 import { useHistoryFilters } from '../shared/historyFilters';
 import {
   HISTORY_DATA_STALE_TIME_MS,
   useDowntimeHistoryQuery,
   useMasterAssetsQuery,
 } from '../shared/useHistoricalQueries';
+import { resolveDefaultDeviceId } from '../shared/defaultDevice';
+import { useDowntimeExport } from './hooks/useDowntimeExport';
+import { useDowntimeEventColumns } from './hooks/useDowntimeEventColumns';
 
 const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label: string }> = [
   { value: 'ALL', label: 'Semua Kategori' },
@@ -39,52 +36,66 @@ const DOWNTIME_CATEGORY_OPTIONS: Array<{ value: 'ALL' | DowntimeCategory; label:
   { value: 'REST_BREAK', label: 'REST_BREAK' },
   { value: 'CLEANING_5S', label: 'CLEANING_5S' },
   { value: 'OTHER', label: 'OTHER' },
+  // E23 Batch 3 (FAT-194, N-25): 'UNKNOWN' = server tidak mengirim
+  // kategori (bukan nilai POST /reason) — filter sisi klien.
+  { value: 'UNKNOWN', label: 'Belum dikategorikan' },
 ];
 
 export const DowntimeEventsPage: React.FC = () => {
-  const { reportForbidden, checkCapability } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
   const { filters, isValid, validationErrors, updateFilters, resetFilters } = useHistoryFilters({
-    deviceId: 'STM32-OEE-01',
+    // E28 Batch B (FAT-170, N-2): TANPA default device hardcode — device
+    // dipilih dari daftar live di bawah (online dulu); bila URL membawa
+    // device_id, nilai itu yang menang.
     limit: DEFAULT_HISTORY_PAGE_LIMIT,
   });
 
+  // Tab awal 'history' hanya bila URL secara eksplisit meminta device
+  // (tautan silang); tanpa itu tab 'active' — dulu memakai perbandingan
+  // dengan hardcode 'STM32-OEE-01' sebagai penanda default.
   const [activeTab, setActiveTab] = useState<'active' | 'history'>(() =>
-    filters.deviceId && filters.deviceId !== 'STM32-OEE-01' ? 'history' : 'active'
+    searchParams.get('device_id') ? 'history' : 'active'
   );
   const [customDeviceInput, setCustomDeviceInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const activeCursor = cursorStack[cursorStack.length - 1];
 
-  const selectedDeviceId = filters.deviceId || 'STM32-OEE-01';
+  // E28 Batch B (FAT-170, N-2): default dari daftar live (online dulu,
+  // lalu pertama); daftar kosong → tanpa default + empty state di bawah.
+  const { data: masterData, isLoading: devicesLoading } = useMasterAssetsQuery();
+  const devices = masterData?.devices ?? [];
+  const derivedDefaultDevice = resolveDefaultDeviceId(devices);
+  const selectedDeviceId = filters.deviceId ?? derivedDefaultDevice ?? '';
 
   const [preset, setPreset] = useState<TimeWindowPreset>('7d');
-  const [isExporting, setIsExporting] = useState(false);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [exportError, setExportError] = useState<{
-    code?: string;
-    status?: number;
-    message: string;
-  } | null>(null);
-  const [lastExport, setLastExport] = useState<Awaited<
-    ReturnType<typeof apiClient.exportDowntimeData>
-  > | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<DowntimeEvent | null>(null);
 
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const t = setInterval(() => setCooldownSeconds((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(t);
-  }, [cooldownSeconds]);
+  // E31.5 (FAT-268): ekspor + cooldown tinggal di hook sendiri.
+  const {
+    isExporting,
+    cooldownSeconds,
+    exportError,
+    setExportError,
+    lastExport,
+    setLastExport,
+    handleExport,
+  } = useDowntimeExport({
+    deviceId: selectedDeviceId,
+    filters: {
+      category: filters.category,
+      from: filters.from,
+      to: filters.to,
+      unlabeledOnly: filters.unlabeledOnly,
+      activeOnly: filters.activeOnly,
+    },
+  });
 
   const handleFilterChange = (patch: Parameters<typeof updateFilters>[0]) => {
     setCursorStack([undefined]);
     updateFilters(patch);
   };
-
-  const { data: masterData } = useMasterAssetsQuery();
-  const devices = masterData?.devices ?? [];
 
   const activeQueueQuery = useQuery({
     queryKey: ['active-downtimes'],
@@ -112,174 +123,15 @@ export const DowntimeEventsPage: React.FC = () => {
     }
   };
 
-  const handleExport = async (format: ExportFormat) => {
-    if (!selectedDeviceId || isExporting || cooldownSeconds > 0) return;
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      const result = await withExportAbortTimeout(undefined, (signal) =>
-        apiClient.exportDowntimeData(
-          {
-            device_id: selectedDeviceId,
-            category: filters.category,
-            from: filters.from,
-            to: filters.to,
-            unlabeled_only: filters.unlabeledOnly || undefined,
-            active_only: filters.activeOnly || undefined,
-            format,
-          },
-          signal
-        )
-      );
-      setLastExport(result);
-      triggerBrowserDownload(result.filename, result.content, result.mimeType);
-    } catch (err: unknown) {
-      if (err instanceof ApiError && err.httpStatus === 403) {
-        reportForbidden('export.telemetry', selectedDeviceId, err.message);
-      }
-      const status =
-        err instanceof ApiError
-          ? err.httpStatus
-          : (err as { status?: number })?.status;
-      if (status === 429) {
-        setCooldownSeconds(30);
-      }
-      setExportError({
-        code: (err as { code?: string })?.code,
-        status,
-        message: err instanceof Error ? err.message : 'Gagal mengekspor data historis downtime.',
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const handleClassificationSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['active-downtimes'] });
     queryClient.invalidateQueries({ queryKey: ['downtime'] });
   };
 
-  const columns = useMemo<ColumnDef<DowntimeEvent, unknown>[]>(
-    () => [
-      {
-        id: 'machine',
-        header: 'Mesin & Perangkat',
-        cell: ({ row }) => {
-          const ev = row.original;
-          const machLbl = formatDeletedRelationLabel(ev.machine_name, ev.machine_id);
-          const devLbl = formatDeletedRelationLabel(ev.device_id, null);
-          return (
-            <div className="text-xs">
-              <div
-                className={
-                  machLbl.isDeleted
-                    ? 'italic text-slate-400'
-                    : 'font-semibold text-slate-900 dark:text-slate-100'
-                }
-              >
-                {machLbl.label}
-              </div>
-              <div className="text-[11px] font-tabular text-slate-400">
-                {devLbl.isDeleted ? '[dihapus]' : ev.device_id}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'category',
-        header: 'Six Big Losses & Kategori',
-        cell: ({ row }) => {
-          const ev = row.original;
-          const sbl = mapDowntimeToSixBigLoss(ev.category);
-          return (
-            <div className="text-xs">
-              <div className="font-medium text-slate-800 dark:text-slate-200">{ev.category}</div>
-              <div className="text-[11px] text-sky-600 dark:text-sky-400">{sbl.label}</div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'reason',
-        header: 'Alasan / Catatan',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return (
-            <div className="text-xs max-w-xs">
-              <div className="text-slate-800 dark:text-slate-200">{ev.reason}</div>
-              {ev.notes && (
-                <div className="text-[11px] text-slate-500 mt-0.5 italic">Note: {ev.notes}</div>
-              )}
-            </div>
-          );
-        },
-      },
-      {
-        id: 'duration',
-        header: 'Durasi & Waktu',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return (
-            <div className="text-xs font-tabular">
-              <div className="font-semibold text-slate-900 dark:text-slate-100">
-                {ev.durationFormatted || formatDuration(ev.duration_seconds)}
-              </div>
-              <div className="text-[11px] text-slate-400">
-                {new Date(ev.started_at).toLocaleString()}
-                {ev.ended_at === null && ' (Ongoing)'}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'status',
-        header: 'Status Label',
-        cell: ({ row }) => {
-          const ev = row.original;
-          return ev.is_labeled ? (
-            <div className="space-y-1">
-              <Badge variant="success">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Labeled
-              </Badge>
-              {ev.is_overwrite && (
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                  Overwritten
-                </div>
-              )}
-            </div>
-          ) : (
-            <Badge variant="danger">Unlabeled</Badge>
-          );
-        },
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Klasifikasi</div>,
-        cell: ({ row }) => {
-          const ev = row.original;
-          const rowLabelCap = checkCapability('downtime.reason.label', ev.id);
-          return (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant={ev.is_labeled ? 'outline' : 'primary'}
-                disabled={!rowLabelCap.canInteract}
-                title={!rowLabelCap.canInteract ? rowLabelCap.reason : 'Labeli / overwrite alasan downtime'}
-                onClick={() => setSelectedEvent(ev)}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>{ev.is_labeled ? 'Overwrite' : 'Label'}</span>
-              </Button>
-            </div>
-          );
-        },
-      },
-    ],
-    [checkCapability]
-  );
+  // E31.5 (FAT-268): kolom tabel tinggal di hook sendiri (pola
+  // useOperationalEventColumns — hook itu tidak dipakai ulang karena
+  // tipenya berbeda: OperationalEvent + ack vs DowntimeEvent + label).
+  const columns = useDowntimeEventColumns(setSelectedEvent);
 
   const displayedEvents = activeTab === 'active' ? activeDowntimes : historyEvents;
   const unlabeledCount = displayedEvents.filter((e) => !e.is_labeled).length;
@@ -369,27 +221,13 @@ export const DowntimeEventsPage: React.FC = () => {
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label
-                  htmlFor="downtime-device-select"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1"
-                >
-                  Target Edge Device (Per-Device)
-                </label>
-                <select
-                  id="downtime-device-select"
-                  value={selectedDeviceId}
-                  onChange={(e) => handleFilterChange({ deviceId: e.target.value })}
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-                >
-                  {deviceOptions.map((d) => (
-                    <option key={d.device_id} value={d.device_id}>
-                      {d.device_id} {d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}
-                    </option>
-                  ))}
-                  <option value="STM32-OEE-90-DEL">STM32-OEE-90-DEL — [dihapus] (Histori)</option>
-                </select>
-              </div>
+              <Select
+                id="downtime-device-select"
+                label="Target Edge Device (Per-Device)"
+                value={selectedDeviceId}
+                onChange={(e) => handleFilterChange({ deviceId: e.target.value })}
+                options={[...deviceOptions.map((d) => ({ value: d.device_id, label: `${d.device_id} ${d.bound_machine_name ? `— ${d.bound_machine_name}` : ''}` })), { value: 'STM32-OEE-90-DEL', label: 'STM32-OEE-90-DEL — [dihapus] (Histori)' }]}
+              />
 
               <div>
                 <label
@@ -421,30 +259,16 @@ export const DowntimeEventsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label
-                  htmlFor="downtime-category-select"
-                  className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1"
-                >
-                  Kategori Downtime
-                </label>
-                <select
-                  id="downtime-category-select"
-                  value={filters.category ?? 'ALL'}
-                  onChange={(e) =>
+              <Select
+                id="downtime-category-select"
+                label="Kategori Downtime"
+                value={filters.category ?? 'ALL'}
+                onChange={(e) =>
                     handleFilterChange({
                       category: e.target.value === 'ALL' ? undefined : e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
-                >
-                  {DOWNTIME_CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    })}
+                options={DOWNTIME_CATEGORY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+              />
 
               <div className="flex flex-col justify-end gap-1.5 pb-0.5">
                 <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
@@ -494,6 +318,18 @@ export const DowntimeEventsPage: React.FC = () => {
             scopeLabel={`Perangkat: ${selectedDeviceId}`}
             cooldownSeconds={cooldownSeconds}
           />
+
+          {/* E28 Batch B (FAT-170): daftar device sudah dimuat tapi kosong
+              — tidak ada default yang bisa dipilih; sampaikan eksplisit. */}
+          {!devicesLoading && !selectedDeviceId && (
+            <div
+              role="status"
+              className="p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-900 dark:text-amber-200"
+            >
+              Belum ada perangkat edge yang terdaftar — daftarkan perangkat dulu di halaman Devices
+              sebelum melihat riwayat downtime per perangkat.
+            </div>
+          )}
         </>
       )}
 
@@ -519,7 +355,9 @@ export const DowntimeEventsPage: React.FC = () => {
         emptyDescription={
           activeTab === 'active'
             ? 'Semua mesin saat ini tidak memiliki insiden henti aktif.'
-            : `Tidak ada riwayat downtime untuk ${selectedDeviceId} sesuai filter aktif.`
+            : selectedDeviceId
+              ? `Tidak ada riwayat downtime untuk ${selectedDeviceId} sesuai filter aktif.`
+              : 'Belum ada perangkat yang dipilih — daftar device kosong.'
         }
         emptyActionLabel={activeTab === 'history' ? 'Reset Filter' : undefined}
         onEmptyAction={activeTab === 'history' ? resetFilters : undefined}

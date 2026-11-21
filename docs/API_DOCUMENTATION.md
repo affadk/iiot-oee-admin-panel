@@ -1,5 +1,13 @@
 # IIoT OEE Backend API Documentation
 
+> **Catatan 19 Nov 2026 (E20):** salinan ini adalah API docs **lama**
+> (sebelum backend upgrade). Sumber kebenaran kini API docs terupdate
+> (`~/workspace/user/files/pasted-text.txt`) — diff panel vs api_docs di
+> `docs/API_SYNC_DIFF.md`, diff yang perlu ditinjau kembali di
+> `docs/API_SYNC_REVIEW.md`. Satu perbedaan yang diketahui: namespace WS di
+> salinan ini masih menyebut `DOWNTIME_STARTED|DOWNTIME_ENDED` (baris 1578);
+> bentuk kanonis baru `DOWNTIME_EVENT_OPENED|DOWNTIME_EVENT_CLOSED`.
+
 **Fastify 5.x Ingestion Daemon, MQTT Engine & Real-time WebSocket Relay**
 
 Dokumentasi teknis resmi untuk seluruh endpoint REST API dan koneksi WebSocket pada sistem **IIoT OEE (Overall Equipment Effectiveness)**.

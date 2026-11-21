@@ -24,11 +24,10 @@ test('IAM anti-lockout: DENY policy on ADMIN role is strictly rejected', async (
   await assert.rejects(
     async () => {
       await apiClient.createIamPolicy({
-        role: 'ADMIN',
-        action: 'manage:access_control',
-        resource_pattern: 'org:*',
-        eft: 'DENY',
-        is_active: true,
+        roleId: 'role-admin',
+        permissionId: 'perm-10',
+        resourcePattern: 'org:*',
+        effect: 'DENY',
       });
     },
     {
@@ -61,29 +60,31 @@ test('IAM anti-lockout: Disabling root ADMIN policy & revoking ADM-001 ADMIN rol
   );
 });
 
-test('IAM privilege guards: system roles, >29 custom role ceiling, and reserved permissions are blocked', async () => {
+test('IAM privilege guards: only ADMIN immutable (403 ROLE_IMMUTABLE), reserved name blocked, reserved permissions blocked', async () => {
   await assert.rejects(
     async () => {
       await apiClient.deleteIamRole('role-admin');
     },
-    {
-      message: /Role sistem .* dilindungi/,
-    }
+    (err: any) => err.httpStatus === 403 && err.code === 'ROLE_IMMUTABLE' && /immutable/.test(err.message)
   );
 
   await assert.rejects(
     async () => {
       await apiClient.createIamRole({
-        name: 'PSEUDO_ADMIN',
-        privilege_level: 35,
-        description: 'Should fail ceiling check',
+        name: 'ADMIN',
+        description: 'Should fail — reserved immutable name',
       });
     },
-    (err: any) =>
-      err.httpStatus === 400 &&
-      err.code === 'VALIDATION_ERROR' &&
-      Array.isArray(err.issues) &&
-      err.issues.some((i: any) => i.field === 'privilege_level' && /29/.test(i.message))
+    (err: any) => err.httpStatus === 403 && /dicadangkan/.test(err.message)
+  );
+
+  // Preset lain BUKAN immutable: SUPERVISOR bisa dihapus bila tak terpakai
+  // (di sini masih ter-assign → 409 ROLE_IN_USE, bukan 403).
+  await assert.rejects(
+    async () => {
+      await apiClient.deleteIamRole('role-supervisor');
+    },
+    (err: any) => err.httpStatus === 409 && err.code === 'ROLE_IN_USE' && /SUP-042/.test(err.message)
   );
 
   await assert.rejects(
@@ -96,31 +97,27 @@ test('IAM privilege guards: system roles, >29 custom role ceiling, and reserved 
   );
 });
 
-test('SUPERVISOR privilege ceiling: cannot create or toggle ADMIN/SUPERVISOR accounts', async () => {
+test('ADMIN singleton: SUPERVISOR cannot create ADMIN accounts; ADM-001 toggle → 400 PROTECTED_ACCOUNT', async () => {
   apiClient.setNetworkMode('LAN');
   apiClient.setUserRole('SUPERVISOR');
 
   await assert.rejects(
     async () => {
       await apiClient.createOperator({
-        operator_id: 'SUP-999',
-        name: 'Illegal Supervisor',
-        role: 'SUPERVISOR',
+        operator_id: 'ADM-999',
+        name: 'Illegal Admin',
+        role: 'ADMIN',
         password: 'Password123!',
       });
     },
-    {
-      message: /tidak berhak membuat akun dengan peran SUPERVISOR/,
-    }
+    (err: any) => err.httpStatus === 403 && err.code === 'ADMIN_SINGLETON_DENIED'
   );
 
   await assert.rejects(
     async () => {
       await apiClient.toggleOperatorStatus('ADM-001', false);
     },
-    {
-      message: /tidak dapat mengubah status akun ADMIN/,
-    }
+    (err: any) => err.httpStatus === 400 && err.code === 'PROTECTED_ACCOUNT'
   );
 
   apiClient.setUserRole('ADMIN');
@@ -158,7 +155,7 @@ test('Operational Event acknowledgement logs optional operator note in audit tra
 
   const updated = await apiClient.acknowledgeOperationalEvent(target.id, 'Checked coolant pump pressure');
   assert.equal(updated.acknowledged, true);
-  assert.match(store.auditLogs[0].details, /Checked coolant pump pressure/);
+  assert.match(store.operationalEvents[0].description, /Checked coolant pump pressure/);
 
   apiClient.setUserRole('ADMIN');
 });
@@ -170,7 +167,7 @@ test('Protected accounts (is_protected) block deactivation, role downgrade, and 
 
   await assert.rejects(
     () => apiClient.toggleOperatorStatus('ADM-001', false),
-    (err: any) => err.httpStatus === 403 && err.code === 'PROTECTED_ACCOUNT'
+    (err: any) => err.httpStatus === 400 && err.code === 'PROTECTED_ACCOUNT'
   );
   await assert.rejects(
     () => apiClient.updateOperator('ADM-001', { role: 'OPERATOR' }),
@@ -190,17 +187,16 @@ test('Reserved permissions cannot be granted to custom roles via createIamPolicy
   await assert.rejects(
     () =>
       apiClient.createIamPolicy({
-        role: 'QUALITY_AUDITOR',
-        action: 'manage',
-        resource_pattern: 'access_control:*',
-        eft: 'ALLOW',
-        is_active: true,
+        roleId: 'role-quality-auditor',
+        permissionId: 'perm-10',
+        resourcePattern: 'access_control:*',
+        effect: 'ALLOW',
       }),
     (err: any) => err.httpStatus === 403 && err.code === 'PRIVILEGE_ESCALATION_DENIED'
   );
 });
 
-test('Stale authz_version triggers 401 AUTHZ_VERSION_STALE and fires onUnauthorized session termination', async () => {
+test('Stale authz_version triggers 401 AUTHZ_STALE and fires onUnauthorized session termination', async () => {
   apiClient.setNetworkMode('LAN');
   apiClient.setUserRole('ADMIN');
   apiClient.setSessionActive(true);
@@ -217,9 +213,9 @@ test('Stale authz_version triggers 401 AUTHZ_VERSION_STALE and fires onUnauthori
 
   await assert.rejects(
     () => apiClient.getOperators(),
-    (err: any) => err.httpStatus === 401 && err.code === 'AUTHZ_VERSION_STALE'
+    (err: any) => err.httpStatus === 401 && err.code === 'AUTHZ_STALE'
   );
-  assert.match(unauthorizedReason, /Sesi berakhir|authz_version/i);
+  assert.match(unauthorizedReason, /Hak akses akun berubah|AUTHZ_STALE/i);
 
   // Restore healthy session & clear hooks
   apiClient.setSessionActive(true);
@@ -235,12 +231,10 @@ test('Enforce mode DENY policy blocks SUPERVISOR action and records DENY decisio
   const prevMode = store.iamInfo.mode;
   apiClient.setIamMode('enforce');
   const denyPol = await apiClient.createIamPolicy({
-    role: 'SUPERVISOR',
-    action: 'refresh:telemetry',
-    resource_pattern: '*',
-    eft: 'DENY',
-    is_active: true,
-    reason: 'Temporary reconciliation freeze',
+    roleId: 'role-supervisor',
+    permissionId: 'perm-06',
+    resourcePattern: '*',
+    effect: 'DENY',
   });
 
   try {
@@ -260,7 +254,7 @@ test('Enforce mode DENY policy blocks SUPERVISOR action and records DENY decisio
   }
 });
 
-test('Predefined IAM permission catalog is unique, comprehensive, and strictly read-only (403 PERMISSION_CATALOG_READ_ONLY)', async () => {
+test('Predefined IAM permission catalog is unique and comprehensive; createIamPermission allowed with INERT_PERMISSION / PERMISSION_EXISTS guards', async () => {
   apiClient.setNetworkMode('LAN');
   apiClient.setUserRole('ADMIN');
   apiClient.setSessionActive(true);
@@ -268,19 +262,21 @@ test('Predefined IAM permission catalog is unique, comprehensive, and strictly r
   const perms = await apiClient.getIamPermissions();
   assert.ok(perms.length >= 22, 'Expected 22 predefined system permissions');
 
-  const keys = perms.map((p) => `${p.action}:${p.resource_type}`);
-  assert.equal(new Set(keys).size, keys.length, 'Predefined permissions must have no duplicate action:resource_type');
+  const keys = perms.map((p) => `${p.action}:${p.resourceType}`);
+  assert.equal(new Set(keys).size, keys.length, 'Predefined permissions must have no duplicate action:resourceType');
 
+  // Kunci katalog memakai bentuk singular sesuai API Documentation
+  // (policy `ack:operational_event`, `create:operator`, `update:operator`).
   for (const required of [
     'read:access_control',
-    'ack:operational_events',
-    'manage:products',
-    'read:operators',
-    'create:operators',
-    'status:operators',
-    'update:operators',
-    'rotate_password:operators',
-    'delete:operators',
+    'ack:operational_event',
+    'manage:product',
+    'read:operator',
+    'create:operator',
+    'update_status:operator',
+    'update:operator',
+    'rotate_password:operator',
+    'delete:operator',
     'read:mqtt_admin',
     'read:mqtt_configuration',
     'read:telemetry',
@@ -288,18 +284,39 @@ test('Predefined IAM permission catalog is unique, comprehensive, and strictly r
     assert.ok(keys.includes(required), `Missing predefined permission: ${required}`);
   }
 
+  // Duplikat pasangan → 409 PERMISSION_EXISTS.
   await assert.rejects(
     () =>
       apiClient.createIamPermission({
         action: 'read',
-        resource_type: 'telemetry',
-        description: 'Fixed catalog read-only check',
+        resourceType: 'telemetry',
+        description: 'Duplicate check',
       }),
-    (err: any) => err.httpStatus === 403 && err.code === 'PERMISSION_CATALOG_READ_ONLY'
+    (err: any) => err.httpStatus === 409 && err.code === 'PERMISSION_EXISTS'
   );
+
+  // Pasangan tanpa rute penjaga → 400 INERT_PERMISSION.
+  await assert.rejects(
+    () =>
+      apiClient.createIamPermission({
+        action: 'teleport',
+        resourceType: 'spaceship',
+        description: 'Inert check',
+      }),
+    (err: any) => err.httpStatus === 400 && err.code === 'INERT_PERMISSION'
+  );
+
+  // Pasangan terjaga yang belum ada di katalog → dibuat.
+  const created = await apiClient.createIamPermission({
+    action: 'read',
+    resourceType: 'quality',
+    description: 'Melihat analitik kualitas',
+  });
+  assert.equal(created.action, 'read');
+  assert.equal(created.resourceType, 'quality');
 });
 
-test('addIamRolePermission supports resourcePattern, effect, abacCondition, reason and blocks DENY on ADMIN', async () => {
+test('addIamRolePermission supports resourcePattern, effect, abacCondition and blocks DENY on ADMIN', async () => {
   apiClient.setNetworkMode('LAN');
   apiClient.setUserRole('ADMIN');
   apiClient.setSessionActive(true);
@@ -314,22 +331,21 @@ test('addIamRolePermission supports resourcePattern, effect, abacCondition, reas
   );
 
   await apiClient.addIamRolePermission('role-quality-auditor', 'perm-12', {
-    resourcePattern: 'operational_events:LINE-01',
+    resourcePattern: 'operational_event:LINE-01',
     effect: 'ALLOW',
     abacCondition: { line_id: 'LINE-01' },
-    reason: 'QA audit ack scoped to Line 01',
   });
 
   const updatedPolicies = await apiClient.getIamPolicies();
   const createdRule = updatedPolicies.find(
     (p) =>
-      p.role_id === 'role-quality-auditor' &&
-      p.permission_id === 'perm-12' &&
-      p.resource_pattern === 'operational_events:LINE-01'
+      p.roleId === 'role-quality-auditor' &&
+      p.permissionId === 'perm-12' &&
+      p.resourcePattern === 'operational_event:LINE-01'
   );
-  assert.ok(createdRule, 'Expected role-permission policy binding with custom resource_pattern');
-  assert.equal(createdRule.eft, 'ALLOW');
-  assert.deepEqual(createdRule.abac_condition, { line_id: 'LINE-01' });
+  assert.ok(createdRule, 'Expected role-permission policy binding with custom resourcePattern');
+  assert.equal(createdRule.effect, 'ALLOW');
+  assert.deepEqual(createdRule.abacCondition, { line_id: 'LINE-01' });
 
   await apiClient.removeIamRolePermission('role-quality-auditor', 'perm-12');
 });

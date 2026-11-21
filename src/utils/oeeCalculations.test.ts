@@ -10,10 +10,15 @@ import {
   canForceReconciliationRefresh,
 } from './oeeCalculations';
 
-test('normalizeFsmState maps legacy and backend states exclusively to 6 canonical FsmStateEnum values', () => {
+test('normalizeFsmState maps legacy and backend states exclusively to canonical FsmStateEnum values', () => {
   assert.equal(normalizeFsmState('RUNNING'), 'RUNNING');
-  assert.equal(normalizeFsmState('STANDBY'), 'READY');
-  assert.equal(normalizeFsmState('standby'), 'READY');
+  // E20 P20.5 (FAT-157, D-4): STANDBY TIDAK dinormalisasi panel — server
+  // yang menormalisasi STANDBY→READY; panel meneruskannya ke UNCONFIGURED
+  // bila lolos, dan OFFLINE adalah nilai item sah (bukan UNCONFIGURED).
+  assert.equal(normalizeFsmState('STANDBY'), 'UNCONFIGURED');
+  assert.equal(normalizeFsmState('standby'), 'UNCONFIGURED');
+  assert.equal(normalizeFsmState('OFFLINE'), 'OFFLINE');
+  assert.equal(normalizeFsmState('offline'), 'OFFLINE');
   assert.equal(normalizeFsmState('READY'), 'READY');
   assert.equal(normalizeFsmState('PLANNED_STOP'), 'PLANNED_DOWNTIME');
   assert.equal(normalizeFsmState('PLANNED_DOWNTIME'), 'PLANNED_DOWNTIME');
